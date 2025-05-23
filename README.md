@@ -1,5 +1,4 @@
 # Odin
-# Advanced Trading Bot
 
 An advanced trading bot featuring:
 
