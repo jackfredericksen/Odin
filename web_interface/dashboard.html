@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitcoin Trading Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 15px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #00ff88;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: #ffffff;
+            opacity: 0.9;
+        }
+
+        .price-display {
+            font-size: 2.8rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .price-change {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .positive { color: #00ff88; }
+        .negative { color: #ff4757; }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .metric-label {
+            opacity: 0.8;
+        }
+
+        .metric-value {
+            font-weight: 600;
+        }
+
+        .chart-container {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 20px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .btn:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn.active {
+            background: #00ff88;
+            color: #1e3c72;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .data-table th,
+        .data-table td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .data-table th {
+            background: rgba(255,255,255,0.1);
+            font-weight: 600;
+        }
+
+        .error-message {
+            background: rgba(255, 71, 87, 0.2);
+            border: 1px solid #ff4757;
+            color: #ff4757;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .price-display {
+                font-size: 2.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Bitcoin Trading Dashboard</h1>
+            <div class="status">
+                <div class="status-dot"></div>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </div>
+
+        <div id="error-container"></div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>💰 Current Price</h3>
+                <div class="price-display" id="current-price">$0.00</div>
+                <div class="price-change" id="price-change">0.00%</div>
+            </div>
+
+            <div class="card">
+                <h3>📊 24h Statistics</h3>
+                <div class="metric">
+                    <span class="metric-label">24h High</span>
+                    <span class="metric-value" id="high-24h">$0.00</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">24h Low</span>
+                    <span class="metric-value" id="low-24h">$0.00</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">24h Volume</span>
+                    <span class="metric-value" id="volume-24h">0 BTC</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>⏱️ System Info</h3>
+                <div class="metric">
+                    <span class="metric-label">Last Update</span>
+                    <span class="metric-value" id="last-update">Never</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Data Points</span>
+                    <span class="metric-value" id="data-points">0</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Data Source</span>
+                    <span class="metric-value">CoinGecko</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h3>📈 Price Chart</h3>
+            <div class="controls">
+                <button class="btn active" onclick="setTimeframe('1h')">1H</button>
+                <button class="btn" onclick="setTimeframe('4h')">4H</button>
+                <button class="btn" onclick="setTimeframe('1d')">1D</button>
+                <button class="btn" onclick="setTimeframe('all')">ALL</button>
+                <button class="btn" onclick="toggleAutoRefresh()">Auto Refresh: ON</button>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📋 Recent Data</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Price</th>
+                        <th>Volume</th>
+                        <th>Change</th>
+                    </tr>
+                </thead>
+                <tbody id="recent-data">
+                    <tr>
+                        <td colspan="4" style="text-align: center; opacity: 0.6;">No data available</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let priceChart;
+        let autoRefresh = true;
+        let currentTimeframe = '1h';
+        let lastPrice = 0;
+        let priceHistory = [];
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initChart();
+            fetchData();
+            startAutoRefresh();
+        });
+
+        // Initialize Chart.js
+        function initChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Bitcoin Price (USD)',
+                        data: [],
+                        borderColor: '#00ff88',
+                        backgroundColor: 'rgba(0, 255, 136, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#00ff88',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'white'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        y: {
+                            ticks: { 
+                                color: 'white',
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+
+        // Fetch real data from your Python API server
+        async function fetchData() {
+            try {
+                updateStatus('Fetching data...', 'connecting');
+                
+                // Fetch current Bitcoin data from your API
+                const response = await fetch('http://localhost:5000/api/current');
+                
+                if (!response.ok) {
+                    throw new Error(`API returned ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.status === 'error') {
+                    throw new Error(data.error);
+                }
+                
+                updateUI(data);
+                updateStatus('Live', 'connected');
+                
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                showError('Failed to connect to API server. Make sure your Python server is running on localhost:5000');
+                updateStatus('Error', 'error');
+                
+                // Fallback to mock data for demonstration
+                console.log('Falling back to mock data...');
+                const mockData = generateMockData();
+                updateUI(mockData);
+            }
+        }
+
+        // Generate mock data as fallback
+        function generateMockData() {
+            const now = new Date();
+            const basePrice = 108500 + (Math.random() - 0.5) * 2000;
+            const change24h = (Math.random() - 0.5) * 10;
+            
+            return {
+                price: basePrice,
+                change24h: change24h,
+                high24h: basePrice + Math.random() * 1000,
+                low24h: basePrice - Math.random() * 1000,
+                volume24h: 45000000000 + Math.random() * 10000000000,
+                timestamp: now.toISOString(),
+                dataPoints: Math.floor(Math.random() * 100) + 50
+            };
+        }
+
+        // Update UI with new data
+        function updateUI(data) {
+            // Update price display
+            document.getElementById('current-price').textContent = '$' + data.price.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+
+            // Update price change
+            const changeElement = document.getElementById('price-change');
+            const changeText = (data.change24h >= 0 ? '+' : '') + data.change24h.toFixed(2) + '%';
+            changeElement.textContent = changeText;
+            changeElement.className = 'price-change ' + (data.change24h >= 0 ? 'positive' : 'negative');
+
+            // Update 24h stats
+            document.getElementById('high-24h').textContent = '$' + data.high24h.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            document.getElementById('low-24h').textContent = '$' + data.low24h.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            document.getElementById('volume-24h').textContent = (data.volume24h / 1000000000).toFixed(2) + 'B';
+
+            // Update system info
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            document.getElementById('data-points').textContent = data.dataPoints;
+
+            // Update chart
+            updateChart(data);
+            
+            // Update recent data table
+            updateRecentDataTable(data);
+
+            lastPrice = data.price;
+        }
+
+        // Update chart with new data
+        function updateChart(data) {
+            const now = new Date();
+            const timeLabel = now.toLocaleTimeString();
+            
+            priceHistory.push({
+                time: timeLabel,
+                price: data.price,
+                timestamp: now
+            });
+
+            // Keep only recent data based on timeframe
+            const maxPoints = getMaxPointsForTimeframe(currentTimeframe);
+            if (priceHistory.length > maxPoints) {
+                priceHistory = priceHistory.slice(-maxPoints);
+            }
+
+            // Update chart
+            priceChart.data.labels = priceHistory.map(item => item.time);
+            priceChart.data.datasets[0].data = priceHistory.map(item => item.price);
+            priceChart.update('none');
+        }
+
+        // Update recent data table
+        function updateRecentDataTable(data) {
+            const tbody = document.getElementById('recent-data');
+            const now = new Date();
+            
+            // Create new row
+            const row = document.createElement('tr');
+            const change = lastPrice ? ((data.price - lastPrice) / lastPrice * 100) : 0;
+            
+            row.innerHTML = `
+                <td>${now.toLocaleTimeString()}</td>
+                <td>$${data.price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td>${(data.volume24h / 1000000000).toFixed(2)}B</td>
+                <td class="${change >= 0 ? 'positive' : 'negative'}">${change >= 0 ? '+' : ''}${change.toFixed(2)}%</td>
+            `;
+
+            // Add to top of table
+            if (tbody.children.length === 1 && tbody.children[0].children.length === 1) {
+                tbody.innerHTML = '';
+            }
+            tbody.insertBefore(row, tbody.firstChild);
+
+            // Keep only last 10 rows
+            while (tbody.children.length > 10) {
+                tbody.removeChild(tbody.lastChild);
+            }
+        }
+
+        // Utility functions
+        function updateStatus(text, type) {
+            document.getElementById('status-text').textContent = text;
+            const dot = document.querySelector('.status-dot');
+            
+            switch(type) {
+                case 'connected':
+                    dot.style.background = '#00ff88';
+                    break;
+                case 'connecting':
+                    dot.style.background = '#ffa500';
+                    break;
+                case 'error':
+                    dot.style.background = '#ff4757';
+                    break;
+            }
+        }
+
+        function showError(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div class="error-message">${message}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        function getMaxPointsForTimeframe(timeframe) {
+            switch(timeframe) {
+                case '1h': return 60;
+                case '4h': return 240;
+                case '1d': return 1440;
+                case 'all': return 10000;
+                default: return 60;
+            }
+        }
+
+        // Control functions
+        function setTimeframe(timeframe) {
+            currentTimeframe = timeframe;
+            
+            // Update active button
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Filter data based on timeframe
+            const now = new Date();
+            let cutoffTime;
+            
+            switch(timeframe) {
+                case '1h':
+                    cutoffTime = new Date(now - 60 * 60 * 1000);
+                    break;
+                case '4h':
+                    cutoffTime = new Date(now - 4 * 60 * 60 * 1000);
+                    break;
+                case '1d':
+                    cutoffTime = new Date(now - 24 * 60 * 60 * 1000);
+                    break;
+                case 'all':
+                    cutoffTime = new Date(0);
+                    break;
+            }
+            
+            const filteredHistory = priceHistory.filter(item => item.timestamp >= cutoffTime);
+            priceChart.data.labels = filteredHistory.map(item => item.time);
+            priceChart.data.datasets[0].data = filteredHistory.map(item => item.price);
+            priceChart.update();
+        }
+
+        function toggleAutoRefresh() {
+            autoRefresh = !autoRefresh;
+            const btn = event.target;
+            btn.textContent = `Auto Refresh: ${autoRefresh ? 'ON' : 'OFF'}`;
+            
+            if (autoRefresh) {
+                startAutoRefresh();
+            }
+        }
+
+        function startAutoRefresh() {
+            if (autoRefresh) {
+                setTimeout(() => {
+                    fetchData();
+                    startAutoRefresh();
+                }, 5000); // Refresh every 5 seconds
+            }
+        }
+    </script>
+</body>
+</html>
