@@ -1,7 +1,0 @@
-ccxt
-backtrader
-yfinance
-streamlit
-plotly
-pyyaml
-pandas
