@@ -18,9 +18,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'strategies'))
 
 try:
     from ma_crossover import MovingAverageCrossoverStrategy
+    from rsi_strategy import RSIStrategy
+    from bollinger_bands import BollingerBandsStrategy
+    from macd_strategy import MACDStrategy
     STRATEGY_AVAILABLE = True
-except ImportError:
-    print("⚠️ Strategy module not found. Strategy endpoints will be disabled.")
+except ImportError as e:
+    print(f"⚠️ Strategy module not found: {e}. Strategy endpoints will be disabled.")
     STRATEGY_AVAILABLE = False
 
 class BitcoinDataCollector:
@@ -267,9 +270,15 @@ CORS(app)  # Enable CORS for web dashboard
 # Global collector and strategy instances
 collector = BitcoinDataCollector()
 if STRATEGY_AVAILABLE:
-    strategy = MovingAverageCrossoverStrategy()
+    ma_strategy = MovingAverageCrossoverStrategy()
+    rsi_strategy = RSIStrategy()
+    bb_strategy = BollingerBandsStrategy()
+    macd_strategy = MACDStrategy()
 else:
-    strategy = None
+    ma_strategy = None
+    rsi_strategy = None
+    bb_strategy = None
+    macd_strategy = None
 
 @app.route('/api/current', methods=['GET'])
 def get_current_data():
@@ -370,45 +379,221 @@ def get_stats():
     except Exception as e:
         return jsonify({'error': str(e), 'status': 'error'}), 500
 
-@app.route('/api/strategy/analysis', methods=['GET'])
-def get_strategy_analysis():
-    """Get current strategy analysis"""
-    if not STRATEGY_AVAILABLE or strategy is None:
-        return jsonify({'error': 'Strategy not available', 'status': 'error'}), 503
+@app.route('/api/strategy/ma/analysis', methods=['GET'])
+def get_ma_strategy_analysis():
+    """Get current MA strategy analysis"""
+    if not STRATEGY_AVAILABLE or ma_strategy is None:
+        return jsonify({'error': 'MA Strategy not available', 'status': 'error'}), 503
     
     try:
-        analysis = strategy.analyze_current_market()
+        analysis = ma_strategy.analyze_current_market()
         return jsonify(analysis)
     except Exception as e:
         return jsonify({'error': str(e), 'status': 'error'}), 500
 
-@app.route('/api/strategy/backtest/<int:hours>', methods=['GET'])
-def get_strategy_backtest(hours):
-    """Get strategy backtest results"""
-    if not STRATEGY_AVAILABLE or strategy is None:
-        return jsonify({'error': 'Strategy not available', 'status': 'error'}), 503
+@app.route('/api/strategy/ma/backtest/<int:hours>', methods=['GET'])
+def get_ma_strategy_backtest(hours):
+    """Get MA strategy backtest results"""
+    if not STRATEGY_AVAILABLE or ma_strategy is None:
+        return jsonify({'error': 'MA Strategy not available', 'status': 'error'}), 503
     
     try:
-        backtest_results = strategy.backtest(hours=hours)
+        backtest_results = ma_strategy.backtest(hours=hours)
         return jsonify(backtest_results)
     except Exception as e:
         return jsonify({'error': str(e), 'status': 'error'}), 500
 
+@app.route('/api/strategy/rsi/analysis', methods=['GET'])
+def get_rsi_strategy_analysis():
+    """Get current RSI strategy analysis"""
+    if not STRATEGY_AVAILABLE or rsi_strategy is None:
+        return jsonify({'error': 'RSI Strategy not available', 'status': 'error'}), 503
+    
+    try:
+        analysis = rsi_strategy.analyze_current_market()
+        return jsonify(analysis)
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/rsi/backtest/<int:hours>', methods=['GET'])
+def get_rsi_strategy_backtest(hours):
+    """Get RSI strategy backtest results"""
+    if not STRATEGY_AVAILABLE or rsi_strategy is None:
+        return jsonify({'error': 'RSI Strategy not available', 'status': 'error'}), 503
+    
+    try:
+        backtest_results = rsi_strategy.backtest(hours=hours)
+        return jsonify(backtest_results)
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/rsi/summary/<int:hours>', methods=['GET'])
+def get_rsi_signals_summary(hours):
+    """Get RSI signals summary"""
+    if not STRATEGY_AVAILABLE or rsi_strategy is None:
+        return jsonify({'error': 'RSI Strategy not available', 'status': 'error'}), 503
+    
+    try:
+        summary = rsi_strategy.get_rsi_signals_summary(hours=hours)
+        if summary is None:
+            return jsonify({'error': 'Not enough data for summary', 'status': 'error'}), 404
+        
+        return jsonify({
+            'summary': summary,
+            'status': 'success'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/bb/analysis', methods=['GET'])
+def get_bb_strategy_analysis():
+    """Get current Bollinger Bands strategy analysis"""
+    if not STRATEGY_AVAILABLE or bb_strategy is None:
+        return jsonify({'error': 'Bollinger Bands Strategy not available', 'status': 'error'}), 503
+    
+    try:
+        analysis = bb_strategy.analyze_current_market()
+        return jsonify(analysis)
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/bb/backtest/<int:hours>', methods=['GET'])
+def get_bb_strategy_backtest(hours):
+    """Get Bollinger Bands strategy backtest results"""
+    if not STRATEGY_AVAILABLE or bb_strategy is None:
+        return jsonify({'error': 'Bollinger Bands Strategy not available', 'status': 'error'}), 503
+    
+    try:
+        backtest_results = bb_strategy.backtest(hours=hours)
+        return jsonify(backtest_results)
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/macd/analysis', methods=['GET'])
+def get_macd_strategy_analysis():
+    """Get current MACD strategy analysis"""
+    if not STRATEGY_AVAILABLE or macd_strategy is None:
+        return jsonify({'error': 'MACD Strategy not available', 'status': 'error'}), 503
+    
+    try:
+        analysis = macd_strategy.analyze_current_market()
+        return jsonify(analysis)
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/macd/backtest/<int:hours>', methods=['GET'])
+def get_macd_strategy_backtest(hours):
+    """Get MACD strategy backtest results"""
+    if not STRATEGY_AVAILABLE or macd_strategy is None:
+        return jsonify({'error': 'MACD Strategy not available', 'status': 'error'}), 503
+    
+    try:
+        backtest_results = macd_strategy.backtest(hours=hours)
+        return jsonify(backtest_results)
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/compare/all/<int:hours>', methods=['GET'])
+def compare_all_strategies(hours):
+    """Compare all four strategies"""
+    if not STRATEGY_AVAILABLE:
+        return jsonify({'error': 'Strategies not available', 'status': 'error'}), 503
+    
+    try:
+        strategies = {}
+        
+        # Get backtest results for all strategies
+        if ma_strategy:
+            ma_results = ma_strategy.backtest(hours=hours)
+            if 'error' not in ma_results:
+                strategies['MA'] = {
+                    'name': ma_results['strategy'],
+                    'return_percent': ma_results['total_return_percent'],
+                    'total_trades': ma_results['total_trades'],
+                    'win_rate': ma_results['win_rate_percent'],
+                    'final_value': ma_results['final_value']
+                }
+        
+        if rsi_strategy:
+            rsi_results = rsi_strategy.backtest(hours=hours)
+            if 'error' not in rsi_results:
+                strategies['RSI'] = {
+                    'name': rsi_results['strategy'],
+                    'return_percent': rsi_results['total_return_percent'],
+                    'total_trades': rsi_results['total_trades'],
+                    'win_rate': rsi_results['win_rate_percent'],
+                    'final_value': rsi_results['final_value']
+                }
+        
+        if bb_strategy:
+            bb_results = bb_strategy.backtest(hours=hours)
+            if 'error' not in bb_results:
+                strategies['BB'] = {
+                    'name': bb_results['strategy'],
+                    'return_percent': bb_results['total_return_percent'],
+                    'total_trades': bb_results['total_trades'],
+                    'win_rate': bb_results['win_rate_percent'],
+                    'final_value': bb_results['final_value']
+                }
+        
+        if macd_strategy:
+            macd_results = macd_strategy.backtest(hours=hours)
+            if 'error' not in macd_results:
+                strategies['MACD'] = {
+                    'name': macd_results['strategy'],
+                    'return_percent': macd_results['total_return_percent'],
+                    'total_trades': macd_results['total_trades'],
+                    'win_rate': macd_results['win_rate_percent'],
+                    'final_value': macd_results['final_value']
+                }
+        
+        if not strategies:
+            return jsonify({'error': 'No strategies have enough data', 'status': 'error'}), 404
+        
+        # Find the winner (best return)
+        winner = max(strategies.items(), key=lambda x: x[1]['return_percent'])
+        
+        comparison = {
+            'period_hours': hours,
+            'strategies': strategies,
+            'winner': {
+                'name': winner[0],
+                'return_percent': winner[1]['return_percent']
+            },
+            'total_strategies': len(strategies),
+            'status': 'success'
+        }
+        
+        return jsonify(comparison)
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+# Legacy endpoints for backward compatibility
+@app.route('/api/strategy/analysis', methods=['GET'])
+def get_strategy_analysis():
+    """Get current strategy analysis (defaults to MA for backward compatibility)"""
+    return get_ma_strategy_analysis()
+
+@app.route('/api/strategy/backtest/<int:hours>', methods=['GET'])
+def get_strategy_backtest(hours):
+    """Get strategy backtest results (defaults to MA for backward compatibility)"""
+    return get_ma_strategy_backtest(hours)
+
 @app.route('/api/strategy/chart/<int:hours>', methods=['GET'])
 def get_strategy_chart_data(hours):
-    """Get strategy data for charting"""
-    if not STRATEGY_AVAILABLE or strategy is None:
+    """Get strategy data for charting (defaults to MA for backward compatibility)"""
+    if not STRATEGY_AVAILABLE or ma_strategy is None:
         return jsonify({'error': 'Strategy not available', 'status': 'error'}), 503
     
     try:
-        chart_data = strategy.get_strategy_data_for_chart(hours=hours)
+        chart_data = ma_strategy.get_strategy_data_for_chart(hours=hours)
         
         if chart_data is None:
             return jsonify({'error': 'Not enough data for chart', 'status': 'error'}), 404
         
         return jsonify({
             'data': chart_data,
-            'strategy': f'MA({strategy.short_window},{strategy.long_window})',
+            'strategy': f'MA({ma_strategy.short_window},{ma_strategy.long_window})',
             'status': 'success'
         })
     except Exception as e:
