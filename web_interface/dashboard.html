@@ -125,6 +125,41 @@
             font-weight: 600;
         }
 
+        .signal-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .signal-buy {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            border: 1px solid #00ff88;
+        }
+
+        .signal-sell {
+            background: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+            border: 1px solid #ff4757;
+        }
+
+        .signal-none {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .trend-bullish {
+            color: #00ff88;
+        }
+
+        .trend-bearish {
+            color: #ff4757;
+        }
+
         .chart-container {
             background: rgba(255,255,255,0.1);
             border-radius: 15px;
@@ -137,52 +172,6 @@
         .chart-wrapper {
             position: relative;
             height: 400px;
-        }
-
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            background: rgba(255,255,255,0.2);
-            border: none;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 25px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-        }
-
-        .btn:hover {
-            background: rgba(255,255,255,0.3);
-            transform: translateY(-2px);
-        }
-
-        .btn.active {
-            background: #00ff88;
-            color: #1e3c72;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-
-        .data-table th,
-        .data-table td {
-            text-align: left;
-            padding: 12px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .data-table th {
-            background: rgba(255,255,255,0.1);
-            font-weight: 600;
         }
 
         .error-message {
@@ -230,18 +219,22 @@
             </div>
 
             <div class="card">
-                <h3>📊 24h Statistics</h3>
+                <h3>🧠 Strategy Status</h3>
                 <div class="metric">
-                    <span class="metric-label">24h High</span>
-                    <span class="metric-value" id="high-24h">$0.00</span>
+                    <span class="metric-label">Current Signal</span>
+                    <span class="metric-value" id="current-signal">-</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">24h Low</span>
-                    <span class="metric-value" id="low-24h">$0.00</span>
+                    <span class="metric-label">Trend</span>
+                    <span class="metric-value" id="current-trend">-</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">24h Volume</span>
-                    <span class="metric-value" id="volume-24h">0 BTC</span>
+                    <span class="metric-label">MA(5)</span>
+                    <span class="metric-value" id="ma-short">$0.00</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">MA(20)</span>
+                    <span class="metric-value" id="ma-long">$0.00</span>
                 </div>
             </div>
 
@@ -256,43 +249,17 @@
                     <span class="metric-value" id="data-points">0</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">Data Source</span>
-                    <span class="metric-value">CoinGecko</span>
+                    <span class="metric-label">Strategy</span>
+                    <span class="metric-value">MA(5,20)</span>
                 </div>
             </div>
         </div>
 
         <div class="chart-container">
-            <h3>📈 Price Chart</h3>
-            <div class="controls">
-                <button class="btn active" onclick="setTimeframe('1h')">1H</button>
-                <button class="btn" onclick="setTimeframe('4h')">4H</button>
-                <button class="btn" onclick="setTimeframe('1d')">1D</button>
-                <button class="btn" onclick="setTimeframe('all')">ALL</button>
-                <button class="btn" onclick="toggleAutoRefresh()">Auto Refresh: ON</button>
-            </div>
+            <h3>📈 Price Chart with Moving Averages</h3>
             <div class="chart-wrapper">
                 <canvas id="priceChart"></canvas>
             </div>
-        </div>
-
-        <div class="card">
-            <h3>📋 Recent Data</h3>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th>Price</th>
-                        <th>Volume</th>
-                        <th>Change</th>
-                    </tr>
-                </thead>
-                <tbody id="recent-data">
-                    <tr>
-                        <td colspan="4" style="text-align: center; opacity: 0.6;">No data available</td>
-                    </tr>
-                </tbody>
-            </table>
         </div>
     </div>
 
@@ -300,7 +267,6 @@
         // Global variables
         let priceChart;
         let autoRefresh = true;
-        let currentTimeframe = '1h';
         let lastPrice = 0;
         let priceHistory = [];
 
@@ -311,7 +277,7 @@
             startAutoRefresh();
         });
 
-        // Initialize Chart.js
+        // Initialize Chart.js with multiple datasets
         function initChart() {
             const ctx = document.getElementById('priceChart').getContext('2d');
             priceChart = new Chart(ctx, {
@@ -324,13 +290,31 @@
                         borderColor: '#00ff88',
                         backgroundColor: 'rgba(0, 255, 136, 0.1)',
                         borderWidth: 3,
-                        fill: true,
+                        fill: false,
                         tension: 0.4,
                         pointBackgroundColor: '#00ff88',
                         pointBorderColor: '#ffffff',
                         pointBorderWidth: 2,
                         pointRadius: 4,
                         pointHoverRadius: 6
+                    }, {
+                        label: 'MA(5)',
+                        data: [],
+                        borderColor: '#ffa500',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }, {
+                        label: 'MA(20)',
+                        data: [],
+                        borderColor: '#ff6b6b',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4,
+                        pointRadius: 0
                     }]
                 },
                 options: {
@@ -366,143 +350,121 @@
             });
         }
 
-        // Fetch real data from your Python API server
+        // Fetch data from API
         async function fetchData() {
             try {
                 updateStatus('Fetching data...', 'connecting');
                 
-                // Fetch current Bitcoin data from your API
-                const response = await fetch('http://localhost:5000/api/current');
+                const priceResponse = await fetch('http://localhost:5000/api/current');
+                let strategyData = null;
                 
-                if (!response.ok) {
-                    throw new Error(`API returned ${response.status}: ${response.statusText}`);
+                try {
+                    const strategyResponse = await fetch('http://localhost:5000/api/strategy/analysis');
+                    if (strategyResponse.ok) {
+                        strategyData = await strategyResponse.json();
+                    }
+                } catch (e) {
+                    console.log('Strategy data not available');
                 }
                 
-                const data = await response.json();
-                
-                if (data.status === 'error') {
-                    throw new Error(data.error);
+                if (!priceResponse.ok) {
+                    throw new Error('API connection failed');
                 }
                 
-                updateUI(data);
+                const priceData = await priceResponse.json();
+                updateUI(priceData, strategyData);
                 updateStatus('Live', 'connected');
                 
             } catch (error) {
-                console.error('Error fetching data:', error);
-                showError('Failed to connect to API server. Make sure your Python server is running on localhost:5000');
-                updateStatus('Error', 'error');
+                console.error('Error:', error);
+                showError('Connection failed - using demo data');
+                updateStatus('Demo', 'error');
                 
-                // Fallback to mock data for demonstration
-                console.log('Falling back to mock data...');
-                const mockData = generateMockData();
-                updateUI(mockData);
+                // Demo data
+                const mockData = {
+                    price: 108500 + (Math.random() - 0.5) * 2000,
+                    change24h: (Math.random() - 0.5) * 10,
+                    high24h: 110000,
+                    low24h: 107000,
+                    volume24h: 45000000000,
+                    dataPoints: 50
+                };
+                updateUI(mockData, null);
             }
         }
 
-        // Generate mock data as fallback
-        function generateMockData() {
-            const now = new Date();
-            const basePrice = 108500 + (Math.random() - 0.5) * 2000;
-            const change24h = (Math.random() - 0.5) * 10;
+        // Update UI
+        function updateUI(data, strategyData) {
+            // Price
+            document.getElementById('current-price').textContent = 
+                '$' + data.price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             
-            return {
-                price: basePrice,
-                change24h: change24h,
-                high24h: basePrice + Math.random() * 1000,
-                low24h: basePrice - Math.random() * 1000,
-                volume24h: 45000000000 + Math.random() * 10000000000,
-                timestamp: now.toISOString(),
-                dataPoints: Math.floor(Math.random() * 100) + 50
-            };
-        }
-
-        // Update UI with new data
-        function updateUI(data) {
-            // Update price display
-            document.getElementById('current-price').textContent = '$' + data.price.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
-
-            // Update price change
+            // Price change
             const changeElement = document.getElementById('price-change');
             const changeText = (data.change24h >= 0 ? '+' : '') + data.change24h.toFixed(2) + '%';
             changeElement.textContent = changeText;
             changeElement.className = 'price-change ' + (data.change24h >= 0 ? 'positive' : 'negative');
 
-            // Update 24h stats
-            document.getElementById('high-24h').textContent = '$' + data.high24h.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
-            document.getElementById('low-24h').textContent = '$' + data.low24h.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
-            document.getElementById('volume-24h').textContent = (data.volume24h / 1000000000).toFixed(2) + 'B';
+            // Strategy data
+            if (strategyData && !strategyData.error) {
+                // Signal
+                const signalElement = document.getElementById('current-signal');
+                if (strategyData.current_signal) {
+                    const signal = strategyData.current_signal.type;
+                    signalElement.innerHTML = `<span class="signal-badge signal-${signal.toLowerCase()}">${signal}</span>`;
+                } else {
+                    signalElement.innerHTML = '<span class="signal-badge signal-none">WAITING</span>';
+                }
 
-            // Update system info
+                // Trend
+                const trendElement = document.getElementById('current-trend');
+                const trendClass = strategyData.trend === 'BULLISH' ? 'trend-bullish' : 'trend-bearish';
+                trendElement.innerHTML = `<span class="${trendClass}">${strategyData.trend}</span>`;
+
+                // MAs
+                document.getElementById('ma-short').textContent = 
+                    '$' + strategyData.ma_short.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                document.getElementById('ma-long').textContent = 
+                    '$' + strategyData.ma_long.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            } else {
+                document.getElementById('current-signal').innerHTML = '<span class="signal-badge signal-none">N/A</span>';
+                document.getElementById('current-trend').textContent = '-';
+                document.getElementById('ma-short').textContent = '$0.00';
+                document.getElementById('ma-long').textContent = '$0.00';
+            }
+
+            // System info
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             document.getElementById('data-points').textContent = data.dataPoints;
 
             // Update chart
-            updateChart(data);
-            
-            // Update recent data table
-            updateRecentDataTable(data);
-
-            lastPrice = data.price;
+            updateChart(data, strategyData);
         }
 
-        // Update chart with new data
-        function updateChart(data) {
+        // Update chart
+        function updateChart(data, strategyData) {
             const now = new Date();
             const timeLabel = now.toLocaleTimeString();
             
             priceHistory.push({
                 time: timeLabel,
                 price: data.price,
-                timestamp: now
+                ma_short: strategyData ? strategyData.ma_short : null,
+                ma_long: strategyData ? strategyData.ma_long : null
             });
 
-            // Keep only recent data based on timeframe
-            const maxPoints = getMaxPointsForTimeframe(currentTimeframe);
-            if (priceHistory.length > maxPoints) {
-                priceHistory = priceHistory.slice(-maxPoints);
+            // Keep last 50 points
+            if (priceHistory.length > 50) {
+                priceHistory = priceHistory.slice(-50);
             }
 
             // Update chart
             priceChart.data.labels = priceHistory.map(item => item.time);
             priceChart.data.datasets[0].data = priceHistory.map(item => item.price);
+            priceChart.data.datasets[1].data = priceHistory.map(item => item.ma_short);
+            priceChart.data.datasets[2].data = priceHistory.map(item => item.ma_long);
+            
             priceChart.update('none');
-        }
-
-        // Update recent data table
-        function updateRecentDataTable(data) {
-            const tbody = document.getElementById('recent-data');
-            const now = new Date();
-            
-            // Create new row
-            const row = document.createElement('tr');
-            const change = lastPrice ? ((data.price - lastPrice) / lastPrice * 100) : 0;
-            
-            row.innerHTML = `
-                <td>${now.toLocaleTimeString()}</td>
-                <td>$${data.price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                <td>${(data.volume24h / 1000000000).toFixed(2)}B</td>
-                <td class="${change >= 0 ? 'positive' : 'negative'}">${change >= 0 ? '+' : ''}${change.toFixed(2)}%</td>
-            `;
-
-            // Add to top of table
-            if (tbody.children.length === 1 && tbody.children[0].children.length === 1) {
-                tbody.innerHTML = '';
-            }
-            tbody.insertBefore(row, tbody.firstChild);
-
-            // Keep only last 10 rows
-            while (tbody.children.length > 10) {
-                tbody.removeChild(tbody.lastChild);
-            }
         }
 
         // Utility functions
@@ -531,65 +493,12 @@
             }, 5000);
         }
 
-        function getMaxPointsForTimeframe(timeframe) {
-            switch(timeframe) {
-                case '1h': return 60;
-                case '4h': return 240;
-                case '1d': return 1440;
-                case 'all': return 10000;
-                default: return 60;
-            }
-        }
-
-        // Control functions
-        function setTimeframe(timeframe) {
-            currentTimeframe = timeframe;
-            
-            // Update active button
-            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            // Filter data based on timeframe
-            const now = new Date();
-            let cutoffTime;
-            
-            switch(timeframe) {
-                case '1h':
-                    cutoffTime = new Date(now - 60 * 60 * 1000);
-                    break;
-                case '4h':
-                    cutoffTime = new Date(now - 4 * 60 * 60 * 1000);
-                    break;
-                case '1d':
-                    cutoffTime = new Date(now - 24 * 60 * 60 * 1000);
-                    break;
-                case 'all':
-                    cutoffTime = new Date(0);
-                    break;
-            }
-            
-            const filteredHistory = priceHistory.filter(item => item.timestamp >= cutoffTime);
-            priceChart.data.labels = filteredHistory.map(item => item.time);
-            priceChart.data.datasets[0].data = filteredHistory.map(item => item.price);
-            priceChart.update();
-        }
-
-        function toggleAutoRefresh() {
-            autoRefresh = !autoRefresh;
-            const btn = event.target;
-            btn.textContent = `Auto Refresh: ${autoRefresh ? 'ON' : 'OFF'}`;
-            
-            if (autoRefresh) {
-                startAutoRefresh();
-            }
-        }
-
         function startAutoRefresh() {
             if (autoRefresh) {
                 setTimeout(() => {
                     fetchData();
                     startAutoRefresh();
-                }, 5000); // Refresh every 5 seconds
+                }, 15000); // 15 second refresh
             }
         }
     </script>

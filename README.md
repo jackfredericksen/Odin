@@ -1,185 +1,136 @@
-# Advanced Trading Bot Development Roadmap
+# Bitcoin Trading Bot
 
-## Phase 1: Foundation & Research (2-4 weeks)
+An advanced cryptocurrency trading bot with real-time data collection, strategy implementation, and web-based dashboard.
 
-### Market Research & Strategy Planning
-- [ ] Research trading strategies (momentum, mean reversion, arbitrage, DCA, etc.)
-- [ ] Study crypto vs stock market differences and regulations
-- [ ] Choose initial markets to focus on (recommend starting with one)
-- [ ] Define risk management principles
-- [ ] Research backtesting methodologies
+## 🚀 Features
 
-### Technical Architecture Planning
-- [ ] Choose tech stack (Python/Node.js backend, React/Vue frontend)
-- [ ] Design database schema for trades, prices, strategies
-- [ ] Plan API integrations (exchanges, data providers)
-- [ ] Design security architecture for API keys and funds
+- **Live Bitcoin Data Collection** with multi-source fallback (CoinDesk → Blockchain.info → CoinGecko)
+- **Real-time Web Dashboard** with live price charts and moving averages
+- **MA(5,20) Crossover Strategy** with buy/sell signal generation
+- **Historical Data Storage** in SQLite database
+- **Strategy Backtesting** with performance metrics
+- **RESTful API** for data access and strategy analysis
 
-## Phase 2: Core Infrastructure (3-6 weeks)
+## 📊 Dashboard Preview
 
-### Data Pipeline
-- [ ] Set up real-time price data feeds
-- [ ] Implement historical data collection and storage
-- [ ] Create data normalization and cleaning processes
-- [ ] Build rate limiting and error handling for API calls
-- [ ] Set up data backup and recovery systems
+- Live Bitcoin price with 24h change
+- Moving average indicators (MA5, MA20)
+- Buy/sell signals with colored badges
+- Interactive price charts with strategy overlays
+- Real-time trend analysis (BULLISH/BEARISH)
 
-### Database & Storage
-- [ ] Set up time-series database (InfluxDB/TimescaleDB)
-- [ ] Implement price data storage with proper indexing
-- [ ] Create trade history and portfolio tracking tables
-- [ ] Set up configuration and strategy parameter storage
+## 🛠️ Installation
 
-### Basic Web Interface
-- [ ] Create dashboard with real-time price displays
-- [ ] Build configuration management UI
-- [ ] Implement basic portfolio overview
-- [ ] Add system status and health monitoring
+1. **Clone or create project directory:**
+```bash
+mkdir bitcoin-trader
+cd bitcoin-trader
+```
 
-## Phase 3: Trading Engine Core (4-8 weeks)
+2. **Install dependencies:**
+```bash
+pip install -r requirements.txt
+```
 
-### Strategy Framework
-- [ ] Build modular strategy system architecture
-- [ ] Implement strategy base classes and interfaces
-- [ ] Create strategy parameter management
-- [ ] Build strategy scheduling and execution engine
+3. **Create folder structure:**
+```bash
+mkdir -p config data src strategies web_interface scripts docs
+```
 
-### Risk Management System
-- [ ] Implement position sizing algorithms
-- [ ] Add stop-loss and take-profit mechanisms
-- [ ] Create portfolio risk assessment tools
-- [ ] Build drawdown protection systems
-- [ ] Add emergency shutdown capabilities
+4. **Add the provided files to their respective folders**
 
-### Order Management
-- [ ] Implement order routing to exchanges
-- [ ] Build order status tracking and management
-- [ ] Add order modification and cancellation
-- [ ] Create order fill tracking and reconciliation
+## 🎯 Quick Start
 
-## Phase 4: Strategy Implementation (6-10 weeks)
+1. **Start the API server:**
+```bash
+python src/api_server.py
+```
 
-### Basic Strategies
-- [ ] Moving average crossover strategy
-- [ ] RSI-based mean reversion
-- [ ] Simple momentum strategy
-- [ ] Dollar-cost averaging (DCA) bot
+2. **Open dashboard:**
+Navigate to `http://localhost:5000` in your browser
 
-### Advanced Strategies
-- [ ] Multi-timeframe analysis strategies
-- [ ] Machine learning prediction models
-- [ ] Arbitrage detection (if applicable)
-- [ ] Grid trading strategies
-- [ ] Options strategies (for stocks)
+3. **Watch live data:**
+The system will automatically start collecting Bitcoin prices every 60 seconds
 
-### Backtesting Engine
-- [ ] Historical simulation framework
-- [ ] Performance metrics calculation
-- [ ] Strategy comparison tools
-- [ ] Parameter optimization system
+## 📈 Strategy Details
 
-## Phase 5: Advanced Features (8-12 weeks)
+### Moving Average Crossover (MA 5,20)
+- **Buy Signal:** When 5-period MA crosses above 20-period MA
+- **Sell Signal:** When 5-period MA crosses below 20-period MA
+- **Trend Detection:** Bullish when MA5 > MA20, Bearish when MA5 < MA20
 
-### Machine Learning Integration
-- [ ] Feature engineering for price prediction
-- [ ] Implement ML models (LSTM, Random Forest, etc.)
-- [ ] Model training and validation pipeline
-- [ ] Real-time prediction integration
+### Backtesting Results
+Run strategy analysis: `python strategies/ma_crossover.py`
 
-### Advanced Analytics
-- [ ] Portfolio performance analytics
-- [ ] Strategy performance comparison
-- [ ] Risk metrics and reporting
-- [ ] Market condition detection
+## 🔌 API Endpoints
 
-### Alerting & Notifications
-- [ ] Email/SMS alert system
-- [ ] Discord/Telegram bot integration
-- [ ] Custom alert conditions
-- [ ] Performance report automation
+- `GET /api/current` - Current Bitcoin price and stats
+- `GET /api/strategy/analysis` - Current strategy analysis
+- `GET /api/strategy/backtest/{hours}` - Strategy backtest results
+- `GET /api/history/{hours}` - Historical price data
+- `GET /api/stats` - Overall statistics
 
-## Phase 6: Production Hardening (4-6 weeks)
+## 📊 Data Sources
 
-### Security & Reliability
-- [ ] API key encryption and secure storage
-- [ ] Implement comprehensive logging
-- [ ] Add system monitoring and health checks
-- [ ] Create automated backup systems
-- [ ] Implement graceful error recovery
+Primary sources with automatic fallback:
+1. **CoinDesk API** (primary, completely free)
+2. **Blockchain.info API** (fallback #1)
+3. **CoinGecko API** (fallback #2)
 
-### Performance Optimization
-- [ ] Database query optimization
-- [ ] Caching implementation for frequently accessed data
-- [ ] API call optimization and batching
-- [ ] Memory usage optimization
+## 🔧 Configuration
 
-### Testing & Validation
-- [ ] Unit tests for all trading logic
-- [ ] Integration tests for exchange APIs
-- [ ] End-to-end strategy testing
-- [ ] Load testing for high-frequency scenarios
+Edit `config/settings.py` to customize:
+- Moving average periods
+- Data collection intervals
+- Risk management parameters
+- API settings
 
-## Phase 7: Advanced UI & UX (3-5 weeks)
+## 📝 Development Log
 
-### Enhanced Dashboard
-- [ ] Real-time charts and technical indicators
-- [ ] Interactive strategy configuration
-- [ ] Advanced portfolio analytics views
-- [ ] Trade history and analysis tools
+- ✅ Data pipeline with multi-source fallback
+- ✅ Real-time web dashboard
+- ✅ MA crossover strategy implementation
+- ✅ Strategy backtesting system
+- ✅ RESTful API architecture
+- 🔄 Paper trading system (planned)
+- 🔄 Additional strategies (RSI, Bollinger Bands)
+- 🔄 Risk management features
 
-### Mobile Responsiveness
-- [ ] Mobile-friendly interface design
-- [ ] Touch-optimized controls
-- [ ] Mobile alerts and notifications
+## 🛡️ Risk Warning
 
-## Ongoing Maintenance & Enhancement
-
-### Continuous Improvement
-- [ ] Regular strategy performance review
-- [ ] Market condition adaptation
-- [ ] New exchange/broker integrations
-- [ ] Feature requests and bug fixes
-
-### Compliance & Risk
-- [ ] Regular security audits
-- [ ] Regulatory compliance updates
-- [ ] Risk model refinements
-- [ ] Performance monitoring
-
-## Technology Stack Recommendations
-
-### Backend
-- **Python**: pandas, numpy, scikit-learn, FastAPI/Flask
-- **Node.js**: Express, TypeScript for real-time features
-- **Database**: PostgreSQL + TimescaleDB for time-series data
-
-### Frontend
-- **React** with TypeScript
-- **Chart.js** or **TradingView** charting library
-- **Material-UI** or **Tailwind CSS**
-
-### Infrastructure
-- **Docker** for containerization
-- **Redis** for caching and session management
-- **WebSocket** for real-time data
-
-## Risk Warnings & Considerations
-
-⚠️ **Important Reminders:**
-- Start with paper trading (simulated) before using real money
+This bot is for educational and testing purposes. Always:
+- Start with paper trading
 - Never risk more than you can afford to lose
-- Implement robust testing before deploying strategies
-- Keep detailed logs for debugging and analysis
-- Consider tax implications of automated trading
-- Be aware of exchange rate limits and fees
+- Test strategies thoroughly before live trading
+- Be aware of market volatility and risks
 
-## Success Metrics
+## 🏗️ Architecture
 
-- **Phase 1-2**: Successfully collecting and storing real-time data
-- **Phase 3-4**: First profitable paper trading strategy
-- **Phase 5-6**: Consistent performance across multiple strategies
-- **Phase 7+**: Fully automated, monitored, and reliable system
+```
+┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
+│   Data Sources  │────│  API Server  │────│   Web Dashboard │
+│ (Multi-fallback)│    │   (Flask)    │    │   (Real-time)   │
+└─────────────────┘    └──────────────┘    └─────────────────┘
+                              │
+                       ┌──────────────┐
+                       │   Strategy   │
+                       │   Engine     │
+                       └──────────────┘
+                              │
+                       ┌──────────────┐
+                       │   Database   │
+                       │   (SQLite)   │
+                       └──────────────┘
+```
 
----
+## 📚 Next Steps
 
-*Estimated Total Timeline: 6-12 months depending on complexity and time investment*
+1. **Paper Trading System** - Simulate real trades
+2. **Additional Strategies** - RSI, Bollinger Bands
+3. **Risk Management** - Stop-loss, position sizing
+4. **Alerts System** - Email/SMS notifications
+5. **Performance Analytics** - Detailed reporting
+
+## 📄 License
+
+This project is for educational purposes. Use at your own risk.
