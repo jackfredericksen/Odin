@@ -60,9 +60,20 @@
             100% { opacity: 1; }
         }
 
-        .strategy-switcher {
+        .controls-section {
             margin: 20px 0;
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .strategy-switcher {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
         }
 
         .strategy-tabs {
@@ -73,6 +84,53 @@
             backdrop-filter: blur(10px);
             flex-wrap: wrap;
             gap: 4px;
+        }
+
+        .chart-container {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 20px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .chart-title {
+            font-size: 1.2rem;
+            color: #ffffff;
+            opacity: 0.9;
+            margin: 0;
+        }
+
+        .timeframe-switcher {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .timeframe-label {
+            color: rgba(255,255,255,0.8);
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .timeframe-tabs {
+            display: flex;
+            background: rgba(255,255,255,0.15);
+            border-radius: 20px;
+            padding: 3px;
+            backdrop-filter: blur(10px);
+            gap: 2px;
         }
 
         .strategy-tab {
@@ -87,16 +145,29 @@
             font-size: 0.9rem;
         }
 
-        .strategy-tab.active {
+        .timeframe-tab {
+            padding: 6px 10px;
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 0.75rem;
+            min-width: 40px;
+        }
+
+        .strategy-tab.active, .timeframe-tab.active {
             background: #00ff88;
             color: #1e3c72;
         }
 
-        .strategy-tab:hover {
+        .strategy-tab:hover, .timeframe-tab:hover {
             background: rgba(255,255,255,0.2);
         }
 
-        .strategy-tab.active:hover {
+        .strategy-tab.active:hover, .timeframe-tab.active:hover {
             background: #00ff88;
         }
 
@@ -243,8 +314,19 @@
                 font-size: 2.2rem;
             }
 
-            .strategy-tabs {
+            .strategy-tabs, .timeframe-tabs {
                 flex-direction: column;
+            }
+
+            .chart-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .timeframe-switcher {
+                justify-content: center;
+                flex-wrap: wrap;
             }
         }
     </style>
@@ -259,13 +341,15 @@
             </div>
         </div>
 
-        <div class="strategy-switcher">
-            <div class="strategy-tabs">
-                <button class="strategy-tab active" id="ma-tab">Moving Average</button>
-                <button class="strategy-tab" id="rsi-tab">RSI</button>
-                <button class="strategy-tab" id="bb-tab">Bollinger Bands</button>
-                <button class="strategy-tab" id="macd-tab">MACD</button>
-                <button class="strategy-tab" id="compare-tab">Compare All</button>
+        <div class="controls-section">
+            <div class="strategy-switcher">
+                <div class="strategy-tabs">
+                    <button class="strategy-tab active" id="ma-tab">Moving Average</button>
+                    <button class="strategy-tab" id="rsi-tab">RSI</button>
+                    <button class="strategy-tab" id="bb-tab">Bollinger Bands</button>
+                    <button class="strategy-tab" id="macd-tab">MACD</button>
+                    <button class="strategy-tab" id="compare-tab">Compare All</button>
+                </div>
             </div>
         </div>
 
@@ -306,7 +390,21 @@
         </div>
 
         <div class="chart-container">
-            <h3 id="chart-title">📈 Price Chart with Moving Averages</h3>
+            <div class="chart-header">
+                <h3 class="chart-title" id="chart-title">📈 Price Chart with Moving Averages (1D)</h3>
+                <div class="timeframe-switcher">
+                    <div class="timeframe-label">Timeframe:</div>
+                    <div class="timeframe-tabs">
+                        <button class="timeframe-tab" id="1h-tab">1H</button>
+                        <button class="timeframe-tab active" id="24h-tab">1D</button>
+                        <button class="timeframe-tab" id="168h-tab">1W</button>
+                        <button class="timeframe-tab" id="720h-tab">1M</button>
+                        <button class="timeframe-tab" id="8760h-tab">1Y</button>
+                        <button class="timeframe-tab" id="43800h-tab">5Y</button>
+                        <button class="timeframe-tab" id="999999h-tab">ALL</button>
+                    </div>
+                </div>
+            </div>
             <div class="chart-wrapper">
                 <canvas id="priceChart"></canvas>
             </div>
@@ -319,6 +417,7 @@
         // Global variables
         let priceChart;
         let currentStrategy = 'ma';
+        let currentTimeframe = 24; // hours (1 day default)
         let priceHistory = [];
         let lastPrice = 0;
         let strategyData = { 
@@ -327,6 +426,17 @@
             bb: null, 
             macd: null, 
             comparison: null 
+        };
+
+        // Timeframe configurations - Standard trading timeframes
+        const timeframes = {
+            1: { label: '1H', chartPoints: 60, refreshInterval: 60000, hours: 1 }, // 1 hour
+            24: { label: '1D', chartPoints: 48, refreshInterval: 1800000, hours: 24 }, // 1 day
+            168: { label: '1W', chartPoints: 56, refreshInterval: 3600000, hours: 168 }, // 1 week
+            720: { label: '1M', chartPoints: 60, refreshInterval: 7200000, hours: 720 }, // 1 month (30 days)
+            8760: { label: '1Y', chartPoints: 52, refreshInterval: 86400000, hours: 8760 }, // 1 year (365 days)
+            43800: { label: '5Y', chartPoints: 60, refreshInterval: 604800000, hours: 43800 }, // 5 years (5 * 365 days)
+            999999: { label: 'ALL', chartPoints: 100, refreshInterval: 86400000, hours: 999999 } // All time - maximum data
         };
 
         // Utility function to safely format numbers
@@ -410,8 +520,32 @@
             });
             document.getElementById(strategy + '-tab').classList.add('active');
             
-            // Update content
+            // Update content and re-fetch data
             updateStrategyDisplay();
+            fetchStrategyData(); // Refresh strategy data for new selection
+        }
+
+        // Timeframe switcher function
+        function switchToTimeframe(hours) {
+            console.log('Switching to timeframe:', hours + 'h');
+            currentTimeframe = hours;
+            
+            // Update tab appearance
+            document.querySelectorAll('.timeframe-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(hours + 'h-tab').classList.add('active');
+            
+            // Clear current data
+            strategyData = { ma: null, rsi: null, bb: null, macd: null, comparison: null };
+            priceHistory = []; // Reset chart history
+            
+            // Show loading state
+            updateStatus('Loading ' + timeframes[hours].label + ' data...', 'connecting');
+            
+            // Update display and fetch new data
+            updateStrategyDisplay();
+            fetchData(); // This will load historical data for the new timeframe
         }
 
         function updateStrategyDisplay() {
@@ -448,7 +582,7 @@
                 case 'compare':
                     title.innerHTML = '⚔️ Strategy Comparison';
                     content.innerHTML = getStrategyContent('compare', strategyData.comparison);
-                    chartTitle.innerHTML = '📈 All Strategies Performance';
+                    chartTitle.innerHTML = `📈 All Strategies Performance (${timeframes[currentTimeframe].label})`;
                     activeStrategy.textContent = 'All Strategies';
                     break;
             }
@@ -507,23 +641,184 @@
             try {
                 updateStatus('Fetching data...', 'connecting');
                 
-                // Fetch price data first (most important)
+                // Fetch current price data
                 const priceResponse = await fetch('http://localhost:5000/api/current');
                 if (!priceResponse.ok) {
                     throw new Error(`Price API failed: ${priceResponse.status}`);
                 }
                 const priceData = await priceResponse.json();
                 
-                // Update UI with price data immediately
+                // Fetch historical data for the chart
+                await loadHistoricalData();
+                
+                // Update UI with current price data
                 updatePriceUI(priceData);
                 
-                // Fetch strategy data in parallel (non-blocking)
+                // Fetch strategy data with current timeframe
+                await fetchStrategyData();
+                
+                updateStatus('Live', 'connected');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError(`Connection failed: ${error.message}. Check if API server is running on port 5000.`);
+                updateStatus('Error', 'error');
+                
+                // Show demo data to keep dashboard functional
+                showDemoData();
+            }
+        }
+
+        async function loadHistoricalData() {
+            try {
+                console.log(`Loading ${currentTimeframe === 999999 ? 'ALL' : currentTimeframe + 'h'} of historical data...`);
+                
+                // For ALL timeframe, get all available data, otherwise use timeframe
+                const apiEndpoint = currentTimeframe === 999999 
+                    ? 'http://localhost:5000/api/recent/10000'  // Get large amount of recent data
+                    : `http://localhost:5000/api/history/${currentTimeframe}`;
+                
+                const historyResponse = await fetch(apiEndpoint);
+                if (!historyResponse.ok) {
+                    console.warn('Historical data not available, using real-time only');
+                    return;
+                }
+                
+                const historyData = await historyResponse.json();
+                let dataArray;
+                
+                // Handle different API response formats
+                if (currentTimeframe === 999999) {
+                    dataArray = historyData.recent || [];
+                } else {
+                    dataArray = historyData.history || [];
+                }
+                
+                if (dataArray && dataArray.length > 0) {
+                    // Convert historical data to chart format
+                    priceHistory = dataArray.map(item => {
+                        const date = new Date(item.timestamp);
+                        let timeLabel;
+                        
+                        // Format time labels based on timeframe
+                        if (currentTimeframe === 1) {
+                            // 1 hour: show minutes
+                            timeLabel = date.toLocaleTimeString('en-US', { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                            });
+                        } else if (currentTimeframe === 24) {
+                            // 1 day: show hours
+                            timeLabel = date.toLocaleTimeString('en-US', { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                            });
+                        } else if (currentTimeframe === 168) {
+                            // 1 week: show day and hour
+                            timeLabel = date.toLocaleDateString('en-US', { 
+                                weekday: 'short',
+                                hour: '2-digit'
+                            });
+                        } else if (currentTimeframe === 720) {
+                            // 1 month: show date
+                            timeLabel = date.toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric'
+                            });
+                        } else if (currentTimeframe === 8760) {
+                            // 1 year: show month
+                            timeLabel = date.toLocaleDateString('en-US', { 
+                                month: 'short',
+                                year: '2-digit'
+                            });
+                        } else if (currentTimeframe === 43800) {
+                            // 5 years: show year and quarter
+                            const quarter = Math.ceil((date.getMonth() + 1) / 3);
+                            timeLabel = `Q${quarter} ${date.getFullYear().toString().slice(-2)}`;
+                        } else {
+                            // ALL time: adaptive labeling based on data range
+                            const totalDays = dataArray.length > 1 ? 
+                                (new Date(dataArray[0].timestamp) - new Date(dataArray[dataArray.length - 1].timestamp)) / (1000 * 60 * 60 * 24) : 1;
+                            
+                            if (totalDays <= 7) {
+                                // Less than a week: show day and hour
+                                timeLabel = date.toLocaleDateString('en-US', { 
+                                    weekday: 'short',
+                                    hour: '2-digit'
+                                });
+                            } else if (totalDays <= 365) {
+                                // Less than a year: show month and day
+                                timeLabel = date.toLocaleDateString('en-US', { 
+                                    month: 'short', 
+                                    day: 'numeric'
+                                });
+                            } else {
+                                // More than a year: show month and year
+                                timeLabel = date.toLocaleDateString('en-US', { 
+                                    month: 'short',
+                                    year: '2-digit'
+                                });
+                            }
+                        }
+                        
+                        return {
+                            time: timeLabel,
+                            price: item.price,
+                            timestamp: date
+                        };
+                    });
+                    
+                    // For ALL timeframe, reverse the order (oldest to newest) and smart sampling
+                    if (currentTimeframe === 999999) {
+                        priceHistory.reverse(); // Reverse to chronological order
+                        
+                        // Smart sampling for ALL timeframe to maintain performance
+                        const maxPoints = timeframes[currentTimeframe].chartPoints;
+                        if (priceHistory.length > maxPoints) {
+                            const step = Math.ceil(priceHistory.length / maxPoints);
+                            priceHistory = priceHistory.filter((_, index) => index % step === 0);
+                        }
+                    } else {
+                        // Limit points based on timeframe for performance
+                        const maxPoints = timeframes[currentTimeframe].chartPoints;
+                        if (priceHistory.length > maxPoints) {
+                            const step = Math.ceil(priceHistory.length / maxPoints);
+                            priceHistory = priceHistory.filter((_, index) => index % step === 0);
+                        }
+                    }
+                    
+                    console.log(`Loaded ${priceHistory.length} historical data points`);
+                    
+                    // Update chart with historical data
+                    updateChartWithHistoricalData();
+                } else {
+                    console.warn('No historical data available');
+                    priceHistory = []; // Reset to empty for real-time only
+                }
+                
+            } catch (error) {
+                console.error('Error loading historical data:', error);
+                priceHistory = []; // Reset to empty array on error
+            }
+        }
+
+        function updateChartWithHistoricalData() {
+            if (priceHistory.length > 0) {
+                priceChart.data.labels = priceHistory.map(item => item.time);
+                priceChart.data.datasets[0].data = priceHistory.map(item => item.price);
+                priceChart.update('none');
+            }
+        }
+
+        async function fetchStrategyData() {
+            try {
+                // Fetch strategy data in parallel with current timeframe
                 const strategyPromises = [
-                    fetch('http://localhost:5000/api/strategy/ma/analysis').then(r => r.ok ? r.json() : null).catch(() => null),
-                    fetch('http://localhost:5000/api/strategy/rsi/analysis').then(r => r.ok ? r.json() : null).catch(() => null),
-                    fetch('http://localhost:5000/api/strategy/bb/analysis').then(r => r.ok ? r.json() : null).catch(() => null),
-                    fetch('http://localhost:5000/api/strategy/macd/analysis').then(r => r.ok ? r.json() : null).catch(() => null),
-                    fetch('http://localhost:5000/api/strategy/compare/all/48').then(r => r.ok ? r.json() : null).catch(() => null)
+                    fetch(`http://localhost:5000/api/strategy/ma/analysis`).then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch(`http://localhost:5000/api/strategy/rsi/analysis`).then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch(`http://localhost:5000/api/strategy/bb/analysis`).then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch(`http://localhost:5000/api/strategy/macd/analysis`).then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch(`http://localhost:5000/api/strategy/compare/all/${currentTimeframe}`).then(r => r.ok ? r.json() : null).catch(() => null)
                 ];
                 
                 const [maData, rsiData, bbData, macdData, compareData] = await Promise.all(strategyPromises);
@@ -537,15 +832,10 @@
                 
                 // Update strategy display
                 updateStrategyDisplay();
-                updateStatus('Live', 'connected');
                 
             } catch (error) {
-                console.error('Error:', error);
-                showError(`Connection failed: ${error.message}. Check if API server is running on port 5000.`);
-                updateStatus('Error', 'error');
-                
-                // Show demo data to keep dashboard functional
-                showDemoData();
+                console.error('Strategy data fetch error:', error);
+                // Don't show error for strategy data failures, just log them
             }
         }
 
@@ -565,6 +855,15 @@
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             document.getElementById('data-points').textContent = data.dataPoints || 0;
 
+            // Add timeframe info to the display
+            const timeframeInfo = document.getElementById('active-strategy');
+            if (timeframeInfo) {
+                const currentText = timeframeInfo.textContent;
+                if (!currentText.includes('(')) {
+                    timeframeInfo.textContent = `${currentText} (${timeframes[currentTimeframe].label})`;
+                }
+            }
+
             // Update chart
             updateChart(data);
         }
@@ -573,25 +872,128 @@
             const demoPrice = 45000 + (Math.random() - 0.5) * 2000;
             const demoChange = (Math.random() - 0.5) * 10;
             
+            // Create demo historical data
+            const now = new Date();
+            const demoHistory = [];
+            const points = timeframes[currentTimeframe].chartPoints;
+            
+            for (let i = points - 1; i >= 0; i--) {
+                const time = new Date(now.getTime() - (i * 60000)); // Base interval
+                let timeLabel;
+                
+                if (currentTimeframe === 1) {
+                    timeLabel = time.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                } else if (currentTimeframe === 24) {
+                    timeLabel = time.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                } else if (currentTimeframe === 168) {
+                    timeLabel = time.toLocaleDateString('en-US', { 
+                        weekday: 'short',
+                        hour: '2-digit'
+                    });
+                } else if (currentTimeframe === 720) {
+                    timeLabel = time.toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric'
+                    });
+                } else if (currentTimeframe === 8760) {
+                    timeLabel = time.toLocaleDateString('en-US', { 
+                        month: 'short',
+                        year: '2-digit'
+                    });
+                } else {
+                    // ALL time: adaptive labeling
+                    const quarter = Math.ceil((time.getMonth() + 1) / 3);
+                    timeLabel = `Q${quarter} ${time.getFullYear().toString().slice(-2)}`;
+                }
+                
+                demoHistory.push({
+                    time: timeLabel,
+                    price: demoPrice + (Math.random() - 0.5) * 1000,
+                    timestamp: time
+                });
+            }
+            
+            priceHistory = demoHistory;
+            updateChartWithHistoricalData();
+            
             updatePriceUI({
                 price: demoPrice,
                 change24h: demoChange,
-                dataPoints: 50
+                dataPoints: points
             });
         }
 
         function updateChart(data) {
-            const now = new Date();
-            const timeLabel = now.toLocaleTimeString();
-            
-            priceHistory.push({
-                time: timeLabel,
-                price: data.price || 0
-            });
+            // If we have historical data, just add the new point
+            if (priceHistory.length > 0) {
+                const now = new Date();
+                let timeLabel;
+                
+                // Format time labels based on timeframe
+                if (currentTimeframe === 1) {
+                    // 1 hour: show minutes
+                    timeLabel = now.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                } else if (currentTimeframe === 24) {
+                    // 1 day: show hours
+                    timeLabel = now.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                } else if (currentTimeframe === 168) {
+                    // 1 week: show day and hour
+                    timeLabel = now.toLocaleDateString('en-US', { 
+                        weekday: 'short',
+                        hour: '2-digit'
+                    });
+                } else if (currentTimeframe === 720) {
+                    // 1 month: show date
+                    timeLabel = now.toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric'
+                    });
+                } else if (currentTimeframe === 8760) {
+                    // 1 year: show month
+                    timeLabel = now.toLocaleDateString('en-US', { 
+                        month: 'short',
+                        year: '2-digit'
+                    });
+                } else {
+                    // ALL time: adaptive labeling
+                    const quarter = Math.ceil((now.getMonth() + 1) / 3);
+                    timeLabel = `Q${quarter} ${now.getFullYear().toString().slice(-2)}`;
+                }
+                
+                // Add new data point
+                priceHistory.push({
+                    time: timeLabel,
+                    price: data.price || 0,
+                    timestamp: now
+                });
 
-            // Keep last 50 points
-            if (priceHistory.length > 50) {
-                priceHistory = priceHistory.slice(-50);
+                // Keep appropriate number of points based on timeframe
+                const maxPoints = timeframes[currentTimeframe].chartPoints;
+                if (priceHistory.length > maxPoints) {
+                    priceHistory = priceHistory.slice(-maxPoints);
+                }
+            } else {
+                // Fallback: create chart with just current data point
+                const now = new Date();
+                const timeLabel = now.toLocaleTimeString();
+                
+                priceHistory = [{
+                    time: timeLabel,
+                    price: data.price || 0,
+                    timestamp: now
+                }];
             }
 
             // Update chart
@@ -626,9 +1028,12 @@
         }
 
         function startAutoRefresh() {
+            // Use timeframe-appropriate refresh interval
+            const refreshInterval = Math.max(15000, timeframes[currentTimeframe].refreshInterval / 100); // Minimum 15 seconds
+            
             setInterval(() => {
                 fetchData();
-            }, 15000); // Refresh every 15 seconds
+            }, refreshInterval);
         }
 
         // Initialize when DOM loads
@@ -641,6 +1046,15 @@
             document.getElementById('bb-tab').addEventListener('click', () => switchToStrategy('bb'));
             document.getElementById('macd-tab').addEventListener('click', () => switchToStrategy('macd'));
             document.getElementById('compare-tab').addEventListener('click', () => switchToStrategy('compare'));
+            
+            // Set up timeframe click handlers
+            document.getElementById('1h-tab').addEventListener('click', () => switchToTimeframe(1));
+            document.getElementById('24h-tab').addEventListener('click', () => switchToTimeframe(24));
+            document.getElementById('168h-tab').addEventListener('click', () => switchToTimeframe(168));
+            document.getElementById('720h-tab').addEventListener('click', () => switchToTimeframe(720));
+            document.getElementById('8760h-tab').addEventListener('click', () => switchToTimeframe(8760));
+            document.getElementById('43800h-tab').addEventListener('click', () => switchToTimeframe(43800));
+            document.getElementById('999999h-tab').addEventListener('click', () => switchToTimeframe(999999));
             
             // Initialize everything
             initChart();
