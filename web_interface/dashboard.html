@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bitcoin Trading Dashboard</title>
+    <title>Odin - Bitcoin Trading Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         * {
@@ -224,6 +224,12 @@
             text-align: center;
         }
 
+        .loading {
+            text-align: center;
+            opacity: 0.7;
+            font-style: italic;
+        }
+
         @media (max-width: 768px) {
             .grid {
                 grid-template-columns: 1fr;
@@ -246,7 +252,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🚀 Bitcoin Trading Dashboard</h1>
+            <h1>⚡ Odin - Bitcoin Trading Bot</h1>
             <div class="status">
                 <div class="status-dot"></div>
                 <span id="status-text">Connecting...</span>
@@ -275,8 +281,8 @@
             <div class="card">
                 <h3 id="strategy-title">🧠 Strategy Status</h3>
                 <div id="strategy-content">
-                    <div class="metric">
-                        <span class="metric-label">Loading...</span>
+                    <div class="metric loading">
+                        <span class="metric-label">Loading strategies...</span>
                         <span class="metric-value">-</span>
                     </div>
                 </div>
@@ -308,7 +314,7 @@
     </div>
 
     <script>
-        console.log('Script starting...');
+        console.log('Odin Dashboard initializing...');
         
         // Global variables
         let priceChart;
@@ -323,48 +329,68 @@
             comparison: null 
         };
 
+        // Utility function to safely format numbers
+        function safeNumber(value, decimals = 2) {
+            if (value === null || value === undefined || isNaN(value)) return '0';
+            return Number(value).toFixed(decimals);
+        }
+
+        function safeLocaleString(value) {
+            if (value === null || value === undefined || isNaN(value)) return '0';
+            return Number(value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
         // Strategy content functions
         function getStrategyContent(strategy, data) {
             if (!data || data.error) {
-                return '<div class="metric"><span class="metric-label">Status</span><span class="metric-value">Loading...</span></div>';
+                return '<div class="metric loading"><span class="metric-label">Error: ' + (data ? data.error : 'No data') + '</span><span class="metric-value">-</span></div>';
             }
 
             const signalHtml = data.current_signal ? 
-                '<span class="signal-badge signal-' + data.current_signal.type.toLowerCase() + '">' + data.current_signal.type + '</span>' :
+                `<span class="signal-badge signal-${data.current_signal.type.toLowerCase()}">${data.current_signal.type}</span>` :
                 '<span class="signal-badge signal-none">WAITING</span>';
 
-            let content = '<div class="metric"><span class="metric-label">Signal</span><span class="metric-value">' + signalHtml + '</span></div>';
+            let content = `<div class="metric"><span class="metric-label">Signal</span><span class="metric-value">${signalHtml}</span></div>`;
 
             switch(strategy) {
                 case 'ma':
-                    const trendClass = data.trend === 'BULLISH' ? 'trend-bullish' : 'trend-bearish';
-                    content += '<div class="metric"><span class="metric-label">Trend</span><span class="metric-value"><span class="' + trendClass + '">' + data.trend + '</span></span></div>';
-                    content += '<div class="metric"><span class="metric-label">MA(5)</span><span class="metric-value">$' + data.ma_short.toLocaleString() + '</span></div>';
-                    content += '<div class="metric"><span class="metric-label">MA(20)</span><span class="metric-value">$' + data.ma_long.toLocaleString() + '</span></div>';
+                    if (data.trend && data.ma_short && data.ma_long) {
+                        const trendClass = data.trend === 'BULLISH' ? 'trend-bullish' : 'trend-bearish';
+                        content += `<div class="metric"><span class="metric-label">Trend</span><span class="metric-value"><span class="${trendClass}">${data.trend}</span></span></div>`;
+                        content += `<div class="metric"><span class="metric-label">MA(5)</span><span class="metric-value">$${safeLocaleString(data.ma_short)}</span></div>`;
+                        content += `<div class="metric"><span class="metric-label">MA(20)</span><span class="metric-value">$${safeLocaleString(data.ma_long)}</span></div>`;
+                    }
                     break;
                 case 'rsi':
-                    content += '<div class="metric"><span class="metric-label">RSI</span><span class="metric-value">' + data.current_rsi.toFixed(1) + '</span></div>';
-                    content += '<div class="metric"><span class="metric-label">Condition</span><span class="metric-value">' + data.market_condition + '</span></div>';
+                    if (data.current_rsi && data.market_condition) {
+                        content += `<div class="metric"><span class="metric-label">RSI</span><span class="metric-value">${safeNumber(data.current_rsi, 1)}</span></div>`;
+                        content += `<div class="metric"><span class="metric-label">Condition</span><span class="metric-value">${data.market_condition}</span></div>`;
+                    }
                     break;
                 case 'bb':
-                    content += '<div class="metric"><span class="metric-label">%B</span><span class="metric-value">' + data.bb_percent.toFixed(3) + '</span></div>';
-                    content += '<div class="metric"><span class="metric-label">Condition</span><span class="metric-value">' + data.market_condition + '</span></div>';
-                    content += '<div class="metric"><span class="metric-label">Volatility</span><span class="metric-value">' + data.volatility + '</span></div>';
+                    if (data.bb_percent !== undefined && data.market_condition && data.volatility) {
+                        content += `<div class="metric"><span class="metric-label">%B</span><span class="metric-value">${safeNumber(data.bb_percent, 3)}</span></div>`;
+                        content += `<div class="metric"><span class="metric-label">Condition</span><span class="metric-value">${data.market_condition}</span></div>`;
+                        content += `<div class="metric"><span class="metric-label">Volatility</span><span class="metric-value">${data.volatility}</span></div>`;
+                    }
                     break;
                 case 'macd':
-                    content += '<div class="metric"><span class="metric-label">MACD Line</span><span class="metric-value">' + data.macd_line.toFixed(4) + '</span></div>';
-                    content += '<div class="metric"><span class="metric-label">Signal Line</span><span class="metric-value">' + data.macd_signal.toFixed(4) + '</span></div>';
-                    content += '<div class="metric"><span class="metric-label">Condition</span><span class="metric-value">' + data.market_condition + '</span></div>';
+                    if (data.macd_line !== undefined && data.macd_signal !== undefined && data.market_condition) {
+                        content += `<div class="metric"><span class="metric-label">MACD Line</span><span class="metric-value">${safeNumber(data.macd_line, 4)}</span></div>`;
+                        content += `<div class="metric"><span class="metric-label">Signal Line</span><span class="metric-value">${safeNumber(data.macd_signal, 4)}</span></div>`;
+                        content += `<div class="metric"><span class="metric-label">Condition</span><span class="metric-value">${data.market_condition}</span></div>`;
+                    }
                     break;
                 case 'compare':
-                    if (data.strategies) {
-                        content = '<div class="metric"><span class="metric-label">Winner</span><span class="metric-value">🏆 ' + data.winner.name + '</span></div>';
-                        content += '<div class="metric"><span class="metric-label">Strategies</span><span class="metric-value">' + data.total_strategies + ' Active</span></div>';
+                    if (data.strategies && data.winner) {
+                        content = `<div class="metric"><span class="metric-label">Winner</span><span class="metric-value">🏆 ${data.winner.name}</span></div>`;
+                        content += `<div class="metric"><span class="metric-label">Return</span><span class="metric-value class="positive">${safeNumber(data.winner.return_percent, 1)}%</span></div>`;
+                        content += `<div class="metric"><span class="metric-label">Strategies</span><span class="metric-value">${data.total_strategies} Active</span></div>`;
                         
-                        Object.keys(data.strategies).forEach(function(key) {
+                        Object.keys(data.strategies).forEach(key => {
                             const strategy = data.strategies[key];
                             const colorClass = strategy.return_percent >= 0 ? 'positive' : 'negative';
-                            content += '<div class="metric"><span class="metric-label">' + key + '</span><span class="metric-value ' + colorClass + '">' + strategy.return_percent.toFixed(1) + '%</span></div>';
+                            content += `<div class="metric"><span class="metric-label">${key}</span><span class="metric-value ${colorClass}">${safeNumber(strategy.return_percent, 1)}%</span></div>`;
                         });
                     }
                     break;
@@ -379,7 +405,7 @@
             currentStrategy = strategy;
             
             // Update tab appearance
-            document.querySelectorAll('.strategy-tab').forEach(function(tab) {
+            document.querySelectorAll('.strategy-tab').forEach(tab => {
                 tab.classList.remove('active');
             });
             document.getElementById(strategy + '-tab').classList.add('active');
@@ -442,14 +468,17 @@
                         borderWidth: 3,
                         fill: false,
                         tension: 0.4,
-                        pointRadius: 0
+                        pointRadius: 2,
+                        pointHoverRadius: 6
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { labels: { color: 'white' } }
+                        legend: { 
+                            labels: { color: 'white' } 
+                        }
                     },
                     scales: {
                         x: {
@@ -465,6 +494,10 @@
                             },
                             grid: { color: 'rgba(255,255,255,0.1)' }
                         }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
                     }
                 }
             });
@@ -474,70 +507,77 @@
             try {
                 updateStatus('Fetching data...', 'connecting');
                 
-                // Fetch price data
+                // Fetch price data first (most important)
                 const priceResponse = await fetch('http://localhost:5000/api/current');
-                if (!priceResponse.ok) throw new Error('Price API failed');
+                if (!priceResponse.ok) {
+                    throw new Error(`Price API failed: ${priceResponse.status}`);
+                }
                 const priceData = await priceResponse.json();
                 
-                // Fetch strategy data
-                try {
-                    const responses = await Promise.allSettled([
-                        fetch('http://localhost:5000/api/strategy/ma/analysis'),
-                        fetch('http://localhost:5000/api/strategy/rsi/analysis'),
-                        fetch('http://localhost:5000/api/strategy/bb/analysis'),
-                        fetch('http://localhost:5000/api/strategy/macd/analysis'),
-                        fetch('http://localhost:5000/api/strategy/compare/all/48')
-                    ]);
-                    
-                    if (responses[0].status === 'fulfilled' && responses[0].value.ok) {
-                        strategyData.ma = await responses[0].value.json();
-                    }
-                    if (responses[1].status === 'fulfilled' && responses[1].value.ok) {
-                        strategyData.rsi = await responses[1].value.json();
-                    }
-                    if (responses[2].status === 'fulfilled' && responses[2].value.ok) {
-                        strategyData.bb = await responses[2].value.json();
-                    }
-                    if (responses[3].status === 'fulfilled' && responses[3].value.ok) {
-                        strategyData.macd = await responses[3].value.json();
-                    }
-                    if (responses[4].status === 'fulfilled' && responses[4].value.ok) {
-                        strategyData.comparison = await responses[4].value.json();
-                    }
-                } catch (e) {
-                    console.log('Some strategy data not available:', e);
-                }
+                // Update UI with price data immediately
+                updatePriceUI(priceData);
                 
-                updateUI(priceData);
+                // Fetch strategy data in parallel (non-blocking)
+                const strategyPromises = [
+                    fetch('http://localhost:5000/api/strategy/ma/analysis').then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch('http://localhost:5000/api/strategy/rsi/analysis').then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch('http://localhost:5000/api/strategy/bb/analysis').then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch('http://localhost:5000/api/strategy/macd/analysis').then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetch('http://localhost:5000/api/strategy/compare/all/48').then(r => r.ok ? r.json() : null).catch(() => null)
+                ];
+                
+                const [maData, rsiData, bbData, macdData, compareData] = await Promise.all(strategyPromises);
+                
+                // Update strategy data
+                strategyData.ma = maData;
+                strategyData.rsi = rsiData;
+                strategyData.bb = bbData;
+                strategyData.macd = macdData;
+                strategyData.comparison = compareData;
+                
+                // Update strategy display
+                updateStrategyDisplay();
                 updateStatus('Live', 'connected');
                 
             } catch (error) {
                 console.error('Error:', error);
-                showError('Connection failed - check if API server is running');
+                showError(`Connection failed: ${error.message}. Check if API server is running on port 5000.`);
                 updateStatus('Error', 'error');
+                
+                // Show demo data to keep dashboard functional
+                showDemoData();
             }
         }
 
-        function updateUI(data) {
+        function updatePriceUI(data) {
             // Update price
             document.getElementById('current-price').textContent = 
-                '$' + data.price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                '$' + safeLocaleString(data.price);
             
             // Update price change
             const changeElement = document.getElementById('price-change');
-            const changeText = (data.change24h >= 0 ? '+' : '') + data.change24h.toFixed(2) + '%';
+            const change = data.change24h || 0;
+            const changeText = (change >= 0 ? '+' : '') + safeNumber(change, 2) + '%';
             changeElement.textContent = changeText;
-            changeElement.className = 'price-change ' + (data.change24h >= 0 ? 'positive' : 'negative');
+            changeElement.className = 'price-change ' + (change >= 0 ? 'positive' : 'negative');
 
             // Update system info
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-            document.getElementById('data-points').textContent = data.dataPoints;
-
-            // Update strategy content
-            updateStrategyDisplay();
+            document.getElementById('data-points').textContent = data.dataPoints || 0;
 
             // Update chart
             updateChart(data);
+        }
+
+        function showDemoData() {
+            const demoPrice = 45000 + (Math.random() - 0.5) * 2000;
+            const demoChange = (Math.random() - 0.5) * 10;
+            
+            updatePriceUI({
+                price: demoPrice,
+                change24h: demoChange,
+                dataPoints: 50
+            });
         }
 
         function updateChart(data) {
@@ -546,15 +586,17 @@
             
             priceHistory.push({
                 time: timeLabel,
-                price: data.price
+                price: data.price || 0
             });
 
+            // Keep last 50 points
             if (priceHistory.length > 50) {
                 priceHistory = priceHistory.slice(-50);
             }
 
-            priceChart.data.labels = priceHistory.map(function(item) { return item.time; });
-            priceChart.data.datasets[0].data = priceHistory.map(function(item) { return item.price; });
+            // Update chart
+            priceChart.data.labels = priceHistory.map(item => item.time);
+            priceChart.data.datasets[0].data = priceHistory.map(item => item.price);
             priceChart.update('none');
         }
 
@@ -563,41 +605,49 @@
             const dot = document.querySelector('.status-dot');
             
             switch(type) {
-                case 'connected': dot.style.background = '#00ff88'; break;
-                case 'connecting': dot.style.background = '#ffa500'; break;
-                case 'error': dot.style.background = '#ff4757'; break;
+                case 'connected': 
+                    dot.style.background = '#00ff88'; 
+                    break;
+                case 'connecting': 
+                    dot.style.background = '#ffa500'; 
+                    break;
+                case 'error': 
+                    dot.style.background = '#ff4757'; 
+                    break;
             }
         }
 
         function showError(message) {
             const container = document.getElementById('error-container');
-            container.innerHTML = '<div class="error-message">' + message + '</div>';
-            setTimeout(function() { container.innerHTML = ''; }, 5000);
+            container.innerHTML = `<div class="error-message">${message}</div>`;
+            setTimeout(() => { 
+                container.innerHTML = ''; 
+            }, 10000); // Show error for 10 seconds
         }
 
         function startAutoRefresh() {
-            setInterval(function() {
+            setInterval(() => {
                 fetchData();
-            }, 15000);
+            }, 15000); // Refresh every 15 seconds
         }
 
         // Initialize when DOM loads
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM loaded, initializing...');
+            console.log('Odin Dashboard - DOM loaded, initializing...');
             
             // Set up tab click handlers
-            document.getElementById('ma-tab').addEventListener('click', function() { switchToStrategy('ma'); });
-            document.getElementById('rsi-tab').addEventListener('click', function() { switchToStrategy('rsi'); });
-            document.getElementById('bb-tab').addEventListener('click', function() { switchToStrategy('bb'); });
-            document.getElementById('macd-tab').addEventListener('click', function() { switchToStrategy('macd'); });
-            document.getElementById('compare-tab').addEventListener('click', function() { switchToStrategy('compare'); });
+            document.getElementById('ma-tab').addEventListener('click', () => switchToStrategy('ma'));
+            document.getElementById('rsi-tab').addEventListener('click', () => switchToStrategy('rsi'));
+            document.getElementById('bb-tab').addEventListener('click', () => switchToStrategy('bb'));
+            document.getElementById('macd-tab').addEventListener('click', () => switchToStrategy('macd'));
+            document.getElementById('compare-tab').addEventListener('click', () => switchToStrategy('compare'));
             
             // Initialize everything
             initChart();
             fetchData();
             startAutoRefresh();
             
-            console.log('Dashboard initialized');
+            console.log('Odin Dashboard initialized successfully');
         });
     </script>
 </body>
