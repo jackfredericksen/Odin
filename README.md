@@ -218,36 +218,247 @@ Edit `config/settings.py` to customize:
 
 *Results vary based on market conditions and timeframes*
 
-## 📁 Project Structure
+# 📁 Updated Odin Project Structure
+
+Based on your current implementation and planned features, here's the enhanced filesystem structure:
 
 ```
 odin-trading-bot/
-├── README.md
-├── requirements.txt
-├── config/
-│   └── settings.py
-├── data/
-│   └── (bitcoin_data.db - auto-generated)
-├── src/
+├── 📄 README.md
+├── 📄 requirements.txt
+├── 📄 .env.example                     # Environment variables template
+├── 📄 docker-compose.yml               # Docker deployment
+├── 📄 Dockerfile                       # Container configuration
+│
+├── ⚙️ config/
 │   ├── __init__.py
-│   ├── btc_api_server.py     # Main API server
-│   └── btc_collector.py      # Data collection utilities
-├── strategies/
+│   ├── settings.py                     # Enhanced configuration system
+│   ├── logging_config.py               # Logging configuration
+│   └── api_keys.py                     # API key management
+│
+├── 🗄️ data/
+│   ├── bitcoin_data.db                 # Historical price database (17+ years)
+│   ├── trades.db                       # Trading history and performance
+│   ├── portfolio.db                    # Portfolio tracking
+│   ├── risk_metrics.db                 # Risk management data
+│   └── backups/                        # Automated database backups
+│       └── (auto-generated backups)
+│
+├── 🖥️ src/
 │   ├── __init__.py
-│   ├── ma_crossover.py       # Moving Average strategy
-│   ├── rsi_strategy.py       # RSI strategy
-│   ├── bollinger_bands.py    # Bollinger Bands strategy
-│   └── macd_strategy.py      # MACD strategy
-├── web_interface/
-│   └── dashboard.html        # Main dashboard
-├── scripts/
-│   └── fetch_historical_data.py  # Historical data fetcher
-├── backtesting/
-│   └── __init__.py
-└── docs/
-    └── development_log.md
+│   ├── btc_api_server.py               # Enhanced main API server
+│   ├── data_collector.py               # Multi-source data collection
+│   ├── data_manager.py                 # NEW: Historical + Live data integration
+│   ├── portfolio_manager.py            # Portfolio tracking and management
+│   ├── trade_executor.py               # Trade execution engine
+│   └── utils/
+│       ├── __init__.py
+│       ├── database_utils.py           # Database utilities
+│       ├── data_validation.py          # Data validation functions
+│       └── crypto_utils.py             # Cryptographic utilities
+│
+├── 🧠 strategies/
+│   ├── __init__.py
+│   ├── base_strategy.py                # Base strategy class
+│   ├── ma_crossover.py                 # Moving Average strategy (enhanced)
+│   ├── rsi_strategy.py                 # RSI strategy (enhanced)
+│   ├── bollinger_bands.py              # Bollinger Bands strategy (enhanced)
+│   ├── macd_strategy.py                # MACD strategy (enhanced)
+│   ├── multi_strategy.py               # NEW: Combined strategy signals
+│   └── strategy_optimizer.py           # NEW: Parameter optimization
+│
+├── 🛡️ risk_management/
+│   ├── __init__.py
+│   ├── base_risk.py                    # Base risk management class
+│   ├── risk_calculator.py              # Position sizing and risk metrics
+│   ├── stop_loss_manager.py            # Dynamic stop-loss management
+│   ├── portfolio_protector.py          # Portfolio-level risk controls
+│   ├── drawdown_monitor.py             # Drawdown analysis and alerts
+│   ├── exposure_manager.py             # Exposure and correlation analysis
+│   └── var_calculator.py               # Value at Risk calculations
+│
+├── 📢 notifications/
+│   ├── __init__.py
+│   ├── base_notifier.py                # Base notification class
+│   ├── email_notifier.py               # Email alerts (SMTP)
+│   ├── sms_notifier.py                 # SMS notifications (Twilio)
+│   ├── slack_notifier.py               # Slack integration
+│   ├── discord_notifier.py             # Discord integration
+│   ├── webhook_notifier.py             # Custom webhook alerts
+│   ├── telegram_notifier.py            # Telegram bot integration
+│   ├── notification_manager.py         # Centralized notification system
+│   └── alert_rules.py                  # Alert rule engine
+│
+├── 📊 analytics/
+│   ├── __init__.py
+│   ├── performance_analyzer.py         # Trading performance metrics
+│   ├── backtesting_engine.py           # Advanced backtesting system
+│   ├── report_generator.py             # Automated performance reports
+│   ├── market_analyzer.py              # Market condition analysis
+│   ├── correlation_analyzer.py         # Asset correlation analysis
+│   └── ml_predictor.py                 # Machine learning predictions
+│
+├── 🌐 web_interface/
+│   ├── dashboard.html                  # Enhanced main dashboard
+│   ├── risk_dashboard.html             # Risk management interface
+│   ├── analytics_dashboard.html        # Performance analytics interface
+│   ├── strategy_dashboard.html         # Strategy comparison interface
+│   ├── portfolio_dashboard.html        # Portfolio management interface
+│   ├── settings_dashboard.html         # Configuration interface
+│   └── assets/
+│       ├── css/
+│       │   ├── main.css                # Main stylesheet
+│       │   ├── dashboard.css           # Dashboard-specific styles
+│       │   └── themes/                 # Multiple UI themes
+│       │       ├── dark.css
+│       │       ├── light.css
+│       │       └── pro.css
+│       ├── js/
+│       │   ├── main.js                 # Main JavaScript
+│       │   ├── charts.js               # Chart functionality
+│       │   ├── websocket.js            # Real-time data connection
+│       │   ├── notifications.js        # Browser notifications
+│       │   └── utils.js                # Utility functions
+│       ├── images/
+│       │   ├── logo.png
+│       │   ├── icons/                  # UI icons
+│       │   └── charts/                 # Chart assets
+│       └── fonts/                      # Custom fonts
+│
+├── 🔄 backtesting/
+│   ├── __init__.py
+│   ├── backtest_engine.py              # Core backtesting functionality
+│   ├── performance_metrics.py          # Backtesting performance calculations
+│   ├── scenario_generator.py           # Market scenario testing
+│   ├── monte_carlo.py                  # Monte Carlo simulations
+│   └── optimization/
+│       ├── __init__.py
+│       ├── genetic_algorithm.py        # Genetic algorithm optimization
+│       ├── grid_search.py              # Grid search optimization
+│       └── bayesian_optimization.py    # Bayesian optimization
+│
+├── 🛠️ scripts/
+│   ├── __init__.py
+│   ├── generate_sample_data.py         # Generate test data
+│   ├── fetch_historical_data.py        # Historical data fetcher (enhanced)
+│   ├── csv_to_db_converter.py          # CSV data import
+│   ├── backup_manager.py               # Database backup utilities
+│   ├── performance_optimizer.py        # System optimization
+│   ├── verify_installation.py          # Installation verification
+│   ├── migrate_database.py             # Database migration tools
+│   ├── export_data.py                  # Data export utilities
+│   └── deploy/
+│       ├── __init__.py
+│       ├── docker_deploy.py            # Docker deployment script
+│       ├── aws_deploy.py               # AWS deployment
+│       └── setup_server.py             # Server setup automation
+│
+├── 🧪 tests/
+│   ├── __init__.py
+│   ├── test_strategies.py              # Strategy testing
+│   ├── test_risk_management.py         # Risk management testing
+│   ├── test_data_collection.py         # Data collection testing
+│   ├── test_notifications.py           # Notification testing
+│   ├── test_api.py                     # API endpoint testing
+│   ├── test_portfolio.py               # Portfolio management testing
+│   ├── integration/
+│   │   ├── __init__.py
+│   │   ├── test_full_system.py         # Full system integration tests
+│   │   └── test_data_flow.py           # Data flow testing
+│   └── fixtures/
+│       ├── sample_data.json            # Test data fixtures
+│       └── mock_responses.json         # Mock API responses
+│
+├── 📖 docs/
+│   ├── README.md                       # Comprehensive documentation
+│   ├── CHANGELOG.md                    # Version history
+│   ├── CONTRIBUTING.md                 # Contribution guidelines
+│   ├── api_documentation.md            # Complete API reference
+│   ├── strategy_guide.md               # Strategy development guide
+│   ├── risk_management_guide.md        # Risk management documentation
+│   ├── deployment_guide.md             # Production deployment guide
+│   ├── configuration_guide.md          # Configuration documentation
+│   ├── troubleshooting.md              # Common issues and solutions
+│   ├── performance_tuning.md           # Performance optimization
+│   └── architecture/
+│       ├── system_architecture.md      # System design documentation
+│       ├── database_schema.md          # Database design
+│       ├── api_design.md               # API architecture
+│       └── security_model.md           # Security documentation
+│
+├── 🚀 deployment/
+│   ├── docker/
+│   │   ├── Dockerfile.prod             # Production Docker image
+│   │   ├── Dockerfile.dev              # Development Docker image
+│   │   └── docker-compose.yml          # Multi-container setup
+│   ├── kubernetes/
+│   │   ├── deployment.yaml             # Kubernetes deployment
+│   │   ├── service.yaml                # Kubernetes service
+│   │   └── configmap.yaml              # Configuration management
+│   ├── terraform/
+│   │   ├── main.tf                     # Infrastructure as code
+│   │   ├── variables.tf                # Terraform variables
+│   │   └── outputs.tf                  # Terraform outputs
+│   └── scripts/
+│       ├── deploy.sh                   # Deployment script
+│       ├── backup.sh                   # Backup script
+│       └── monitor.sh                  # Monitoring script
+│
+├── 📊 monitoring/
+│   ├── __init__.py
+│   ├── system_monitor.py               # System health monitoring
+│   ├── performance_monitor.py          # Performance monitoring
+│   ├── trade_monitor.py                # Trade execution monitoring
+│   ├── alert_manager.py                # Alert management
+│   └── dashboards/
+│       ├── grafana/                    # Grafana dashboards
+│       └── prometheus/                 # Prometheus configuration
+│
+├── 🔐 security/
+│   ├── __init__.py
+│   ├── encryption.py                   # Data encryption utilities
+│   ├── api_auth.py                     # API authentication
+│   ├── rate_limiter.py                 # Rate limiting
+│   └── audit_log.py                    # Security audit logging
+│
+└── 📋 logs/
+    ├── trading_bot.log                 # Main application logs
+    ├── trades.log                      # Trade execution logs
+    ├── errors.log                      # Error logs
+    ├── performance.log                 # Performance logs
+    ├── security.log                    # Security audit logs
+    └── archived/                       # Archived log files
+        └── (auto-archived logs)
 ```
 
+## 📊 **Key Changes from Original Structure:**
+
+### **New Major Additions:**
+- **🛡️ risk_management/** - Complete risk management system
+- **📢 notifications/** - Multi-channel notification system  
+- **📊 analytics/** - Advanced analytics and ML predictions
+- **🧪 tests/** - Comprehensive testing suite
+- **🚀 deployment/** - Production deployment tools
+- **📊 monitoring/** - System monitoring and alerting
+- **🔐 security/** - Security and encryption utilities
+
+### **Enhanced Existing Folders:**
+- **🖥️ src/** - Added data_manager.py for data integration
+- **🌐 web_interface/** - Multiple specialized dashboards
+- **🛠️ scripts/** - Added deployment and migration tools
+- **📖 docs/** - Comprehensive documentation structure
+
+### **New Features Supported:**
+- Historical + Live data integration
+- Multi-dashboard web interface
+- Comprehensive risk management
+- Advanced notification system
+- Production deployment ready
+- Security and monitoring
+- Machine learning integration
+- Comprehensive testing
+
+This structure supports your current needs while providing room for future enhancements and production deployment.
 ## 🚀 Running Odin
 
 ### **Method 1: Direct Python**
