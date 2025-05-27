@@ -1,875 +1,727 @@
-# src/btc_api_server.py (Fixed Version)
-"""
-Enhanced Bitcoin Trading Bot API Server - Fixed Version
-Handles missing modules gracefully and fixes database path issues
-"""
+# src/btc_api_server.py
+# Enhanced Odin Trading Bot API Server with Discord Notifications
 
-import os
-import sys
-import logging
-import threading
-import time
-from datetime import datetime, timedelta
-from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
+import requests
 import sqlite3
 import pandas as pd
+import time
+from datetime import datetime, timedelta
 import json
+import threading
+from flask import Flask, jsonify, send_from_directory, request
+from flask_cors import CORS
+import os
+import sys
 
-# Add project root to path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-sys.path.append(project_root)
+# Add the project root to Python path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Create necessary directories
-os.makedirs(os.path.join(project_root, 'data'), exist_ok=True)
-os.makedirs(os.path.join(project_root, 'logs'), exist_ok=True)
+# Add import for the strategy
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'strategies'))
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# Import core modules with error handling
+# Import Discord notifications
 try:
-    from src.data_manager import DataManager
-    DATA_MANAGER_AVAILABLE = True
-    logger.info("✅ DataManager imported successfully")
-except ImportError as e:
-    DATA_MANAGER_AVAILABLE = False
-    logger.warning(f"⚠️ DataManager not available: {e}")
-
-# Import strategies with error handling
-strategies_available = {}
-try:
-    from strategies.ma_crossover import MovingAverageCrossoverStrategy
-    strategies_available['ma_crossover'] = MovingAverageCrossoverStrategy
-    logger.info("✅ MA Crossover strategy imported")
+    from notifications.discord_alerts import OdinDiscordNotifier
+    DISCORD_AVAILABLE = True
+    print("✅ Discord notifications module loaded")
 except ImportError:
-    logger.warning("⚠️ MA Crossover strategy not available")
+    print("⚠️ Discord notifications module not found. Discord alerts will be disabled.")
+    DISCORD_AVAILABLE = False
 
 try:
-    from strategies.rsi_strategy import RSIStrategy
-    strategies_available['rsi'] = RSIStrategy
-    logger.info("✅ RSI strategy imported")
+    from ma_crossover import MovingAverageCrossoverStrategy
+    STRATEGY_AVAILABLE = True
 except ImportError:
-    logger.warning("⚠️ RSI strategy not available")
+    print("⚠️ Strategy module not found. Strategy endpoints will be disabled.")
+    STRATEGY_AVAILABLE = False
 
-try:
-    from strategies.bollinger_bands import BollingerBandsStrategy
-    strategies_available['bollinger_bands'] = BollingerBandsStrategy
-    logger.info("✅ Bollinger Bands strategy imported")
-except ImportError:
-    logger.warning("⚠️ Bollinger Bands strategy not available")
-
-try:
-    from strategies.macd_strategy import MACDStrategy
-    strategies_available['macd'] = MACDStrategy
-    logger.info("✅ MACD strategy imported")
-except ImportError:
-    logger.warning("⚠️ MACD strategy not available")
-
-# Import advanced features with error handling
-ADVANCED_FEATURES = False
-try:
-    from risk_management.risk_calculator import RiskCalculator
-    from risk_management.portfolio_protector import PortfolioProtector
-    from notifications.notification_manager import NotificationManager
-    from analytics.performance_analyzer import PerformanceAnalyzer
-    ADVANCED_FEATURES = True
-    logger.info("✅ Advanced features available")
-except ImportError:
-    ADVANCED_FEATURES = False
-    logger.warning("⚠️ Advanced features not available - modules not found")
-
-# Simple fallback data collector if DataManager not available
-class SimpleBitcoinCollector:
-    """Fallback data collector if DataManager is not available"""
-    
+class BitcoinDataCollector:
     def __init__(self, db_path=None):
+        # Get the project root directory (parent of src folder)
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
+        
         if db_path is None:
             db_path = os.path.join(project_root, 'data', 'bitcoin_data.db')
         
+        # Ensure data directory exists
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        
         self.db_path = db_path
-        self.latest_data = None
+        self.cmc_url = "https://pro-api.coinmarketcap.com/v1"
+        self.cmc_sandbox_url = "https://sandbox-api.coinmarketcap.com/v1"  # For testing
         self.setup_database()
+        self.latest_data = None
         
     def setup_database(self):
-        """Create database if it doesn't exist"""
-        try:
-            os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS btc_prices (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT,
-                    price REAL,
-                    volume REAL,
-                    high REAL,
-                    low REAL,
-                    source TEXT
-                )
-            ''')
-            
-            conn.commit()
-            conn.close()
-            logger.info(f"✅ Database setup completed: {self.db_path}")
-            
-        except Exception as e:
-            logger.error(f"❌ Database setup error: {e}")
-            # Create a fallback in-memory database
-            self.db_path = ":memory:"
-    
-    def get_latest_price(self):
-        """Get latest price (fallback implementation)"""
-        try:
-            import requests
-            response = requests.get("https://api.coindesk.com/v1/bpi/currentprice.json", timeout=10)
-            data = response.json()
-            price = float(data['bpi']['USD']['rate'].replace(',', ''))
-            
-            from dataclasses import dataclass
-            @dataclass
-            class PriceData:
-                timestamp: datetime
-                price: float
-                volume: float
-                high: float
-                low: float
-                source: str
-            
-            return PriceData(
-                timestamp=datetime.now(),
-                price=price,
-                volume=50000000000,
-                high=price * 1.02,
-                low=price * 0.98,
-                source='coindesk_fallback'
+        """Create database and tables if they don't exist"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Create price data table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS btc_prices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT,
+                price REAL,
+                volume REAL,
+                high REAL,
+                low REAL,
+                source TEXT
             )
+        ''')
+        
+        conn.commit()
+        conn.close()
+        print(f"Database initialized: {self.db_path}")
+    
+    def fetch_current_price(self):
+        """Fetch current BTC price from multiple free sources as fallback"""
+        try:
+            print("Fetching Bitcoin price...")
+            
+            # Try multiple free APIs in order of preference
+            sources = [
+                self._fetch_from_coindesk,
+                self._fetch_from_blockchain_info,
+                self._fetch_from_coingecko_simple
+            ]
+            
+            for source in sources:
+                try:
+                    price_data = source()
+                    if price_data:
+                        self.latest_data = price_data
+                        return price_data
+                except Exception as e:
+                    print(f"Source failed: {e}")
+                    continue
+            
+            print("All sources failed")
+            return None
+            
         except Exception as e:
-            logger.error(f"Error fetching price: {e}")
+            print(f"Unexpected error: {e}")
             return None
     
-    def get_unified_data(self, hours=24, **kwargs):
-        """Get data (fallback implementation)"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cutoff_time = (datetime.now() - timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
-            
-            df = pd.read_sql_query('''
-                SELECT timestamp, price, volume, high, low, source
-                FROM btc_prices 
-                WHERE timestamp >= ? 
-                ORDER BY timestamp ASC
-            ''', conn, params=(cutoff_time,))
-            
-            conn.close()
-            
-            if not df.empty:
-                df['timestamp'] = pd.to_datetime(df['timestamp'])
-                df.set_index('timestamp', inplace=True)
-            
-            return df
-            
-        except Exception as e:
-            logger.error(f"Error getting data: {e}")
-            return pd.DataFrame()
-    
-    def get_statistics(self):
-        """Get basic statistics"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM btc_prices")
-            total_records = cursor.fetchone()[0]
-            conn.close()
-            
-            return {
-                'total_records': total_records,
-                'status': 'fallback_mode'
-            }
-        except Exception:
-            return {'total_records': 0, 'status': 'fallback_mode'}
-
-class EnhancedTradingBotServer:
-    """Enhanced trading bot server with graceful fallbacks"""
-    
-    def __init__(self):
-        self.app = Flask(__name__)
-        CORS(self.app)
+    def _fetch_from_coindesk(self):
+        """Fetch from CoinDesk API (completely free)"""
+        print("Trying CoinDesk API...")
         
-        # Initialize data manager (with fallback)
-        if DATA_MANAGER_AVAILABLE:
-            try:
-                self.data_manager = DataManager()
-                logger.info("✅ DataManager initialized successfully")
-            except Exception as e:
-                logger.error(f"❌ DataManager initialization failed: {e}")
-                logger.info("🔄 Falling back to SimpleBitcoinCollector")
-                self.data_manager = SimpleBitcoinCollector()
-        else:
-            logger.info("🔄 Using SimpleBitcoinCollector fallback")
-            self.data_manager = SimpleBitcoinCollector()
+        response = requests.get("https://api.coindesk.com/v1/bpi/currentprice.json", timeout=10)
+        response.raise_for_status()
+        data = response.json()
         
-        # Initialize strategies
-        self.strategies = {}
-        for name, strategy_class in strategies_available.items():
-            try:
-                self.strategies[name] = strategy_class()
-                logger.info(f"✅ {name} strategy initialized")
-            except Exception as e:
-                logger.error(f"❌ Failed to initialize {name} strategy: {e}")
+        price = float(data['bpi']['USD']['rate'].replace(',', ''))
         
-        # Initialize advanced components if available
-        self.advanced_features_enabled = ADVANCED_FEATURES
-        if self.advanced_features_enabled:
-            try:
-                self.risk_calculator = RiskCalculator()
-                self.portfolio_protector = PortfolioProtector()
-                self.notification_manager = NotificationManager()
-                self.performance_analyzer = PerformanceAnalyzer()
-                logger.info("✅ Advanced features initialized")
-            except Exception as e:
-                logger.error(f"❌ Advanced features initialization failed: {e}")
-                self.advanced_features_enabled = False
-        
-        # Portfolio state
-        self.portfolio = {
-            'balance': 10000.0,
-            'btc_holdings': 0.0,
-            'total_value': 10000.0,
-            'unrealized_pnl': 0.0,
-            'total_trades': 0,
-            'winning_trades': 0
+        # CoinDesk only provides current price, so we'll estimate other values
+        price_data = {
+            'timestamp': datetime.now(),
+            'price': price,
+            'volume': 50000000000,  # Estimated volume
+            'high': price * 1.02,   # Estimated high
+            'low': price * 0.98,    # Estimated low
+            'change24h': 0.0,       # Not available from CoinDesk
+            'source': 'coindesk'
         }
         
-        self.setup_routes()
-        self.start_background_tasks()
+        print(f"✅ CoinDesk: ${price:,.2f}")
+        return price_data
     
-    def setup_routes(self):
-        """Setup all API routes with error handling"""
+    def _fetch_from_blockchain_info(self):
+        """Fetch from Blockchain.info API (free)"""
+        print("Trying Blockchain.info API...")
         
-        # ===== CORE DATA ENDPOINTS =====
-        self.app.route('/api/current', methods=['GET'])(self.get_current_data)
-        self.app.route('/api/history/<int:hours>', methods=['GET'])(self.get_unified_history)
-        self.app.route('/api/stats', methods=['GET'])(self.get_data_statistics)
+        response = requests.get("https://api.blockchain.info/ticker", timeout=10)
+        response.raise_for_status()
+        data = response.json()
         
-        # ===== STRATEGY ENDPOINTS =====
-        self.app.route('/api/strategy/<strategy_name>/analysis', methods=['GET'])(self.get_strategy_analysis)
-        self.app.route('/api/strategy/<strategy_name>/backtest/<int:hours>', methods=['GET'])(self.run_strategy_backtest)
-        self.app.route('/api/strategy/compare/all/<int:hours>', methods=['GET'])(self.compare_all_strategies)
-        self.app.route('/api/strategy/signals', methods=['GET'])(self.get_combined_signals)
+        usd_data = data['USD']
+        price = float(usd_data['last'])
         
-        # ===== PORTFOLIO ENDPOINTS =====
-        self.app.route('/api/portfolio', methods=['GET'])(self.get_portfolio_status)
-        self.app.route('/api/portfolio/performance', methods=['GET'])(self.get_portfolio_performance)
+        price_data = {
+            'timestamp': datetime.now(),
+            'price': price,
+            'volume': 50000000000,  # Estimated volume
+            'high': price * 1.02,   # Estimated high
+            'low': price * 0.98,    # Estimated low
+            'change24h': 0.0,       # Not available
+            'source': 'blockchain.info'
+        }
         
-        # ===== RISK MANAGEMENT ENDPOINTS (if available) =====
-        if self.advanced_features_enabled:
-            self.app.route('/api/risk/metrics', methods=['GET'])(self.get_risk_metrics)
-            self.app.route('/api/risk/position-size', methods=['POST'])(self.calculate_position_size_endpoint)
-            self.app.route('/api/risk/limits', methods=['GET'])(self.get_risk_limits)
+        print(f"✅ Blockchain.info: ${price:,.2f}")
+        return price_data
+    
+    def _fetch_from_coingecko_simple(self):
+        """Fetch from CoinGecko simple API (slower rate limit)"""
+        print("Trying CoinGecko simple API...")
         
-        # ===== NOTIFICATION ENDPOINTS (if available) =====
-        if self.advanced_features_enabled:
-            self.app.route('/api/notifications/status', methods=['GET'])(self.get_notification_status)
-            self.app.route('/api/notifications/test', methods=['POST'])(self.send_test_notification)
-            self.app.route('/api/notifications/history', methods=['GET'])(self.get_notification_history_endpoint)
+        url = "https://api.coingecko.com/api/v3/simple/price"
+        params = {
+            'ids': 'bitcoin',
+            'vs_currencies': 'usd',
+            'include_24hr_change': 'true'
+        }
         
-        # ===== DASHBOARD ROUTES =====
-        self.app.route('/', methods=['GET'])(self.serve_main_dashboard)
-        self.app.route('/risk', methods=['GET'])(self.serve_risk_dashboard)
-        self.app.route('/analytics', methods=['GET'])(self.serve_analytics_dashboard)
-        self.app.route('/portfolio', methods=['GET'])(self.serve_portfolio_dashboard)
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
         
-        # ===== ERROR HANDLERS =====
-        self.app.errorhandler(404)(self.not_found)
-        self.app.errorhandler(500)(self.server_error)
+        btc_data = data['bitcoin']
+        price = float(btc_data['usd'])
+        change_24h = float(btc_data.get('usd_24h_change', 0))
+        
+        price_data = {
+            'timestamp': datetime.now(),
+            'price': price,
+            'volume': 50000000000,  # Estimated
+            'high': price * (1 + abs(change_24h)/100/2),
+            'low': price * (1 - abs(change_24h)/100/2),
+            'change24h': change_24h,
+            'source': 'coingecko'
+        }
+        
+        print(f"✅ CoinGecko: ${price:,.2f} ({change_24h:+.2f}%)")
+        return price_data
     
-    def get_current_data(self):
-        """Get current Bitcoin price with enhanced data"""
-        try:
-            latest_price = self.data_manager.get_latest_price()
+    def save_price(self, price_data):
+        """Save price data to database"""
+        if not price_data:
+            return False
             
-            if not latest_price:
-                return jsonify({'error': 'No current data available'}), 503
-            
-            # Calculate 24h change (simple version)
-            change_24h = 0.0
-            try:
-                recent_data = self.data_manager.get_unified_data(hours=24)
-                if len(recent_data) > 1:
-                    old_price = recent_data.iloc[0]['price']
-                    change_24h = ((latest_price.price - old_price) / old_price) * 100
-            except Exception:
-                pass  # Use default 0.0
-            
-            # Calculate portfolio value
-            portfolio_value = self.calculate_portfolio_value(latest_price.price)
-            
-            response_data = {
-                'price': latest_price.price,
-                'change24h': change_24h,
-                'volume24h': getattr(latest_price, 'volume', 0),
-                'high24h': getattr(latest_price, 'high', latest_price.price),
-                'low24h': getattr(latest_price, 'low', latest_price.price),
-                'timestamp': latest_price.timestamp.isoformat(),
-                'source': getattr(latest_price, 'source', 'unknown'),
-                'portfolio_value': portfolio_value,
-                'status': 'success'
-            }
-            
-            return jsonify(response_data)
-            
-        except Exception as e:
-            logger.error(f"Error getting current data: {e}")
-            return jsonify({'error': str(e)}), 500
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Convert datetime to string to avoid deprecation warning
+        timestamp_str = price_data['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+        
+        cursor.execute('''
+            INSERT INTO btc_prices (timestamp, price, volume, high, low, source)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (
+            timestamp_str,
+            price_data['price'],
+            price_data['volume'],
+            price_data['high'],
+            price_data['low'],
+            price_data['source']
+        ))
+        
+        conn.commit()
+        conn.close()
+        return True
     
-    def get_unified_history(self, hours):
-        """Get unified historical + live data"""
-        try:
-            resample = request.args.get('resample', None)
-            
-            data = self.data_manager.get_unified_data(
-                hours=hours, 
-                include_live=True if hasattr(self.data_manager, 'get_unified_data') else False,
-                resample_frequency=resample
-            )
-            
-            if data.empty:
-                return jsonify({'error': 'No data available for specified period'}), 404
-            
-            # Convert to API format
-            history = []
-            for timestamp, row in data.iterrows():
-                history.append({
-                    'timestamp': timestamp.isoformat(),
-                    'price': row['price'],
-                    'volume': row.get('volume', 0),
-                    'high': row.get('high', row['price']),
-                    'low': row.get('low', row['price']),
-                    'open': row.get('open', row['price']),
-                    'source': row.get('source', 'unknown')
-                })
-            
-            return jsonify({
-                'history': history,
-                'count': len(history),
-                'period_hours': hours,
-                'resample_frequency': resample,
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error getting unified history: {e}")
-            return jsonify({'error': str(e)}), 500
+    def get_recent_prices(self, limit=100):
+        """Get recent price data from database"""
+        conn = sqlite3.connect(self.db_path)
+        df = pd.read_sql_query(f'''
+            SELECT * FROM btc_prices 
+            ORDER BY timestamp DESC 
+            LIMIT {limit}
+        ''', conn)
+        conn.close()
+        return df
     
-    def get_data_statistics(self):
-        """Get data statistics"""
-        try:
-            stats = self.data_manager.get_statistics()
-            return jsonify({
-                'statistics': stats,
-                'status': 'success'
-            })
-        except Exception as e:
-            logger.error(f"Error getting statistics: {e}")
-            return jsonify({'error': str(e)}), 500
+    def get_price_history(self, hours=24):
+        """Get price history for specified hours"""
+        conn = sqlite3.connect(self.db_path)
+        cutoff_time = (datetime.now() - timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        df = pd.read_sql_query('''
+            SELECT timestamp, price FROM btc_prices 
+            WHERE timestamp >= ? 
+            ORDER BY timestamp ASC
+        ''', conn, params=(cutoff_time,))
+        conn.close()
+        return df
     
-    def get_strategy_analysis(self, strategy_name):
-        """Get analysis from specific strategy"""
-        try:
-            if strategy_name not in self.strategies:
-                return jsonify({'error': f'Strategy {strategy_name} not found'}), 404
-            
-            strategy = self.strategies[strategy_name]
-            
-            # Get recent data for analysis
-            data = self.data_manager.get_unified_data(hours=48)
-            
-            if data.empty:
-                return jsonify({'error': 'Insufficient data for analysis'}), 503
-            
-            # Run strategy analysis (with error handling)
-            try:
-                if hasattr(strategy, 'analyze_current_market'):
-                    analysis = strategy.analyze_current_market(data)
-                else:
-                    # Fallback analysis
-                    analysis = {
-                        'current_price': data.iloc[-1]['price'] if not data.empty else 0,
-                        'trend': 'UNKNOWN',
-                        'signal': 'HOLD',
-                        'data_points': len(data)
-                    }
-            except Exception as e:
-                logger.error(f"Strategy analysis error: {e}")
-                analysis = {'error': f'Analysis failed: {str(e)}'}
-            
-            return jsonify({
-                'strategy': strategy_name,
-                'analysis': analysis,
-                'data_points': len(data),
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error in strategy analysis for {strategy_name}: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    def run_strategy_backtest(self, strategy_name, hours):
-        """Run backtest for specific strategy"""
-        try:
-            if strategy_name not in self.strategies:
-                return jsonify({'error': f'Strategy {strategy_name} not found'}), 404
-            
-            strategy = self.strategies[strategy_name]
-            data = self.data_manager.get_unified_data(hours=hours)
-            
-            if data.empty:
-                return jsonify({'error': 'Insufficient data for backtesting'}), 503
-            
-            # Run backtest (with error handling)
-            try:
-                if hasattr(strategy, 'backtest'):
-                    backtest_result = strategy.backtest(data)
-                else:
-                    # Fallback result
-                    backtest_result = {
-                        'total_return_percent': 0,
-                        'total_trades': 0,
-                        'win_rate_percent': 0,
-                        'error': 'Backtest method not available'
-                    }
-            except Exception as e:
-                logger.error(f"Backtest error: {e}")
-                backtest_result = {'error': f'Backtest failed: {str(e)}'}
-            
-            return jsonify({
-                'strategy': strategy_name,
-                'backtest': backtest_result,
-                'period_hours': hours,
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error running backtest for {strategy_name}: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    def compare_all_strategies(self, hours):
-        """Compare performance of all strategies"""
-        try:
-            results = {}
-            data = self.data_manager.get_unified_data(hours=hours)
-            
-            if data.empty:
-                return jsonify({'error': 'Insufficient data for comparison'}), 503
-            
-            for name, strategy in self.strategies.items():
-                try:
-                    if hasattr(strategy, 'backtest'):
-                        backtest_result = strategy.backtest(data)
-                        results[name] = {
-                            'returns': backtest_result.get('total_return_percent', 0),
-                            'trades': backtest_result.get('total_trades', 0),
-                            'win_rate': backtest_result.get('win_rate_percent', 0),
-                            'sharpe_ratio': backtest_result.get('sharpe_ratio', 0),
-                            'max_drawdown': backtest_result.get('max_drawdown', 0)
-                        }
-                    else:
-                        results[name] = {'error': 'Backtest method not available'}
-                except Exception as e:
-                    logger.warning(f"Strategy {name} comparison failed: {e}")
-                    results[name] = {'error': str(e)}
-            
-            # Determine winner
-            winner = 'none'
-            if results:
-                winner = max(
-                    results.keys(), 
-                    key=lambda k: results[k].get('returns', -999)
-                )
-            
-            return jsonify({
-                'comparison': results,
-                'winner': winner,
-                'period_hours': hours,
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error comparing strategies: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    def get_combined_signals(self):
-        """Get combined signals from all strategies"""
-        try:
-            signals = {}
-            data = self.data_manager.get_unified_data(hours=24)
-            
-            for name, strategy in self.strategies.items():
-                try:
-                    if hasattr(strategy, 'get_current_signal'):
-                        signal = strategy.get_current_signal(data)
-                        signals[name] = signal
-                    else:
-                        signals[name] = {'signal': 'HOLD', 'strength': 0.5}
-                except Exception as e:
-                    signals[name] = {'error': str(e)}
-            
-            # Calculate combined signal
-            hold_count = sum(1 for s in signals.values() if s.get('signal') == 'HOLD')
-            buy_count = sum(1 for s in signals.values() if s.get('signal') == 'BUY')
-            sell_count = sum(1 for s in signals.values() if s.get('signal') == 'SELL')
-            
-            combined_signal = 'HOLD'
-            if buy_count > sell_count and buy_count > hold_count:
-                combined_signal = 'BUY'
-            elif sell_count > buy_count and sell_count > hold_count:
-                combined_signal = 'SELL'
-            
-            return jsonify({
-                'individual_signals': signals,
-                'combined_signal': combined_signal,
-                'consensus': f"{buy_count} Buy, {sell_count} Sell, {hold_count} Hold",
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error getting combined signals: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    def get_portfolio_status(self):
-        """Get portfolio status"""
-        try:
-            latest_price = self.data_manager.get_latest_price()
-            current_price = latest_price.price if latest_price else 50000
-            
-            # Update portfolio value
-            self.portfolio['total_value'] = self.calculate_portfolio_value(current_price)
-            
-            return jsonify({
-                'portfolio': self.portfolio,
-                'current_btc_price': current_price,
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error getting portfolio status: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    def get_portfolio_performance(self):
-        """Get portfolio performance metrics"""
-        try:
-            # Simple performance calculation
-            initial_value = 10000.0
-            current_value = self.portfolio['total_value']
-            total_return = ((current_value - initial_value) / initial_value) * 100
-            
-            performance = {
-                'initial_value': initial_value,
-                'current_value': current_value,
-                'total_return_percent': total_return,
-                'total_trades': self.portfolio['total_trades'],
-                'win_rate': (self.portfolio['winning_trades'] / max(self.portfolio['total_trades'], 1)) * 100
-            }
-            
-            return jsonify({
-                'performance': performance,
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error calculating performance: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    # ===== ADVANCED FEATURES ENDPOINTS =====
-    
-    def get_risk_metrics(self):
-        """Get current risk metrics"""
-        try:
-            if not self.advanced_features_enabled:
-                return jsonify({'error': 'Risk management not available'}), 503
-            
-            portfolio_status = self.portfolio
-            risk_metrics = self.risk_calculator.calculate_comprehensive_risk(portfolio_status)
-            
-            # Check risk violations
-            risk_violations = self.portfolio_protector.check_risk_violations(risk_metrics)
-            
-            return jsonify({
-                'risk_metrics': risk_metrics,
-                'violations': risk_violations,
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error calculating risk metrics: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    def calculate_position_size_endpoint(self):
-        """Calculate position size for a trade"""
-        try:
-            if not self.advanced_features_enabled:
-                return jsonify({'error': 'Risk management not available'}), 503
-            
-            # Get request data
-            data = request.get_json() or {}
-            signal = data.get('signal', {})
-            
-            # Calculate position size
-            position_size = self.risk_calculator.calculate_position_size(signal, self.portfolio)
-            
-            return jsonify({
-                'position_size': position_size,
-                'portfolio_value': self.portfolio['total_value'],
-                'risk_percentage': (position_size / self.portfolio['total_value']) * 100,
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error calculating position size: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    def get_risk_limits(self):
-        """Get current risk limits and settings"""
-        try:
-            if not self.advanced_features_enabled:
-                return jsonify({'error': 'Risk management not available'}), 503
-            
-            # Return risk configuration
-            risk_limits = {
-                'max_position_size': getattr(self.risk_calculator, 'max_position_size', 0.1),
-                'risk_per_trade': getattr(self.risk_calculator, 'risk_per_trade', 0.02),
-                'max_daily_loss': getattr(self.portfolio_protector, 'max_daily_loss', 0.05),
-                'current_exposure': self.portfolio.get('btc_holdings', 0),
-                'available_balance': self.portfolio.get('balance', 0)
-            }
-            
-            return jsonify({
-                'risk_limits': risk_limits,
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error getting risk limits: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    def get_notification_status(self):
-        """Get notification system status"""
-        try:
-            if not self.advanced_features_enabled:
-                return jsonify({'error': 'Notifications not available'}), 503
-            
-            status = {
-                'enabled': getattr(self.notification_manager, 'enabled', True),
-                'notifications_sent_today': len(getattr(self.notification_manager, 'notifications_sent', [])),
-                'last_notification': None
-            }
-            
-            # Get last notification
-            history = getattr(self.notification_manager, 'notifications_sent', [])
-            if history:
-                status['last_notification'] = history[-1]
-            
-            return jsonify({
-                'notification_status': status,
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error getting notification status: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    def send_test_notification(self):
-        """Send a test notification"""
-        try:
-            if not self.advanced_features_enabled:
-                return jsonify({'error': 'Notifications not available'}), 503
-            
-            # Send test notification
-            self.notification_manager.send_alert(
-                "Test Alert", 
-                "This is a test notification from the trading bot", 
-                "info"
-            )
-            
-            return jsonify({
-                'message': 'Test notification sent successfully',
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error sending test notification: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    def get_notification_history_endpoint(self):
-        """Get notification history"""
-        try:
-            if not self.advanced_features_enabled:
-                return jsonify({'error': 'Notifications not available'}), 503
-            
-            history = self.notification_manager.get_notification_history()
-            
-            return jsonify({
-                'notifications': history,
-                'count': len(history),
-                'status': 'success'
-            })
-            
-        except Exception as e:
-            logger.error(f"Error getting notification history: {e}")
-            return jsonify({'error': str(e)}), 500
-    
-    def calculate_portfolio_value(self, current_price: float) -> float:
-        """Calculate current portfolio value"""
-        btc_value = self.portfolio['btc_holdings'] * current_price
-        return self.portfolio['balance'] + btc_value
-    
-    def serve_main_dashboard(self):
-        """Serve main dashboard"""
-        try:
-            dashboard_path = os.path.join(project_root, 'web_interface', 'dashboard.html')
-            if os.path.exists(dashboard_path):
-                return send_from_directory(os.path.join(project_root, 'web_interface'), 'dashboard.html')
+    def collect_data_once(self):
+        """Collect one data point"""
+        price_data = self.fetch_current_price()
+        
+        if price_data:
+            success = self.save_price(price_data)
+            if success:
+                print(f"✅ BTC Price: ${price_data['price']:,.2f} | Change: {price_data['change24h']:+.2f}%")
+                return True
             else:
-                return self.generate_simple_dashboard()
-        except Exception as e:
-            logger.error(f"Dashboard serving error: {e}")
-            return self.generate_simple_dashboard()
+                print("❌ Failed to save data")
+                return False
+        else:
+            print("❌ Failed to fetch data")
+            return False
     
-    def serve_risk_dashboard(self):
-        """Serve risk dashboard"""
-        return self.generate_simple_dashboard("Risk Management Dashboard")
+    def start_continuous_collection(self, interval_seconds=60):
+        """Start continuous data collection in background"""
+        def collect_loop():
+            print(f"🔄 Starting continuous Bitcoin data collection (every {interval_seconds}s)")
+            while True:
+                try:
+                    self.collect_data_once()
+                    time.sleep(interval_seconds)
+                except Exception as e:
+                    print(f"Error in collection loop: {e}")
+                    if "429" in str(e) or "rate limit" in str(e).lower():
+                        print("⚠️ Rate limit hit - waiting 2 minutes before retry...")
+                        time.sleep(120)  # Wait 2 minutes for rate limits
+                    else:
+                        time.sleep(30)  # Short retry delay for other errors
+        
+        # Run in background thread
+        thread = threading.Thread(target=collect_loop, daemon=True)
+        thread.start()
+        return thread
+
+# Flask API Server
+app = Flask(__name__)
+CORS(app)  # Enable CORS for web dashboard
+
+# Global collector and strategy instances
+collector = BitcoinDataCollector()
+if STRATEGY_AVAILABLE:
+    strategy = MovingAverageCrossoverStrategy()
+else:
+    strategy = None
+
+# Initialize Discord notifier
+if DISCORD_AVAILABLE:
+    # Replace with your Discord webhook URL or set DISCORD_WEBHOOK environment variable
+    discord_webhook_url = os.getenv('DISCORD_WEBHOOK', 'https://discord.com/api/webhooks/1376756260061577340/WcHWdeDtXtMbIjONEGEXZlGF-bHuKfKZBUFthYmPzYDMbeRVojC0QR5PAAe3taQPOtrx')
+    discord_notifier = OdinDiscordNotifier(webhook_url=discord_webhook_url)
+    print(f"🚨 Discord notifier initialized")
+else:
+    discord_notifier = None
+
+def start_discord_alerts():
+    """Start Discord alert monitoring in background"""
+    if not discord_notifier or not discord_notifier.webhook_url or discord_notifier.webhook_url == 'https://discord.com/api/webhooks/1376756260061577340/WcHWdeDtXtMbIjONEGEXZlGF-bHuKfKZBUFthYmPzYDMbeRVojC0QR5PAAe3taQPOtrx':
+        print("⚠️ Discord webhook not configured - alerts disabled")
+        print("💡 Set DISCORD_WEBHOOK environment variable or update webhook_url in code")
+        return None
     
-    def serve_analytics_dashboard(self):
-        """Serve analytics dashboard"""
-        return self.generate_simple_dashboard("Analytics Dashboard")
+    def alert_loop():
+        print("🚨 Starting Discord alert monitoring...")
+        
+        # Send startup notification
+        discord_notifier.send_startup_notification()
+        
+        while True:
+            try:
+                if collector.latest_data:
+                    current_price = collector.latest_data['price']
+                    discord_notifier.check_and_send_alerts(current_price)
+                
+                # Check every 2 minutes for new signals
+                time.sleep(120)
+                
+            except Exception as e:
+                print(f"Error in Discord alert monitoring: {e}")
+                time.sleep(60)
     
-    def serve_portfolio_dashboard(self):
-        """Serve portfolio dashboard"""
-        return self.generate_simple_dashboard("Portfolio Dashboard")
+    # Start background thread
+    thread = threading.Thread(target=alert_loop, daemon=True)
+    thread.start()
+    return thread
+
+@app.route('/api/current', methods=['GET'])
+def get_current_data():
+    """Get current Bitcoin price and stats"""
+    try:
+        # Get latest data from collector
+        if collector.latest_data is None:
+            # If no data yet, fetch once
+            collector.collect_data_once()
+        
+        if collector.latest_data:
+            # Get total data points
+            df = collector.get_recent_prices(1000)
+            data_points = len(df)
+            
+            return jsonify({
+                'price': collector.latest_data['price'],
+                'change24h': collector.latest_data['change24h'],
+                'high24h': collector.latest_data['high'],
+                'low24h': collector.latest_data['low'],
+                'volume24h': collector.latest_data['volume'],
+                'timestamp': collector.latest_data['timestamp'].isoformat(),
+                'dataPoints': data_points,
+                'status': 'success'
+            })
+        else:
+            return jsonify({'error': 'No data available', 'status': 'error'}), 503
+            
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/history/<int:hours>', methods=['GET'])
+def get_price_history(hours):
+    """Get price history for specified hours"""
+    try:
+        df = collector.get_price_history(hours)
+        
+        history = []
+        for _, row in df.iterrows():
+            history.append({
+                'timestamp': row['timestamp'],
+                'price': row['price']
+            })
+        
+        return jsonify({
+            'history': history,
+            'count': len(history),
+            'status': 'success'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/recent/<int:limit>', methods=['GET'])
+def get_recent_data(limit):
+    """Get recent price records"""
+    try:
+        df = collector.get_recent_prices(limit)
+        
+        recent = []
+        for _, row in df.iterrows():
+            recent.append({
+                'timestamp': row['timestamp'],
+                'price': row['price'],
+                'volume': row['volume'],
+                'high': row['high'],
+                'low': row['low']
+            })
+        
+        return jsonify({
+            'recent': recent,
+            'count': len(recent),
+            'status': 'success'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    """Get overall statistics"""
+    try:
+        df = collector.get_recent_prices(1000)
+        
+        if len(df) == 0:
+            return jsonify({'error': 'No data available', 'status': 'error'}), 404
+        
+        stats = {
+            'totalRecords': len(df),
+            'averagePrice': float(df['price'].mean()),
+            'maxPrice': float(df['price'].max()),
+            'minPrice': float(df['price'].min()),
+            'priceRange': float(df['price'].max() - df['price'].min()),
+            'oldestRecord': df.iloc[-1]['timestamp'] if len(df) > 0 else None,
+            'newestRecord': df.iloc[0]['timestamp'] if len(df) > 0 else None,
+            'status': 'success'
+        }
+        
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/analysis', methods=['GET'])
+def get_strategy_analysis():
+    """Get current strategy analysis"""
+    if not STRATEGY_AVAILABLE or strategy is None:
+        return jsonify({'error': 'Strategy not available', 'status': 'error'}), 503
     
-    def generate_simple_dashboard(self, title="Odin Trading Bot"):
-        """Generate a simple HTML dashboard"""
-        return f"""
+    try:
+        analysis = strategy.analyze_current_market()
+        return jsonify(analysis)
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/backtest/<int:hours>', methods=['GET'])
+def get_strategy_backtest(hours):
+    """Get strategy backtest results"""
+    if not STRATEGY_AVAILABLE or strategy is None:
+        return jsonify({'error': 'Strategy not available', 'status': 'error'}), 503
+    
+    try:
+        backtest_results = strategy.backtest(hours=hours)
+        return jsonify(backtest_results)
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/chart/<int:hours>', methods=['GET'])
+def get_strategy_chart_data(hours):
+    """Get strategy data for charting"""
+    if not STRATEGY_AVAILABLE or strategy is None:
+        return jsonify({'error': 'Strategy not available', 'status': 'error'}), 503
+    
+    try:
+        chart_data = strategy.get_strategy_data_for_chart(hours=hours)
+        
+        if chart_data is None:
+            return jsonify({'error': 'Not enough data for chart', 'status': 'error'}), 404
+        
+        return jsonify({
+            'data': chart_data,
+            'strategy': f'MA({strategy.short_window},{strategy.long_window})',
+            'status': 'success'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+# Strategy-specific endpoints for your 4 strategies
+@app.route('/api/strategy/ma/analysis', methods=['GET'])
+def get_ma_analysis():
+    """Get Moving Average strategy analysis"""
+    if not STRATEGY_AVAILABLE or strategy is None:
+        return jsonify({'error': 'MA strategy not available', 'status': 'error'}), 503
+    
+    try:
+        analysis = strategy.analyze_current_market()
+        return jsonify(analysis)
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/rsi/analysis', methods=['GET'])
+def get_rsi_analysis():
+    """Get RSI strategy analysis"""
+    try:
+        # Import RSI strategy
+        from rsi_strategy import RSIStrategy
+        rsi_strategy = RSIStrategy()
+        analysis = rsi_strategy.analyze_current_market()
+        return jsonify(analysis)
+    except ImportError:
+        return jsonify({'error': 'RSI strategy not available', 'status': 'error'}), 503
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/bb/analysis', methods=['GET'])
+def get_bb_analysis():
+    """Get Bollinger Bands strategy analysis"""
+    try:
+        # Import Bollinger Bands strategy
+        from bollinger_bands import BollingerBandsStrategy
+        bb_strategy = BollingerBandsStrategy()
+        analysis = bb_strategy.analyze_current_market()
+        return jsonify(analysis)
+    except ImportError:
+        return jsonify({'error': 'Bollinger Bands strategy not available', 'status': 'error'}), 503
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/strategy/macd/analysis', methods=['GET'])
+def get_macd_analysis():
+    """Get MACD strategy analysis"""
+    try:
+        # Import MACD strategy
+        from macd_strategy import MACDStrategy
+        macd_strategy = MACDStrategy()
+        analysis = macd_strategy.analyze_current_market()
+        return jsonify(analysis)
+    except ImportError:
+        return jsonify({'error': 'MACD strategy not available', 'status': 'error'}), 503
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+# Discord notification endpoints
+@app.route('/api/discord/test', methods=['POST'])
+def test_discord_alert():
+    """Test Discord alert functionality"""
+    try:
+        if not discord_notifier:
+            return jsonify({'error': 'Discord notifications not available', 'status': 'error'}), 503
+        
+        result = discord_notifier.send_test_alert()
+        return jsonify({'status': 'success', 'message': result})
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/discord/configure', methods=['POST'])
+def configure_discord():
+    """Configure Discord webhook URL"""
+    try:
+        if not discord_notifier:
+            return jsonify({'error': 'Discord notifications not available', 'status': 'error'}), 503
+        
+        data = request.get_json()
+        webhook_url = data.get('webhook_url')
+        
+        if not webhook_url:
+            return jsonify({'error': 'webhook_url is required', 'status': 'error'}), 400
+        
+        discord_notifier.webhook_url = webhook_url
+        
+        # Test the new webhook
+        test_result = discord_notifier.send_test_alert()
+        
+        return jsonify({
+            'status': 'success', 
+            'message': 'Discord webhook configured and tested',
+            'test_result': test_result
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/api/discord/status', methods=['GET'])
+def get_discord_status():
+    """Get Discord notification status"""
+    try:
+        if not discord_notifier:
+            return jsonify({
+                'available': False,
+                'configured': False,
+                'status': 'Discord notifications module not loaded'
+            })
+        
+        configured = (discord_notifier.webhook_url and 
+                     discord_notifier.webhook_url != 'https://discord.com/api/webhooks/1376756260061577340/WcHWdeDtXtMbIjONEGEXZlGF-bHuKfKZBUFthYmPzYDMbeRVojC0QR5PAAe3taQPOtrx')
+        
+        return jsonify({
+            'available': True,
+            'configured': configured,
+            'webhook_configured': configured,
+            'status': 'Ready' if configured else 'Webhook URL not configured'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'status': 'error'}), 500
+
+@app.route('/')
+def serve_dashboard():
+    """Serve the dashboard HTML file"""
+    try:
+        # Get project root and dashboard path
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
+        dashboard_path = os.path.join(project_root, 'web_interface')
+        
+        return send_from_directory(dashboard_path, 'dashboard.html')
+    except Exception as e:
+        return f'''
         <!DOCTYPE html>
         <html>
         <head>
-            <title>{title}</title>
+            <title>Odin Trading Bot API Server</title>
             <style>
-                body {{ font-family: Arial, sans-serif; background: #1a1a1a; color: white; padding: 20px; }}
-                .container {{ max-width: 1200px; margin: 0 auto; }}
-                .card {{ background: #2d2d2d; padding: 20px; margin: 10px 0; border-radius: 8px; }}
-                .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }}
-                .status {{ color: #4CAF50; }}
-                .error {{ color: #f44336; }}
+                body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }}
+                .endpoint {{ background: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 5px; border-left: 4px solid #1e3c72; }}
+                .status {{ padding: 10px; border-radius: 5px; margin: 10px 0; }}
+                .success {{ background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }}
+                .warning {{ background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }}
             </style>
         </head>
         <body>
-            <div class="container">
-                <h1>🚀 {title}</h1>
-                <div class="card">
-                    <h3 class="status">✅ Server Running</h3>
-                    <p>Your enhanced trading bot is running successfully!</p>
-                    <p><strong>Strategies Available:</strong> {len(self.strategies)}</p>
-                    <p><strong>Advanced Features:</strong> {'Enabled' if self.advanced_features_enabled else 'Disabled'}</p>
-                    <p><strong>Data Manager:</strong> {'Enhanced' if DATA_MANAGER_AVAILABLE else 'Fallback'}</p>
-                </div>
-                
-                <div class="grid">
-                    <div class="card">
-                        <h3>📊 API Endpoints</h3>
-                        <ul>
-                            <li><a href="/api/current" style="color: #4CAF50;">/api/current</a> - Current price</li>
-                            <li><a href="/api/history/24" style="color: #4CAF50;">/api/history/24</a> - 24h history</li>
-                            <li><a href="/api/stats" style="color: #4CAF50;">/api/stats</a> - Statistics</li>
-                            <li><a href="/api/portfolio" style="color: #4CAF50;">/api/portfolio</a> - Portfolio</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="card">
-                        <h3>🧠 Available Strategies</h3>
-                        <ul>
-                            {' '.join([f'<li>{name}</li>' for name in self.strategies.keys()])}
-                        </ul>
-                    </div>
-                </div>
+            <div class="header">
+                <h1>🚀 Odin Trading Bot API Server</h1>
+                <p>Advanced Bitcoin Trading Bot with Multi-Strategy Analysis & Discord Alerts</p>
             </div>
+            
+            <div class="status success">
+                <strong>✅ API Server Running Successfully!</strong>
+            </div>
+            
+            <h2>🎯 Core Features</h2>
+            <ul>
+                <li>📊 Real-time Bitcoin price collection with multi-source fallback</li>
+                <li>🧠 4 Advanced trading strategies (MA, RSI, Bollinger Bands, MACD)</li>
+                <li>🚨 Discord notifications for trading signals</li>
+                <li>📈 Strategy performance comparison and backtesting</li>
+                <li>🌐 Professional web dashboard</li>
+            </ul>
+            
+            <h2>📡 Available API Endpoints</h2>
+            
+            <h3>💰 Bitcoin Data</h3>
+            <div class="endpoint"><strong>GET</strong> <a href="/api/current">/api/current</a> - Current Bitcoin price and stats</div>
+            <div class="endpoint"><strong>GET</strong> <a href="/api/history/24">/api/history/24</a> - 24-hour price history</div>
+            <div class="endpoint"><strong>GET</strong> <a href="/api/recent/10">/api/recent/10</a> - Recent 10 price records</div>
+            <div class="endpoint"><strong>GET</strong> <a href="/api/stats">/api/stats</a> - Overall statistics</div>
+            
+            <h3>🧠 Trading Strategies</h3>
+            <div class="endpoint"><strong>GET</strong> <a href="/api/strategy/ma/analysis">/api/strategy/ma/analysis</a> - Moving Average analysis</div>
+            <div class="endpoint"><strong>GET</strong> <a href="/api/strategy/rsi/analysis">/api/strategy/rsi/analysis</a> - RSI strategy analysis</div>
+            <div class="endpoint"><strong>GET</strong> <a href="/api/strategy/bb/analysis">/api/strategy/bb/analysis</a> - Bollinger Bands analysis</div>
+            <div class="endpoint"><strong>GET</strong> <a href="/api/strategy/macd/analysis">/api/strategy/macd/analysis</a> - MACD strategy analysis</div>
+            
+            <h3>🚨 Discord Notifications</h3>
+            <div class="endpoint"><strong>GET</strong> <a href="/api/discord/status">/api/discord/status</a> - Discord notification status</div>
+            <div class="endpoint"><strong>POST</strong> /api/discord/test - Send test Discord alert</div>
+            <div class="endpoint"><strong>POST</strong> /api/discord/configure - Configure Discord webhook</div>
+            
+            <h2>🌐 Web Dashboard</h2>
+            <div class="status warning">
+                <strong>⚠️ Dashboard Error:</strong> {e}<br>
+                <strong>💡 Solution:</strong> Place dashboard.html in web_interface/ folder
+            </div>
+            
+            <h2>⚙️ System Status</h2>
+            <ul>
+                <li><strong>Database:</strong> {collector.db_path}</li>
+                <li><strong>Strategy Available:</strong> {"✅ Yes" if STRATEGY_AVAILABLE else "❌ No"}</li>
+                <li><strong>Discord Alerts:</strong> {"✅ Available" if DISCORD_AVAILABLE else "❌ Module not found"}</li>
+                <li><strong>Data Sources:</strong> CoinDesk → Blockchain.info → CoinGecko (fallback chain)</li>
+            </ul>
+            
+            <h2>🚀 Quick Setup</h2>
+            <ol>
+                <li><strong>Discord Alerts:</strong> Set DISCORD_WEBHOOK environment variable</li>
+                <li><strong>Test Alerts:</strong> <code>curl -X POST http://localhost:5000/api/discord/test</code></li>
+                <li><strong>Dashboard:</strong> Place dashboard.html in web_interface/ folder</li>
+                <li><strong>Strategies:</strong> Ensure strategy files are in strategies/ folder</li>
+            </ol>
+            
+            <p style="text-align: center; color: #666; margin-top: 40px;">
+                <small>Odin Trading Bot • Advanced Crypto Trading • {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small>
+            </p>
         </body>
         </html>
-        """
-    
-    def not_found(self, error):
-        """404 error handler"""
-        return jsonify({'error': 'Endpoint not found'}), 404
-    
-    def server_error(self, error):
-        """500 error handler"""
-        logger.error(f"Server error: {error}")
-        return jsonify({'error': 'Internal server error'}), 500
-    
-    def start_background_tasks(self):
-        """Start background monitoring tasks"""
-        def monitoring_loop():
-            while True:
-                try:
-                    # Simple background monitoring
-                    if hasattr(self.data_manager, 'cleanup_old_data'):
-                        self.data_manager.cleanup_old_data()
-                    
-                    time.sleep(3600)  # Run every hour
-                    
-                except Exception as e:
-                    logger.error(f"Background monitoring error: {e}")
-                    time.sleep(300)  # Wait 5 minutes on error
-        
-        thread = threading.Thread(target=monitoring_loop, daemon=True)
-        thread.start()
-        logger.info("✅ Background monitoring started")
-    
-    def run(self):
-        """Run the enhanced trading bot server"""
-        logger.info("🚀 Starting Enhanced Bitcoin Trading Bot Server")
-        logger.info(f"📊 Data Manager: {'Enhanced' if DATA_MANAGER_AVAILABLE else 'Fallback mode'}")
-        logger.info(f"🧠 Strategies loaded: {list(self.strategies.keys())}")
-        logger.info(f"🔧 Advanced features: {'Enabled' if self.advanced_features_enabled else 'Disabled'}")
-        logger.info(f"🌐 Server starting on http://localhost:5000")
-        
-        try:
-            self.app.run(host='0.0.0.0', port=5000, debug=False)
-        except KeyboardInterrupt:
-            logger.info("🛑 Server stopped by user")
-        except Exception as e:
-            logger.error(f"❌ Server error: {e}")
+        '''
 
+def main():
+    print("🚀 Odin Trading Bot API Server")
+    print("=" * 60)
+    print(f"📁 Working Directory: {os.getcwd()}")
+    print(f"🗄️ Database Path: {collector.db_path}")
+    print(f"🧠 Strategy Available: {STRATEGY_AVAILABLE}")
+    print(f"🚨 Discord Alerts: {DISCORD_AVAILABLE}")
+    print(f"📊 Data Sources: CoinDesk → Blockchain.info → CoinGecko (fallback chain)")
+    
+    # Start data collection in background
+    print("\n🔄 Starting background services...")
+    collector.start_continuous_collection(interval_seconds=60)
+    
+    # Start Discord alerts
+    discord_thread = start_discord_alerts()
+    if discord_thread:
+        print("🚨 Discord alert monitoring started")
+    else:
+        print("⚠️ Discord alerts not started (webhook not configured)")
+    
+    # Collect initial data
+    print("\n📊 Fetching initial data...")
+    collector.collect_data_once()
+    
+    print("\n🌐 Starting API server...")
+    print("📈 Dashboard available at: http://localhost:5000")
+    print("🔗 API endpoints available at: http://localhost:5000/api/")
+    print("🚨 Discord test: curl -X POST http://localhost:5000/api/discord/test")
+    print("✅ Data collection: Every 60 seconds (with fallback sources)")
+    print("🔔 Discord alerts: Every 2 minutes for new signals")
+    
+    if discord_notifier and discord_notifier.webhook_url != 'https://discord.com/api/webhooks/1376756260061577340/WcHWdeDtXtMbIjONEGEXZlGF-bHuKfKZBUFthYmPzYDMbeRVojC0QR5PAAe3taQPOtrx':
+        print("✅ Discord webhook configured and ready")
+    else:
+        print("💡 To enable Discord alerts:")
+        print("   1. Create Discord webhook in your server")
+        print("   2. Set DISCORD_WEBHOOK environment variable")
+        print("   3. Or update discord_webhook_url in the code")
+    
+    print("\nPress Ctrl+C to stop the server")
+    print("=" * 60)
+    
+    # Start Flask server
+    try:
+        app.run(host='0.0.0.0', port=5000, debug=False)
+    except KeyboardInterrupt:
+        print("\n🛑 Odin Trading Bot stopped by user")
 
 if __name__ == "__main__":
-    try:
-        server = EnhancedTradingBotServer()
-        server.run()
-    except Exception as e:
-        logger.error(f"❌ Failed to start server: {e}")
-        print(f"""
-🔧 TROUBLESHOOTING HELP:
-
-1. Database Issues:
-   - Make sure the 'data' folder exists in your project root
-   - Check file permissions
-   - Ensure you have write access to the project directory
-
-2. Missing Modules:
-   - This server works with graceful fallbacks
-   - Missing advanced features are optional
-   - Core functionality should still work
-
-3. Strategy Errors:
-   - Check that your strategy files are in the 'strategies' folder
-   - Ensure strategy classes have required methods
-
-🚀 Try running again or check the logs above for specific errors.
-        """)
+    main()
