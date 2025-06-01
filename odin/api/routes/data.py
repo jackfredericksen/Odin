@@ -3,6 +3,7 @@ Bitcoin data endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import Response
 from fastapi.responses import JSONResponse
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
