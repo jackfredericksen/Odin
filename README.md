@@ -33,8 +33,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/odin-bitcoin-bot.git
-cd odin-bitcoin-bot
+git clone https://github.com/jackfredericksen/Odin.git
+cd Odin
 
 # Copy environment template
 cp .env.example .env
@@ -50,8 +50,8 @@ curl http://localhost:8000/api/v1/health
 
 ```bash
 # Clone and setup
-git clone https://github.com/yourusername/odin-bitcoin-bot.git
-cd odin-bitcoin-bot
+git clone https://github.com/jackfredericksen/Odin.git
+cd Odin
 
 # Create virtual environment
 python -m venv venv
