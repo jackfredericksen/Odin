@@ -11,10 +11,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'strategies'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'paper_trading'))
 
 try:
-    from ma_crossover import MovingAverageCrossoverStrategy
-    from rsi_strategy import RSIStrategy
+    from moving_average import MovingAverageCrossoverStrategy
+    from rsi import RSIStrategy
     from bollinger_bands import BollingerBandsStrategy
-    from macd_strategy import MACDStrategy
+    from macd import MACDStrategy
     from portfolio_manager import PaperTradingPortfolio, AutomatedTrader
 except ImportError as e:
     print(f"❌ Import error: {e}")
