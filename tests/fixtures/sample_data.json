@@ -1,0 +1,45 @@
+{
+  "sample_prices": [
+    {
+      "timestamp": "2024-01-01T00:00:00Z",
+      "price": 50000.0,
+      "volume": 1000000000.0,
+      "high": 51000.0,
+      "low": 49000.0,
+      "change_24h": 2.5,
+      "source": "test"
+    },
+    {
+      "timestamp": "2024-01-01T01:00:00Z",
+      "price": 50100.0,
+      "volume": 1000100000.0,
+      "high": 51100.0,
+      "low": 49100.0,
+      "change_24h": 2.7,
+      "source": "test"
+    }
+  ],
+  "test_scenarios": {
+    "bullish_trend": {
+      "description": "Upward trending price data",
+      "duration_hours": 24,
+      "start_price": 50000.0,
+      "end_price": 52000.0,
+      "volatility": 0.02
+    },
+    "bearish_trend": {
+      "description": "Downward trending price data", 
+      "duration_hours": 24,
+      "start_price": 52000.0,
+      "end_price": 50000.0,
+      "volatility": 0.02
+    },
+    "sideways_market": {
+      "description": "Sideways/ranging price data",
+      "duration_hours": 24,
+      "start_price": 50000.0,
+      "end_price": 50100.0,
+      "volatility": 0.01
+    }
+  }
+}
