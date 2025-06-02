@@ -260,8 +260,6 @@ odin-bitcoin-bot/
 
 ### Complete REST API (40+ Endpoints)
 
-### Complete REST API (40+ Endpoints)
-
 #### **Strategy Management (`/api/v1/strategies/`)**
 ```bash
 GET    /list                           # List all strategies
@@ -563,17 +561,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 [⭐ Star this repo](https://github.com/yourusername/odin-bitcoin-bot) if you find it useful!
 
 **Odin - Where Norse wisdom meets modern trading technology** ⚡
-
-</div>Strategy Management (`/api/v1/strategies/`)**
-```bash
-GET    /list                     # List all strategies
-GET    /analysis                 # All strategies analysis
-GET    /{strategy}/analysis      # Individual strategy analysis
-GET    /{strategy}/chart/{hours} # Chart data with indicators
-GET    /{strategy}/backtest/{hours} # Strategy backtesting
-POST   /{strategy}/optimize      # Parameter optimization
-GET    /compare/all/{hours}      # Strategy comparison
-GET    /leaderboard             # Performance rankings
-```
-
-#### **
