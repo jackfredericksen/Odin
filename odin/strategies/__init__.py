@@ -1,20 +1,39 @@
-"""Trading strategies for Odin trading bot."""
+"""
+Trading Strategies Package
 
-from odin.strategies.base import BaseStrategy
-from odin.strategies.moving_average import MovingAverageStrategy
-from odin.strategies.rsi import RSIStrategy
-from odin.strategies.bollinger_bands import BollingerBandsStrategy
-from odin.strategies.macd import MACDStrategy
+This package contains all trading strategy implementations for the Odin Bitcoin trading bot.
+Each strategy inherits from the base Strategy class and implements specific trading logic.
+
+Available Strategies:
+- MovingAverageStrategy: Trend following using MA crossovers
+- RSIStrategy: Mean reversion using RSI oscillator
+- BollingerBandsStrategy: Volatility-based breakout/reversion strategy
+- MACDStrategy: Trend momentum using MACD indicator
+
+Usage:
+    from odin.strategies import MovingAverageStrategy, RSIStrategy
+    
+    ma_strategy = MovingAverageStrategy(short_window=5, long_window=20)
+    rsi_strategy = RSIStrategy(period=14, oversold=30, overbought=70)
+"""
+
+from .base import Strategy, StrategySignal, StrategyType
+from .moving_average import MovingAverageStrategy
+from .rsi import RSIStrategy
+from .bollinger_bands import BollingerBandsStrategy
+from .macd import MACDStrategy
 
 __all__ = [
-    "BaseStrategy",
-    "MovingAverageStrategy", 
+    "Strategy",
+    "StrategySignal", 
+    "StrategyType",
+    "MovingAverageStrategy",
     "RSIStrategy",
     "BollingerBandsStrategy",
     "MACDStrategy",
 ]
 
-# Strategy registry for dynamic loading
+# Strategy registry for dynamic strategy loading
 STRATEGY_REGISTRY = {
     "moving_average": MovingAverageStrategy,
     "rsi": RSIStrategy,
@@ -22,14 +41,30 @@ STRATEGY_REGISTRY = {
     "macd": MACDStrategy,
 }
 
-def get_strategy(strategy_name: str, **kwargs) -> BaseStrategy:
-    """Get strategy instance by name."""
-    if strategy_name not in STRATEGY_REGISTRY:
-        raise ValueError(f"Unknown strategy: {strategy_name}")
+def get_strategy(strategy_name: str) -> type[Strategy]:
+    """
+    Get strategy class by name.
     
-    strategy_class = STRATEGY_REGISTRY[strategy_name]
-    return strategy_class(**kwargs)
+    Args:
+        strategy_name: Name of the strategy
+        
+    Returns:
+        Strategy class
+        
+    Raises:
+        ValueError: If strategy name is not found
+    """
+    if strategy_name not in STRATEGY_REGISTRY:
+        available = ", ".join(STRATEGY_REGISTRY.keys())
+        raise ValueError(f"Strategy '{strategy_name}' not found. Available: {available}")
+    
+    return STRATEGY_REGISTRY[strategy_name]
 
 def list_strategies() -> list[str]:
-    """List available strategies."""
+    """
+    Get list of available strategy names.
+    
+    Returns:
+        List of strategy names
+    """
     return list(STRATEGY_REGISTRY.keys())
