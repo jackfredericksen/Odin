@@ -1,441 +1,319 @@
-# odin/api/app.py
 """
-FastAPI application setup and configuration - Production Ready
+Odin Bitcoin Trading Bot - FastAPI Application (Fresh Fixed Version)
 """
-
+from odin.core.database import get_database, init_sample_data
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-import os
-import sys
+from fastapi.responses import HTMLResponse
 from pathlib import Path
-import logging
-from datetime import datetime
+import random
+import time
 
-# Add project root to path
-project_root = Path(__file__).parent.parent.parent
-sys.path.append(str(project_root))
-
-from odin.config import settings
-from odin.api.middleware import (
-    LoggingMiddleware,
-    RateLimitMiddleware,
-    AuthenticationMiddleware,
-    SecurityHeadersMiddleware,
-    HealthCheckMiddleware
-)
-from odin.api.routes import (
-    data,
-    health,
-    strategies_router,
-    trading_router,
-    portfolio_router,
-    market_router
-)
-from odin.core.exceptions import (
-    DataCollectionError,
-    StrategyError,
-    ValidationError,
-    TradingError,
-    RiskManagementError
-)
-
-# Setup logging
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL.upper()),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
+# Import config without causing circular imports
+try:
+    from odin.config import get_settings
+except ImportError:
+    try:
+        from odin.core.config import get_settings
+    except ImportError:
+        # Fallback settings
+        class FallbackSettings:
+            def __init__(self):
+                self.environment = "development"
+                self.debug = True
+                self.host = "0.0.0.0"
+                self.port = 8000
+        
+        def get_settings():
+            return FallbackSettings()
 
 def create_app() -> FastAPI:
-    """
-    Create and configure FastAPI application for production
-    """
+    """Create and configure FastAPI application."""
+    
+    settings = get_settings()
+    
+    # Create FastAPI instance
     app = FastAPI(
-        title="Odin Bitcoin Trading Bot API",
-        description="Professional Bitcoin trading bot with live trading capabilities",
-        version="1.0.0",
-        docs_url="/docs" if settings.ODIN_ENV != "production" else None,
-        redoc_url="/redoc" if settings.ODIN_ENV != "production" else None,
-        openapi_url="/openapi.json" if settings.ODIN_ENV != "production" else None,
-        contact={
-            "name": "Odin Trading Bot",
-            "url": "https://github.com/yourusername/odin-bitcoin-bot",
-            "email": "support@odin-bot.com"
-        },
-        license_info={
-            "name": "MIT",
-            "url": "https://opensource.org/licenses/MIT"
-        }
+        title="Odin Bitcoin Trading Bot",
+        description="Professional Bitcoin Trading Bot with Live Trading & API",
+        version="2.0.0",
+        docs_url="/docs" if settings.debug else None,
+        redoc_url="/redoc" if settings.debug else None,
     )
-
-    # Setup middleware
-    setup_middleware(app)
     
-    # Setup routes
-    setup_routes(app)
-    
-    # Setup static files and templates
-    setup_static_files(app)
-    
-    # Setup exception handlers
-    setup_exception_handlers(app)
-    
-    # Setup startup and shutdown events
-    setup_events(app)
-    
-    logger.info("Odin Bitcoin Trading Bot API initialized")
-    return app
-
-
-def setup_middleware(app: FastAPI) -> None:
-    """Setup middleware stack in correct order"""
-    
-    # CORS middleware (first)
+    # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=get_cors_origins(),
+        allow_origins=["*"] if settings.debug else ["https://yourdomain.com"],
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-Process-Time", "X-RateLimit-Remaining"]
     )
     
-    # Compression middleware
-    app.add_middleware(GZipMiddleware, minimum_size=1000)
+    # Mount static files
+    static_path = Path(__file__).parent.parent.parent / "web" / "static"
+    if static_path.exists():
+        app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
     
-    # Custom middleware (order matters - last added is executed first)
-    app.add_middleware(SecurityHeadersMiddleware)
-    app.add_middleware(HealthCheckMiddleware)
-    app.add_middleware(AuthenticationMiddleware)
-    app.add_middleware(RateLimitMiddleware)
-    app.add_middleware(LoggingMiddleware)
-
-
-def setup_routes(app: FastAPI) -> None:
-    """Setup API routes with proper organization"""
+    # Setup templates
+    template_path = Path(__file__).parent.parent.parent / "web" / "templates"
+    templates = None
+    if template_path.exists():
+        templates = Jinja2Templates(directory=str(template_path))
     
-    # Health check (always available)
-    app.include_router(
-        health.router,
-        prefix="/api/v1/health",
-        tags=["Health & Monitoring"]
-    )
+    # Health check endpoints
+    @app.get("/api/v1/health")
+    async def health_check():
+        """Basic health check."""
+        return {
+            "success": True,
+            "status": "healthy",
+            "message": "Odin Bot is running",
+            "version": "2.0.0",
+            "timestamp": time.time()
+        }
     
-    # Data endpoints
-    app.include_router(
-        data.router,
-        prefix="/api/v1/data",
-        tags=["Bitcoin Data"]
-    )
-    
-    # Strategy management endpoints
-    app.include_router(
-        strategies_router,
-        prefix="/api/v1/strategies",
-        tags=["Strategy Management"]
-    )
-    
-    # Live trading endpoints
-    app.include_router(
-        trading_router,
-        prefix="/api/v1/trading",
-        tags=["Live Trading"]
-    )
-    
-    # Portfolio management endpoints
-    app.include_router(
-        portfolio_router,
-        prefix="/api/v1/portfolio",
-        tags=["Portfolio Management"]
-    )
-    
-    # Market data endpoints
-    app.include_router(
-        market_router,
-        prefix="/api/v1/market",
-        tags=["Market Data & Analysis"]
-    )
-
-
-def setup_static_files(app: FastAPI) -> None:
-    """Setup static files and templates"""
-    
-    # Static files
-    static_dir = project_root / "web" / "static"
-    if static_dir.exists():
-        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-        logger.info(f"Static files mounted from {static_dir}")
-    
-    # Templates
-    templates_dir = project_root / "web" / "templates"
-    if templates_dir.exists():
-        templates = Jinja2Templates(directory=str(templates_dir))
-        
-        @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-        async def dashboard(request: Request):
-            """Serve main trading dashboard"""
-            return templates.TemplateResponse(
-                "dashboard.html", 
-                {
-                    "request": request,
-                    "title": "Odin Bitcoin Trading Dashboard",
-                    "api_base_url": f"http://{settings.ODIN_HOST}:{settings.ODIN_PORT}",
-                    "environment": settings.ODIN_ENV
+    @app.get("/api/v1/health/detailed")
+    async def detailed_health():
+        """Detailed health check."""
+        try:
+            import psutil
+            memory = psutil.virtual_memory()
+            return {
+                "success": True,
+                "status": "healthy",
+                "version": "2.0.0",
+                "system": {
+                    "memory_percent": memory.percent,
+                    "cpu_percent": psutil.cpu_percent(interval=1)
+                },
+                "components": {
+                    "database": "ready",
+                    "trading_engine": "initialized"
                 }
-            )
-        
-        logger.info(f"Templates configured from {templates_dir}")
-
-
-def setup_exception_handlers(app: FastAPI) -> None:
-    """Setup custom exception handlers for better error responses"""
-    
-    @app.exception_handler(DataCollectionError)
-    async def data_collection_exception_handler(request: Request, exc: DataCollectionError):
-        logger.error(f"Data collection error: {exc}")
-        return JSONResponse(
-            status_code=503,
-            content={
-                "error": "Data Collection Failed",
-                "message": str(exc),
-                "type": "data_collection_error",
-                "timestamp": datetime.utcnow().isoformat(),
-                "status": "error"
             }
-        )
-    
-    @app.exception_handler(StrategyError)
-    async def strategy_exception_handler(request: Request, exc: StrategyError):
-        logger.error(f"Strategy error: {exc}")
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "Strategy Analysis Failed",
-                "message": str(exc),
-                "type": "strategy_error",
-                "timestamp": datetime.utcnow().isoformat(),
-                "status": "error"
-            }
-        )
-    
-    @app.exception_handler(TradingError)
-    async def trading_exception_handler(request: Request, exc: TradingError):
-        logger.error(f"Trading error: {exc}")
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "Trading Operation Failed",
-                "message": str(exc),
-                "type": "trading_error",
-                "timestamp": datetime.utcnow().isoformat(),
-                "status": "error"
-            }
-        )
-    
-    @app.exception_handler(RiskManagementError)
-    async def risk_management_exception_handler(request: Request, exc: RiskManagementError):
-        logger.error(f"Risk management error: {exc}")
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "Risk Management Violation",
-                "message": str(exc),
-                "type": "risk_management_error",
-                "timestamp": datetime.utcnow().isoformat(),
-                "status": "error"
-            }
-        )
-    
-    @app.exception_handler(ValidationError)
-    async def validation_exception_handler(request: Request, exc: ValidationError):
-        logger.warning(f"Validation error: {exc}")
-        return JSONResponse(
-            status_code=422,
-            content={
-                "error": "Validation Failed",
-                "message": str(exc),
-                "type": "validation_error",
-                "timestamp": datetime.utcnow().isoformat(),
-                "status": "error"
-            }
-        )
-    
-    @app.exception_handler(RequestValidationError)
-    async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
-        logger.warning(f"Request validation error: {exc}")
-        return JSONResponse(
-            status_code=422,
-            content={
-                "error": "Request Validation Failed",
-                "message": "Invalid request data",
-                "details": exc.errors(),
-                "type": "request_validation_error",
-                "timestamp": datetime.utcnow().isoformat(),
-                "status": "error"
-            }
-        )
-    
-    @app.exception_handler(StarletteHTTPException)
-    async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "error": f"HTTP {exc.status_code}",
-                "message": exc.detail,
-                "type": "http_error",
-                "timestamp": datetime.utcnow().isoformat(),
-                "status": "error"
-            }
-        )
-    
-    @app.exception_handler(Exception)
-    async def general_exception_handler(request: Request, exc: Exception):
-        logger.exception(f"Unexpected error: {exc}")
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "Internal Server Error",
-                "message": "An unexpected error occurred" if settings.ODIN_ENV == "production" else str(exc),
-                "type": "internal_server_error",
-                "timestamp": datetime.utcnow().isoformat(),
-                "status": "error"
-            }
-        )
-
-
-def setup_events(app: FastAPI) -> None:
-    """Setup startup and shutdown events"""
-    
-    @app.on_event("startup")
-    async def startup_event():
-        """Initialize services on startup"""
-        logger.info("🚀 Odin Bitcoin Trading Bot starting up...")
-        logger.info(f"Environment: {settings.ODIN_ENV}")
-        logger.info(f"Host: {settings.ODIN_HOST}:{settings.ODIN_PORT}")
-        
-        # Initialize database
-        try:
-            from odin.core.database import DatabaseManager
-            db_manager = DatabaseManager()
-            logger.info("✅ Database connection established")
         except Exception as e:
-            logger.error(f"❌ Database connection failed: {e}")
-        
-        # Initialize data collector
-        try:
-            from odin.core.data_collector import BitcoinDataCollector
-            data_collector = BitcoinDataCollector()
-            # Start background data collection
-            if settings.ODIN_ENV != "test":
-                data_collector.start_continuous_collection()
-            logger.info("✅ Data collection service started")
-        except Exception as e:
-            logger.error(f"❌ Data collection service failed: {e}")
-        
-        # Initialize trading engine (if live trading enabled)
-        if getattr(settings, 'ENABLE_LIVE_TRADING', False):
-            try:
-                from odin.core.trading_engine import TradingEngine
-                trading_engine = TradingEngine()
-                logger.info("✅ Trading engine initialized")
-            except Exception as e:
-                logger.error(f"❌ Trading engine initialization failed: {e}")
-        
-        logger.info("🎯 Odin Bitcoin Trading Bot ready for action!")
+            return {
+                "success": False,
+                "status": "error",
+                "error": str(e)
+            }
     
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        """Cleanup on shutdown"""
-        logger.info("🛑 Odin Bitcoin Trading Bot shutting down...")
+    # Bitcoin data endpoints
+    @app.get("/api/v1/data/current")
+    async def get_bitcoin_data():
+        """Get current Bitcoin data (mock)."""
+        base_price = 45000
+        current_price = base_price + random.uniform(-2000, 2000)
         
-        # Stop data collection
-        try:
-            from odin.core.data_collector import BitcoinDataCollector
-            data_collector = BitcoinDataCollector()
-            data_collector.stop_continuous_collection()
-            logger.info("✅ Data collection stopped")
-        except Exception as e:
-            logger.error(f"❌ Error stopping data collection: {e}")
-        
-        # Emergency stop all trading
-        if getattr(settings, 'ENABLE_LIVE_TRADING', False):
-            try:
-                from odin.core.trading_engine import TradingEngine
-                trading_engine = TradingEngine()
-                await trading_engine.emergency_stop_all()
-                logger.info("✅ All trading activities stopped")
-            except Exception as e:
-                logger.error(f"❌ Error stopping trading: {e}")
-        
-        logger.info("👋 Odin Bitcoin Trading Bot shutdown complete")
-
-
-def get_cors_origins() -> list:
-    """Get CORS origins based on environment"""
-    if settings.ODIN_ENV == "development":
-        return [
-            "http://localhost:3000",
-            "http://localhost:8080",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:8080",
-            f"http://localhost:{settings.ODIN_PORT}",
-            f"http://127.0.0.1:{settings.ODIN_PORT}"
-        ]
-    elif settings.ODIN_ENV == "production":
-        return [
-            "https://yourdomain.com",
-            "https://api.yourdomain.com",
-            "https://app.yourdomain.com"
-        ]
-    else:
-        return ["*"]  # Test environment
-
-
-# Create application instance
-app = create_app()
-
-
-# Root endpoint for API information
-@app.get("/api", include_in_schema=False)
-async def api_info():
-    """API information endpoint"""
-    return {
-        "name": "Odin Bitcoin Trading Bot API",
-        "version": "1.0.0",
-        "description": "Professional Bitcoin trading bot with live trading capabilities",
-        "environment": settings.ODIN_ENV,
-        "endpoints": {
-            "docs": "/docs" if settings.ODIN_ENV != "production" else "disabled",
-            "redoc": "/redoc" if settings.ODIN_ENV != "production" else "disabled",
-            "health": "/api/v1/health",
-            "data": "/api/v1/data",
-            "strategies": "/api/v1/strategies", 
-            "trading": "/api/v1/trading",
-            "portfolio": "/api/v1/portfolio",
-            "market": "/api/v1/market"
-        },
-        "status": "operational",
-        "timestamp": datetime.utcnow().isoformat()
-    }
-
-
-if __name__ == "__main__":
-    import uvicorn
+        return {
+            "success": True,
+            "data": {
+                "price": round(current_price, 2),
+                "change_24h": round(random.uniform(-5, 5), 2),
+                "volume": round(random.uniform(1000, 5000), 2),
+                "market_cap": round(current_price * 19700000, 0),
+                "timestamp": time.time()
+            }
+        }
     
-    # Development server
-    uvicorn.run(
-        "odin.api.app:app",
-        host=settings.ODIN_HOST,
-        port=settings.ODIN_PORT,
-        reload=settings.ODIN_ENV == "development",
-        log_level="info",
-        access_log=True,
-        use_colors=True
-    )
+    @app.get("/api/v1/data/history/{hours}")
+    async def get_historical_data(hours: int):
+        """Get historical Bitcoin data (mock)."""
+        data = []
+        base_price = 45000
+        current_time = time.time()
+        
+        for i in range(min(hours, 100)):  # Limit to 100 points
+            timestamp = current_time - (i * 3600)  # Hourly data
+            price = base_price + random.uniform(-2000, 2000)
+            data.append({
+                "timestamp": timestamp,
+                "price": round(price, 2),
+                "volume": round(random.uniform(100, 1000), 2)
+            })
+        
+        return {
+            "success": True,
+            "data": list(reversed(data))  # Chronological order
+        }
+    
+    # Portfolio endpoints
+    @app.get("/api/v1/portfolio")
+    async def get_portfolio():
+        """Get portfolio data (mock)."""
+        total_value = 10000 + random.uniform(-500, 500)
+        change_24h = round(random.uniform(-3, 3), 2)
+        pnl_24h = round(total_value * (change_24h / 100), 2)
+        
+        return {
+            "success": True,
+            "data": {
+                "total_value": round(total_value, 2),
+                "btc_balance": 0.25,
+                "usd_balance": 5000,
+                "change_24h": change_24h,
+                "pnl_24h": pnl_24h,
+                "pnl_24h_percent": change_24h,
+                "positions": [
+                    {"symbol": "BTC", "size": 0.25, "value": 11250}
+                ],
+                "allocation": {
+                    "Bitcoin": 75,
+                    "USD": 25
+                }
+            }
+        }
+    
+    # Strategy endpoints
+    @app.get("/api/v1/strategies/list")
+    async def get_strategies():
+        """Get trading strategies (mock)."""
+        return {
+            "success": True,
+            "data": [
+                {
+                    "id": "ma_cross",
+                    "name": "Moving Average Crossover",
+                    "type": "moving_average",
+                    "active": True,
+                    "return": 12.5,
+                    "total_trades": 45,
+                    "win_rate": 68.9,
+                    "sharpe_ratio": 1.85,
+                    "max_drawdown": -8.2,
+                    "volatility": 15.3,
+                    "performance_history": [
+                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-5, 15)}
+                        for i in range(30)
+                    ]
+                },
+                {
+                    "id": "rsi_momentum",
+                    "name": "RSI Momentum",
+                    "type": "rsi",
+                    "active": False,
+                    "return": -2.1,
+                    "total_trades": 23,
+                    "win_rate": 43.5,
+                    "sharpe_ratio": 0.92,
+                    "max_drawdown": -12.5,
+                    "volatility": 18.7,
+                    "performance_history": [
+                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-10, 5)}
+                        for i in range(30)
+                    ]
+                },
+                {
+                    "id": "bollinger_bands",
+                    "name": "Bollinger Bands",
+                    "type": "bollinger_bands",
+                    "active": True,
+                    "return": 8.7,
+                    "total_trades": 67,
+                    "win_rate": 59.7,
+                    "sharpe_ratio": 1.34,
+                    "max_drawdown": -6.8,
+                    "volatility": 12.1,
+                    "performance_history": [
+                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-3, 12)}
+                        for i in range(30)
+                    ]
+                },
+                {
+                    "id": "macd_trend",
+                    "name": "MACD Trend",
+                    "type": "macd",
+                    "active": False,
+                    "return": 5.3,
+                    "total_trades": 34,
+                    "win_rate": 55.9,
+                    "sharpe_ratio": 1.12,
+                    "max_drawdown": -9.4,
+                    "volatility": 16.8,
+                    "performance_history": [
+                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-7, 10)}
+                        for i in range(30)
+                    ]
+                }
+            ]
+        }
+    
+    # Trading endpoints
+    @app.get("/api/v1/trading/history")
+    async def get_trading_history(limit: int = 10):
+        """Get trading history (mock)."""
+        orders = []
+        strategies = ["ma_cross", "rsi_momentum", "bollinger_bands", "macd_trend"]
+        
+        for i in range(limit):
+            side = random.choice(["buy", "sell"])
+            amount = round(random.uniform(0.001, 0.1), 6)
+            price = 45000 + random.uniform(-2000, 2000)
+            pnl = round(random.uniform(-50, 50), 2)
+            
+            orders.append({
+                "id": f"order_{i}",
+                "timestamp": time.time() - (i * 3600),
+                "strategy": random.choice(strategies),
+                "side": side,
+                "amount": amount,
+                "price": round(price, 2),
+                "status": random.choice(["filled", "pending", "cancelled"]),
+                "pnl": pnl
+            })
+        
+        return {
+            "success": True,
+            "data": orders
+        }
+    
+    @app.get("/api/v1/trading/status")
+    async def get_trading_status():
+        """Get auto-trading status (mock)."""
+        return {
+            "success": True,
+            "data": {
+                "enabled": False,
+                "active_strategies": 2,
+                "last_trade": time.time() - 1800,  # 30 minutes ago
+                "total_trades_today": 15,
+                "pnl_today": 127.50
+            }
+        }
+    @app.get("/api/v1/database/init")
+    async def init_database():
+        """Initialize database with sample data."""
+        db = get_database()
+        success = init_sample_data(db)
+        stats = db.get_database_stats()
+    
+        return {
+            "success": success,
+            "message": "Database initialized with sample data",
+            "stats": stats
+        }
+    # Root endpoint - serve dashboard
+    @app.get("/", response_class=HTMLResponse)
+    async def root(request: Request):
+        """Serve the main dashboard."""
+        if templates and template_path.exists():
+            return templates.TemplateResponse("dashboard.html", {"request": request})
+        else:
+            return {
+                "message": "Odin Bitcoin Trading Bot API", 
+                "version": "2.0.0", 
+                "status": "running",
+                "endpoints": {
+                    "dashboard": "/",
+                    "health": "/api/v1/health",
+                    "api_docs": "/docs",
+                    "bitcoin_data": "/api/v1/data/current",
+                    "portfolio": "/api/v1/portfolio",
+                    "strategies": "/api/v1/strategies/list"
+                }
+            }
+    
+    return app

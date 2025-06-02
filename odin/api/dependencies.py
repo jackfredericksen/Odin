@@ -10,13 +10,13 @@ from typing import Optional, Generator
 import jwt
 from datetime import datetime, timedelta
 
-from odin.core.database import DatabaseManager
-from odin.core.data_collector import BitcoinDataCollector
-from odin.strategies.moving_average import MovingAverageStrategy
-from odin.strategies.rsi import RSIStrategy
-from odin.strategies.bollinger_bands import BollingerBandsStrategy
-from odin.strategies.macd import MACDStrategy
-from odin.config import settings
+from core.database import DatabaseManager
+from core.data_collector import BitcoinDataCollector
+from strategies.moving_average import MovingAverageStrategy
+from strategies.rsi import RSIStrategy
+from strategies.bollinger_bands import BollingerBandsStrategy
+from strategies.macd import MACDStrategy
+from config import settings
 
 
 # Security
