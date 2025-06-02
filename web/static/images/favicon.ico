@@ -1,0 +1,37 @@
+<svg width="80" height="80" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="40" cy="40" r="38" fill="url(#logoGradient)" filter="url(#glow)" opacity="0.9"/>
+  
+  <!-- Lightning bolt (Thor's power) -->
+  <path d="M45 15 L35 35 L45 35 L35 65 L55 35 L45 35 Z" fill="#ffffff" opacity="0.9"/>
+  
+  <!-- Runic symbols around the edge -->
+  <g fill="#ffffff" opacity="0.7" font-family="serif" font-size="8" font-weight="bold">
+    <text x="40" y="10" text-anchor="middle">ᚠ</text>
+    <text x="65" y="20" text-anchor="middle">ᚢ</text>
+    <text x="70" y="45" text-anchor="middle">ᚦ</text>
+    <text x="60" y="70" text-anchor="middle">ᚨ</text>
+    <text x="40" y="75" text-anchor="middle">ᚱ</text>
+    <text x="20" y="70" text-anchor="middle">ᚲ</text>
+    <text x="10" y="45" text-anchor="middle">ᚷ</text>
+    <text x="15" y="20" text-anchor="middle">ᚹ</text>
+  </g>
+  
+  <!-- Central Bitcoin symbol -->
+  <circle cx="40" cy="40" r="12" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+  <text x="40" y="45" text-anchor="middle" fill="#ffffff" font-family="Arial" font-size="14" font-weight="bold">₿</text>
+</svg>

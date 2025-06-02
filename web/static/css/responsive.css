@@ -1,0 +1,640 @@
+/* Odin Bitcoin Trading Dashboard - Responsive Styles */
+
+/* Breakpoints */
+:root {
+    --breakpoint-xs: 320px;
+    --breakpoint-sm: 576px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 992px;
+    --breakpoint-xl: 1200px;
+    --breakpoint-xxl: 1400px;
+}
+
+/* Extra Large Screens (1400px and up) */
+@media (min-width: 1400px) {
+    .dashboard-main {
+        padding: var(--spacing-2xl);
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .trading-section {
+        grid-template-columns: 3fr 1fr;
+    }
+    
+    .chart-wrapper {
+        height: 500px;
+    }
+}
+
+/* Large Screens (992px to 1399px) */
+@media (max-width: 1399px) and (min-width: 992px) {
+    .dashboard-main {
+        padding: var(--spacing-xl);
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .trading-section {
+        grid-template-columns: 2fr 1fr;
+    }
+}
+
+/* Medium Screens (768px to 991px) */
+@media (max-width: 991px) and (min-width: 768px) {
+    .dashboard-header {
+        padding: var(--spacing-md);
+    }
+    
+    .header-left h1 {
+        font-size: var(--font-size-lg);
+    }
+    
+    .dashboard-main {
+        padding: var(--spacing-lg);
+        gap: var(--spacing-lg);
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-md);
+    }
+    
+    .trading-section {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-lg);
+    }
+    
+    .bottom-section {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-lg);
+    }
+    
+    .chart-wrapper {
+        height: 350px;
+    }
+    
+    .orders-table-container {
+        overflow-x: auto;
+        max-height: 250px;
+    }
+    
+    .orders-table {
+        min-width: 600px;
+    }
+    
+    .strategy-panel {
+        order: -1;
+    }
+    
+    .portfolio-content {
+        flex-direction: row;
+        gap: var(--spacing-md);
+    }
+    
+    .allocation-chart-container {
+        flex: 1;
+        height: 150px;
+    }
+    
+    .portfolio-details {
+        flex: 1;
+    }
+}
+
+/* Small Screens (576px to 767px) */
+@media (max-width: 767px) and (min-width: 576px) {
+    .dashboard-header {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        padding: var(--spacing-md);
+    }
+    
+    .header-left,
+    .header-center,
+    .header-right {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .header-right {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+    
+    .emergency-stop-btn {
+        width: 100%;
+        max-width: 200px;
+    }
+    
+    .dashboard-main {
+        padding: var(--spacing-md);
+        gap: var(--spacing-md);
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+    
+    .stat-card {
+        padding: var(--spacing-md);
+    }
+    
+    .stat-value {
+        font-size: var(--font-size-2xl);
+    }
+    
+    .trading-section {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+    
+    .bottom-section {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+    
+    .chart-container {
+        padding: var(--spacing-md);
+    }
+    
+    .chart-header {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        align-items: stretch;
+    }
+    
+    .chart-controls {
+        justify-content: center;
+    }
+    
+    .chart-wrapper {
+        height: 300px;
+    }
+    
+    .strategy-panel {
+        padding: var(--spacing-md);
+        order: -1;
+    }
+    
+    .panel-header {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        align-items: stretch;
+    }
+    
+    .strategy-controls,
+    .panel-controls {
+        justify-content: center;
+    }
+    
+    .orders-panel,
+    .portfolio-panel {
+        padding: var(--spacing-md);
+    }
+    
+    .orders-table-container {
+        max-height: 200px;
+    }
+    
+    .orders-table {
+        min-width: 500px;
+        font-size: var(--font-size-xs);
+    }
+    
+    .orders-table th,
+    .orders-table td {
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+    
+    .portfolio-content {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+    
+    .allocation-chart-container {
+        height: 200px;
+    }
+    
+    .dashboard-footer {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        text-align: center;
+        padding: var(--spacing-md);
+    }
+    
+    .footer-left,
+    .footer-right {
+        justify-content: center;
+    }
+    
+    .footer-separator {
+        display: none;
+    }
+    
+    /* Modal adjustments */
+    .modal-content {
+        width: 95%;
+        margin: var(--spacing-md);
+    }
+    
+    .modal-header {
+        padding: var(--spacing-md);
+    }
+    
+    .modal-body {
+        padding: var(--spacing-md);
+    }
+    
+    .modal-footer {
+        padding: var(--spacing-md);
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+    
+    .modal-footer button {
+        width: 100%;
+    }
+    
+    /* Notification adjustments */
+    .notification-container {
+        right: var(--spacing-md);
+        left: var(--spacing-md);
+    }
+    
+    .notification {
+        min-width: auto;
+        max-width: none;
+    }
+}
+
+/* Extra Small Screens (320px to 575px) */
+@media (max-width: 575px) {
+    .dashboard-header {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm);
+    }
+    
+    .header-left {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+        text-align: center;
+    }
+    
+    .header-left h1 {
+        font-size: var(--font-size-base);
+        text-align: center;
+    }
+    
+    .logo {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .header-center,
+    .header-right {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .connection-status {
+        font-size: var(--font-size-xs);
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+    
+    .current-time {
+        font-size: var(--font-size-xs);
+    }
+    
+    .emergency-stop-btn {
+        width: 100%;
+        font-size: var(--font-size-xs);
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+    
+    .dashboard-main {
+        padding: var(--spacing-sm);
+        gap: var(--spacing-sm);
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+    
+    .stat-card {
+        padding: var(--spacing-sm);
+    }
+    
+    .stat-header h3 {
+        font-size: var(--font-size-xs);
+    }
+    
+    .stat-value {
+        font-size: var(--font-size-xl);
+    }
+    
+    .stat-subtitle,
+    .stat-change {
+        font-size: var(--font-size-xs);
+    }
+    
+    .trading-section {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+    
+    .bottom-section {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+    
+    .chart-container,
+    .strategy-panel,
+    .orders-panel,
+    .portfolio-panel {
+        padding: var(--spacing-sm);
+    }
+    
+    .chart-header h3,
+    .panel-header h3 {
+        font-size: var(--font-size-base);
+    }
+    
+    .chart-controls select {
+        font-size: var(--font-size-xs);
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+    
+    .chart-wrapper {
+        height: 250px;
+    }
+    
+    .strategy-card {
+        padding: var(--spacing-sm);
+    }
+    
+    .strategy-name {
+        font-size: var(--font-size-sm);
+    }
+    
+    .strategy-metrics {
+        grid-template-columns: 1fr;
+        font-size: var(--font-size-xs);
+    }
+    
+    .orders-table {
+        min-width: 400px;
+        font-size: var(--font-size-xs);
+    }
+    
+    .orders-table th,
+    .orders-table td {
+        padding: var(--spacing-xs);
+    }
+    
+    /* Hide some columns on very small screens */
+    .orders-table .hide-mobile {
+        display: none;
+    }
+    
+    .portfolio-content {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+    
+    .allocation-chart-container {
+        height: 150px;
+    }
+    
+    .portfolio-item {
+        padding: var(--spacing-xs);
+        font-size: var(--font-size-xs);
+    }
+    
+    .dashboard-footer {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+        padding: var(--spacing-sm);
+        font-size: var(--font-size-xs);
+    }
+    
+    /* Button adjustments */
+    .btn-primary,
+    .btn-secondary,
+    .btn-outline,
+    .btn-danger {
+        font-size: var(--font-size-xs);
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+    
+    /* Modal adjustments */
+    .modal-content {
+        width: 98%;
+        margin: var(--spacing-xs);
+        max-height: 95vh;
+    }
+    
+    .modal-header {
+        padding: var(--spacing-sm);
+    }
+    
+    .modal-header h3 {
+        font-size: var(--font-size-base);
+    }
+    
+    .modal-body {
+        padding: var(--spacing-sm);
+        font-size: var(--font-size-sm);
+    }
+    
+    .modal-footer {
+        padding: var(--spacing-sm);
+        flex-direction: column;
+        gap: var(--spacing-xs);
+    }
+    
+    /* Component adjustments */
+    .badge {
+        font-size: 10px;
+        padding: 2px 4px;
+    }
+    
+    .notification {
+        min-width: auto;
+        max-width: none;
+        margin: 0 var(--spacing-xs);
+    }
+    
+    .notification-header {
+        margin-bottom: var(--spacing-xs);
+    }
+    
+    .notification-title {
+        font-size: var(--font-size-xs);
+    }
+    
+    .notification-body {
+        font-size: var(--font-size-xs);
+    }
+    
+    /* Loading screen adjustments */
+    .loading-logo {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .loading-content p {
+        font-size: var(--font-size-sm);
+    }
+}
+
+/* Landscape orientation adjustments for mobile */
+@media (max-width: 767px) and (orientation: landscape) {
+    .dashboard-header {
+        flex-direction: row;
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+    
+    .header-left,
+    .header-center,
+    .header-right {
+        width: auto;
+        flex: 1;
+    }
+    
+    .header-right {
+        flex-direction: row;
+        justify-content: flex-end;
+    }
+    
+    .emergency-stop-btn {
+        width: auto;
+    }
+    
+    .chart-wrapper {
+        height: 200px;
+    }
+    
+    .allocation-chart-container {
+        height: 120px;
+    }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+    /* Increase touch targets */
+    button,
+    .dropdown-toggle,
+    .tab-item,
+    .pagination-item {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    /* Remove hover effects */
+    .stat-card:hover,
+    .card:hover,
+    .strategy-card:hover {
+        transform: none;
+        box-shadow: var(--shadow-medium);
+    }
+    
+    /* Simplify animations */
+    * {
+        animation-duration: 0.2s !important;
+        transition-duration: 0.2s !important;
+    }
+}
+
+/* High DPI display optimizations */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .logo,
+    .loading-logo {
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+    }
+}
+
+/* Print styles for mobile */
+@media print {
+    .dashboard-header,
+    .dashboard-footer,
+    .emergency-stop-btn,
+    .strategy-controls,
+    .panel-controls,
+    .chart-controls {
+        display: none !important;
+    }
+    
+    .dashboard-main {
+        padding: 0;
+    }
+    
+    .stats-grid,
+    .trading-section,
+    .bottom-section {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+    
+    .stat-card,
+    .chart-container,
+    .strategy-panel,
+    .orders-panel,
+    .portfolio-panel {
+        break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+}
+
+/* Accessibility improvements for small screens */
+@media (max-width: 767px) {
+    /* Ensure focus indicators are visible */
+    button:focus,
+    select:focus,
+    input:focus {
+        outline: 3px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+    
+    /* Improve text contrast for small screens */
+    .text-muted {
+        color: var(--text-secondary);
+    }
+    
+    /* Ensure minimum font sizes */
+    .stat-subtitle,
+    .footer-left,
+    .footer-right {
+        font-size: max(var(--font-size-xs), 12px);
+    }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    
+    .loading-spinner {
+        animation: none;
+        border: 3px solid var(--primary-color);
+    }
+    
+    .status-indicator {
+        animation: none;
+    }
+}
