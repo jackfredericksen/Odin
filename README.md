@@ -1,7 +1,6 @@
 # Odin - Professional Bitcoin Trading Bot
 
 <div align="center">
-
 🚀 **Advanced Bitcoin Trading Bot with Live Trading & Professional API Architecture**
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
