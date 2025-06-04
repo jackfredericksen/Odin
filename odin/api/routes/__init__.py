@@ -7,7 +7,7 @@ from .strategies import router as strategies_router
 from .trading import router as trading_router
 from .portfolio import router as portfolio_router
 from .market import router as market_router
-from .websocket import websocket
+from .websockets import websocket
 __all__ = [
     "data",
     "health", 
@@ -15,5 +15,5 @@ __all__ = [
     "trading_router",
     "portfolio_router",
     "market_router",
-    "websocket"
+    "websockets"
 ]

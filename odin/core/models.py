@@ -6,7 +6,7 @@ Compatible with both Pydantic v1 and v2, with dataclass fallback
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Union
 from enum import Enum
-
+from pydantic import BaseModel
 # Try Pydantic v2 first, then v1, then fallback to dataclasses
 try:
     from pydantic import BaseModel, Field, field_validator, model_validator
@@ -60,6 +60,15 @@ class StrategyStatus(str, Enum):
     PAUSED = "paused"
     ERROR = "error"
 
+class HistoricalData(BaseModel):
+    """Historical price data model."""
+    timestamp: datetime
+    price: float
+    volume: Optional[float] = None
+    high: Optional[float] = None
+    low: Optional[float] = None
+    open: Optional[float] = None
+    close: Optional[float] = None
 # Base Model Classes
 if PYDANTIC_VERSION > 0:
     class OdinBaseModel(BaseModel):

@@ -9,7 +9,7 @@ from pathlib import Path
 import random
 import time
 import logging
-
+import json
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -72,12 +72,61 @@ def create_app() -> FastAPI:
     
     # Include WebSocket routes
     try:
-        from .routes.websockets import router as websocket_router
+        from odin.api.routes.websockets import router as websocket_router
         app.include_router(websocket_router)
         logger.info("🔌 WebSocket support enabled")
     except ImportError as e:
         logger.warning(f"WebSocket module not available: {e}")
     
+    # Add a simple WebSocket endpoint directly in the app
+    @app.websocket("/ws")
+    async def websocket_endpoint_fallback(websocket):
+        await websocket.accept()
+        try:
+            await websocket.send_text('{"type":"connection","status":"connected","message":"WebSocket connected"}')
+            while True:
+                await websocket.receive_text()
+        except Exception:
+            pass
+    logger.info("🔌 Fallback WebSocket endpoint created")
+    # Add this directly in app.py after middleware setup
+    @app.websocket("/ws")
+    async def websocket_endpoint(websocket):
+        """Direct WebSocket endpoint in app.py"""
+        await websocket.accept()
+        logger.info("WebSocket connection accepted")
+        
+        try:
+            # Send connection confirmation
+            await websocket.send_text(json.dumps({
+                "type": "connection",
+                "status": "connected", 
+                "timestamp": time.time(),
+                "message": "Connected to Odin Trading Bot"
+            }))
+            
+            # Keep connection alive
+            while True:
+                try:
+                    message = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                    # Echo back for now
+                    await websocket.send_text(json.dumps({
+                        "type": "pong",
+                        "timestamp": time.time()
+                    }))
+                except asyncio.TimeoutError:
+                    await websocket.send_text(json.dumps({
+                        "type": "ping",
+                        "timestamp": time.time()
+                    }))
+                except Exception:
+                    break
+                    
+        except Exception as e:
+            logger.error(f"WebSocket error: {e}")
+        finally:
+            logger.info("WebSocket connection closed")
+
     # Startup event
     @app.on_event("startup")
     async def startup_event():
@@ -134,7 +183,7 @@ def create_app() -> FastAPI:
             # Check WebSocket status
             websocket_status = "disabled"
             try:
-                from .routes.websockets import websocket_health_check
+                from odin.api.routes.websockets import websocket_health_check
                 ws_health = await websocket_health_check()
                 websocket_status = "enabled" if ws_health["websocket_enabled"] else "disabled"
             except:
