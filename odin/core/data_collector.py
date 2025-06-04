@@ -1,9 +1,9 @@
 """
-Odin Core Data Collector - Real-time Bitcoin Data Collection and Processing
+Odin Core Data Collector - Real-time Bitcoin Data Collection with WebSocket Broadcasting
+Clean version without circular imports.
 
-Comprehensive data collection system for the Odin trading bot providing
-real-time Bitcoin price data, technical indicators, and market information
-from multiple sources with failover and validation.
+Enhanced data collector that fetches Bitcoin price data from multiple sources
+and broadcasts updates to WebSocket clients in real-time.
 
 File: odin/core/data_collector.py
 Author: Odin Development Team
@@ -11,500 +11,169 @@ License: MIT
 """
 
 import asyncio
-import json
+import aiohttp
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Optional, Any, Callable, Set
-from decimal import Decimal
-import aiohttp
-import websockets
-import pandas as pd
-import numpy as np
-from statistics import mean, stdev
-
-from .database import Database, BitcoinPrice
-from .models import PriceData, OHLCData, MarketDepth
-from .exceptions import (
-    DataCollectorException, 
-    MarketDataException, 
-    DataValidationException, 
-    DataSourceException
-)
+from typing import Dict, List, Optional, Any
+import time
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+# Database imports
+try:
+    from .database import get_database
+except ImportError:
+    get_database = None
 
-class DataSource:
-    """Base class for data sources."""
-    
-    def __init__(self, name: str, priority: int = 1, enabled: bool = True):
-        self.name = name
-        self.priority = priority  # Lower = higher priority
-        self.enabled = enabled
-        self.last_update = None
-        self.error_count = 0
-        self.max_errors = 5
-        
-    async def get_price(self) -> Optional[PriceData]:
-        """Get current price data."""
-        raise NotImplementedError
-    
-    async def get_ohlc(self, timeframe: str = "1h", limit: int = 100) -> List[OHLCData]:
-        """Get OHLC data."""
-        raise NotImplementedError
-    
-    async def get_depth(self) -> Optional[MarketDepth]:
-        """Get market depth data."""
-        raise NotImplementedError
-    
-    def is_healthy(self) -> bool:
-        """Check if data source is healthy."""
-        if not self.enabled:
-            return False
-        
-        # Check error count
-        if self.error_count >= self.max_errors:
-            return False
-        
-        # Check last update time (should be within 5 minutes)
-        if self.last_update:
-            time_since_update = datetime.now(timezone.utc) - self.last_update
-            if time_since_update > timedelta(minutes=5):
-                return False
-        
-        return True
-    
-    def record_success(self):
-        """Record successful data fetch."""
-        self.last_update = datetime.now(timezone.utc)
-        self.error_count = max(0, self.error_count - 1)  # Gradually reduce error count
-    
-    def record_error(self):
-        """Record data fetch error."""
-        self.error_count += 1
-        logger.warning(f"Data source {self.name} error count: {self.error_count}")
+# WebSocket broadcasting imports - no circular imports
+WEBSOCKET_AVAILABLE = False
+broadcast_price_update = None
+broadcast_system_alert = None
+ws_manager = None
 
+try:
+    # Use absolute import path - most reliable
+    from odin.api.routes.websocket import (
+        broadcast_price_update, 
+        broadcast_system_alert,
+        manager as ws_manager
+    )
+    WEBSOCKET_AVAILABLE = True
+    logger.info("WebSocket module loaded successfully")
+except ImportError as e:
+    # Create dummy functions if WebSocket is not available
+    logger.warning(f"WebSocket module not available: {e}")
+    
+    async def broadcast_price_update(*args, **kwargs):
+        """Dummy function when WebSocket is not available."""
+        pass
+    
+    async def broadcast_system_alert(*args, **kwargs):
+        """Dummy function when WebSocket is not available."""
+        pass
+    
+    class DummyManager:
+        def get_connection_count(self):
+            return 0
+    
+    ws_manager = DummyManager()
 
-class CoinbaseDataSource(DataSource):
-    """Coinbase data source."""
-    
-    def __init__(self):
-        super().__init__("coinbase", priority=1)
-        self.base_url = "https://api.exchange.coinbase.com"
-        self.ws_url = "wss://ws-feed.exchange.coinbase.com"
-    
-    async def get_price(self) -> Optional[PriceData]:
-        """Get current price from Coinbase."""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.base_url}/products/BTC-USD/ticker") as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        
-                        price_data = PriceData(
-                            symbol="BTC-USD",
-                            price=float(data["price"]),
-                            volume=float(data["volume"]),
-                            bid=float(data["bid"]) if data.get("bid") else None,
-                            ask=float(data["ask"]) if data.get("ask") else None,
-                            source="coinbase",
-                            timestamp=datetime.now(timezone.utc)
-                        )
-                        
-                        self.record_success()
-                        return price_data
-                    else:
-                        raise DataSourceException(f"Coinbase API error: {response.status}")
-                        
-        except Exception as e:
-            self.record_error()
-            logger.error(f"Coinbase price fetch error: {e}")
-            raise DataSourceException("coinbase", str(e))
-    
-    async def get_ohlc(self, timeframe: str = "1h", limit: int = 100) -> List[OHLCData]:
-        """Get OHLC data from Coinbase."""
-        try:
-            # Map timeframe to Coinbase granularity
-            granularity_map = {
-                "1m": 60,
-                "5m": 300,
-                "15m": 900,
-                "1h": 3600,
-                "6h": 21600,
-                "1d": 86400
-            }
-            
-            granularity = granularity_map.get(timeframe, 3600)
-            
-            async with aiohttp.ClientSession() as session:
-                url = f"{self.base_url}/products/BTC-USD/candles"
-                params = {
-                    "granularity": granularity,
-                    "limit": limit
-                }
-                
-                async with session.get(url, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        
-                        ohlc_data = []
-                        for candle in data:
-                            timestamp, low, high, open_price, close, volume = candle
-                            
-                            ohlc = OHLCData(
-                                symbol="BTC-USD",
-                                timeframe=timeframe,
-                                timestamp=datetime.fromtimestamp(timestamp, tz=timezone.utc),
-                                open=float(open_price),
-                                high=float(high),
-                                low=float(low),
-                                close=float(close),
-                                volume=float(volume)
-                            )
-                            ohlc_data.append(ohlc)
-                        
-                        self.record_success()
-                        return sorted(ohlc_data, key=lambda x: x.timestamp)
-                    else:
-                        raise DataSourceException(f"Coinbase OHLC API error: {response.status}")
-                        
-        except Exception as e:
-            self.record_error()
-            logger.error(f"Coinbase OHLC fetch error: {e}")
-            raise DataSourceException("coinbase", str(e))
-    
-    async def get_depth(self) -> Optional[MarketDepth]:
-        """Get market depth from Coinbase."""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.base_url}/products/BTC-USD/book?level=2") as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        
-                        bids = [[float(price), float(size)] for price, size, _ in data["bids"]]
-                        asks = [[float(price), float(size)] for price, size, _ in data["asks"]]
-                        
-                        depth = MarketDepth(
-                            symbol="BTC-USD",
-                            bids=bids,
-                            asks=asks,
-                            timestamp=datetime.now(timezone.utc)
-                        )
-                        
-                        self.record_success()
-                        return depth
-                    else:
-                        raise DataSourceException(f"Coinbase depth API error: {response.status}")
-                        
-        except Exception as e:
-            self.record_error()
-            logger.error(f"Coinbase depth fetch error: {e}")
-            raise DataSourceException("coinbase", str(e))
-
-
-class BinanceDataSource(DataSource):
-    """Binance data source."""
-    
-    def __init__(self):
-        super().__init__("binance", priority=2)
-        self.base_url = "https://api.binance.us/api/v3"
-    
-    async def get_price(self) -> Optional[PriceData]:
-        """Get current price from Binance."""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.base_url}/ticker/24hr?symbol=BTCUSD") as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        
-                        price_data = PriceData(
-                            symbol="BTC-USD",
-                            price=float(data["lastPrice"]),
-                            volume=float(data["volume"]),
-                            bid=float(data["bidPrice"]) if data.get("bidPrice") else None,
-                            ask=float(data["askPrice"]) if data.get("askPrice") else None,
-                            source="binance",
-                            timestamp=datetime.now(timezone.utc)
-                        )
-                        
-                        self.record_success()
-                        return price_data
-                    else:
-                        raise DataSourceException(f"Binance API error: {response.status}")
-                        
-        except Exception as e:
-            self.record_error()
-            logger.error(f"Binance price fetch error: {e}")
-            raise DataSourceException("binance", str(e))
-    
-    async def get_ohlc(self, timeframe: str = "1h", limit: int = 100) -> List[OHLCData]:
-        """Get OHLC data from Binance."""
-        try:
-            # Map timeframe to Binance interval
-            interval_map = {
-                "1m": "1m",
-                "5m": "5m",
-                "15m": "15m",
-                "1h": "1h",
-                "6h": "6h",
-                "1d": "1d"
-            }
-            
-            interval = interval_map.get(timeframe, "1h")
-            
-            async with aiohttp.ClientSession() as session:
-                url = f"{self.base_url}/klines"
-                params = {
-                    "symbol": "BTCUSD",
-                    "interval": interval,
-                    "limit": limit
-                }
-                
-                async with session.get(url, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        
-                        ohlc_data = []
-                        for candle in data:
-                            timestamp_ms = int(candle[0])
-                            timestamp = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
-                            
-                            ohlc = OHLCData(
-                                symbol="BTC-USD",
-                                timeframe=timeframe,
-                                timestamp=timestamp,
-                                open=float(candle[1]),
-                                high=float(candle[2]),
-                                low=float(candle[3]),
-                                close=float(candle[4]),
-                                volume=float(candle[5])
-                            )
-                            ohlc_data.append(ohlc)
-                        
-                        self.record_success()
-                        return ohlc_data
-                    else:
-                        raise DataSourceException(f"Binance OHLC API error: {response.status}")
-                        
-        except Exception as e:
-            self.record_error()
-            logger.error(f"Binance OHLC fetch error: {e}")
-            raise DataSourceException("binance", str(e))
-    
-    async def get_depth(self) -> Optional[MarketDepth]:
-        """Get market depth from Binance."""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.base_url}/depth?symbol=BTCUSD&limit=100") as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        
-                        bids = [[float(price), float(qty)] for price, qty in data["bids"]]
-                        asks = [[float(price), float(qty)] for price, qty in data["asks"]]
-                        
-                        depth = MarketDepth(
-                            symbol="BTC-USD",
-                            bids=bids,
-                            asks=asks,
-                            timestamp=datetime.now(timezone.utc)
-                        )
-                        
-                        self.record_success()
-                        return depth
-                    else:
-                        raise DataSourceException(f"Binance depth API error: {response.status}")
-                        
-        except Exception as e:
-            self.record_error()
-            logger.error(f"Binance depth fetch error: {e}")
-            raise DataSourceException("binance", str(e))
-
-
-class TechnicalIndicators:
-    """Technical indicators calculator."""
-    
-    @staticmethod
-    def sma(prices: List[float], period: int) -> List[float]:
-        """Simple Moving Average."""
-        if len(prices) < period:
-            return []
-        
-        sma_values = []
-        for i in range(period - 1, len(prices)):
-            sma = mean(prices[i - period + 1:i + 1])
-            sma_values.append(sma)
-        
-        return sma_values
-    
-    @staticmethod
-    def ema(prices: List[float], period: int) -> List[float]:
-        """Exponential Moving Average."""
-        if len(prices) < period:
-            return []
-        
-        multiplier = 2 / (period + 1)
-        ema_values = []
-        
-        # First EMA value is SMA
-        first_ema = mean(prices[:period])
-        ema_values.append(first_ema)
-        
-        for i in range(period, len(prices)):
-            ema = (prices[i] * multiplier) + (ema_values[-1] * (1 - multiplier))
-            ema_values.append(ema)
-        
-        return ema_values
-    
-    @staticmethod
-    def rsi(prices: List[float], period: int = 14) -> List[float]:
-        """Relative Strength Index."""
-        if len(prices) < period + 1:
-            return []
-        
-        price_changes = [prices[i] - prices[i-1] for i in range(1, len(prices))]
-        gains = [change if change > 0 else 0 for change in price_changes]
-        losses = [-change if change < 0 else 0 for change in price_changes]
-        
-        rsi_values = []
-        
-        # First RSI calculation
-        avg_gain = mean(gains[:period])
-        avg_loss = mean(losses[:period])
-        
-        if avg_loss == 0:
-            rsi_values.append(100)
-        else:
-            rs = avg_gain / avg_loss
-            rsi = 100 - (100 / (1 + rs))
-            rsi_values.append(rsi)
-        
-        # Subsequent RSI calculations
-        for i in range(period, len(gains)):
-            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
-            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
-            
-            if avg_loss == 0:
-                rsi_values.append(100)
-            else:
-                rs = avg_gain / avg_loss
-                rsi = 100 - (100 / (1 + rs))
-                rsi_values.append(rsi)
-        
-        return rsi_values
-    
-    @staticmethod
-    def macd(prices: List[float], fast: int = 12, slow: int = 26, signal: int = 9) -> Dict[str, List[float]]:
-        """MACD indicator."""
-        if len(prices) < slow:
-            return {"macd": [], "signal": [], "histogram": []}
-        
-        ema_fast = TechnicalIndicators.ema(prices, fast)
-        ema_slow = TechnicalIndicators.ema(prices, slow)
-        
-        # Align EMAs (slow EMA starts later)
-        start_index = slow - fast
-        ema_fast_aligned = ema_fast[start_index:]
-        
-        macd_line = [fast - slow for fast, slow in zip(ema_fast_aligned, ema_slow)]
-        signal_line = TechnicalIndicators.ema(macd_line, signal)
-        
-        # Calculate histogram
-        histogram = []
-        signal_start = len(macd_line) - len(signal_line)
-        for i in range(len(signal_line)):
-            histogram.append(macd_line[signal_start + i] - signal_line[i])
-        
-        return {
-            "macd": macd_line,
-            "signal": signal_line,
-            "histogram": histogram
-        }
-    
-    @staticmethod
-    def bollinger_bands(prices: List[float], period: int = 20, std_dev: float = 2) -> Dict[str, List[float]]:
-        """Bollinger Bands."""
-        if len(prices) < period:
-            return {"upper": [], "middle": [], "lower": []}
-        
-        middle_band = TechnicalIndicators.sma(prices, period)
-        
-        upper_band = []
-        lower_band = []
-        
-        for i in range(period - 1, len(prices)):
-            price_slice = prices[i - period + 1:i + 1]
-            std = stdev(price_slice)
-            sma = middle_band[i - period + 1]
-            
-            upper_band.append(sma + (std_dev * std))
-            lower_band.append(sma - (std_dev * std))
-        
-        return {
-            "upper": upper_band,
-            "middle": middle_band,
-            "lower": lower_band
-        }
-
+@dataclass
+class PriceData:
+    """Bitcoin price data structure."""
+    timestamp: datetime
+    price: float
+    volume: Optional[float] = None
+    market_cap: Optional[float] = None
+    source: str = "unknown"
+    high_24h: Optional[float] = None
+    low_24h: Optional[float] = None
+    change_24h: Optional[float] = None
 
 class DataCollector:
-    """Main data collection and processing engine."""
+    """
+    Real-time Bitcoin data collector with WebSocket broadcasting.
     
-    def __init__(self, database: Database, collection_interval: int = 30):
+    Fetches price data from multiple sources and broadcasts updates
+    to connected WebSocket clients.
+    """
+    
+    def __init__(self, update_interval: int = 30):
         """
         Initialize data collector.
         
         Args:
-            database: Database instance
-            collection_interval: Data collection interval in seconds
+            update_interval: Seconds between data updates
         """
-        self.database = database
-        self.collection_interval = collection_interval
-        
-        # Data sources
-        self.data_sources: List[DataSource] = [
-            CoinbaseDataSource(),
-            BinanceDataSource(),
-        ]
-        
-        # Sort by priority
-        self.data_sources.sort(key=lambda x: x.priority)
-        
-        # Collection state
+        self.update_interval = update_interval
+        self.session: Optional[aiohttp.ClientSession] = None
+        self.database = None
         self.is_running = False
-        self.collection_task = None
-        self.callbacks: List[Callable] = []
+        self.collection_task: Optional[asyncio.Task] = None
         
-        # Data cache
-        self.latest_price: Optional[PriceData] = None
-        self.price_history: List[BitcoinPrice] = []
+        # Data sources configuration
+        self.sources = {
+            "coinbase": {
+                "url": "https://api.coinbase.com/v2/exchange-rates?currency=BTC",
+                "parser": self._parse_coinbase_data
+            },
+            "coingecko": {
+                "url": "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true",
+                "parser": self._parse_coingecko_data
+            },
+            "binance": {
+                "url": "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
+                "parser": self._parse_binance_data
+            }
+        }
         
-        logger.info(f"Data collector initialized with {len(self.data_sources)} sources")
+        # Statistics tracking
+        self.stats = {
+            "total_updates": 0,
+            "successful_updates": 0,
+            "failed_updates": 0,
+            "last_update": None,
+            "last_price": None,
+            "sources_status": {}
+        }
+        
+        # Rate limiting
+        self.last_request_time = {}
+        self.min_request_interval = 1.0  # Minimum 1 second between requests per source
+        
+        logger.info(f"Data collector initialized with {update_interval}s update interval")
     
-    def add_callback(self, callback: Callable[[PriceData], None]):
-        """Add callback for new price data."""
-        self.callbacks.append(callback)
-    
-    def remove_callback(self, callback: Callable):
-        """Remove price data callback."""
-        if callback in self.callbacks:
-            self.callbacks.remove(callback)
-    
-    async def start_collection(self):
-        """Start data collection."""
+    async def start(self):
+        """Start the data collection process."""
         if self.is_running:
-            logger.warning("Data collection already running")
+            logger.warning("Data collector is already running")
             return
         
-        self.is_running = True
-        self.collection_task = asyncio.create_task(self._collection_loop())
-        logger.info("Data collection started")
+        try:
+            # Initialize HTTP session
+            self.session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=10),
+                headers={
+                    "User-Agent": "Odin-Trading-Bot/2.0"
+                }
+            )
+            
+            # Initialize database connection
+            if get_database:
+                try:
+                    self.database = get_database()
+                    logger.info("Database connection initialized")
+                except Exception as e:
+                    logger.warning(f"Database initialization failed: {e}")
+            
+            # Start collection task
+            self.is_running = True
+            self.collection_task = asyncio.create_task(self._collection_loop())
+            
+            logger.info("🚀 Data collector started")
+            
+            # Broadcast system alert if WebSocket is available
+            if WEBSOCKET_AVAILABLE and broadcast_system_alert:
+                await broadcast_system_alert(
+                    "Data Collector Started",
+                    "Real-time Bitcoin data collection is now active",
+                    "success"
+                )
+            
+        except Exception as e:
+            logger.error(f"Failed to start data collector: {e}")
+            raise
     
-    async def stop_collection(self):
-        """Stop data collection."""
+    async def stop(self):
+        """Stop the data collection process."""
         if not self.is_running:
             return
         
+        logger.info("🔄 Stopping data collector...")
         self.is_running = False
+        
+        # Cancel collection task
         if self.collection_task:
             self.collection_task.cancel()
             try:
@@ -512,275 +181,478 @@ class DataCollector:
             except asyncio.CancelledError:
                 pass
         
-        logger.info("Data collection stopped")
+        # Close HTTP session
+        if self.session:
+            await self.session.close()
+        
+        logger.info("✅ Data collector stopped")
+        
+        # Broadcast system alert if WebSocket is available
+        if WEBSOCKET_AVAILABLE and broadcast_system_alert:
+            await broadcast_system_alert(
+                "Data Collector Stopped",
+                "Real-time Bitcoin data collection has been stopped",
+                "warning"
+            )
     
     async def _collection_loop(self):
         """Main data collection loop."""
         while self.is_running:
             try:
-                await self._collect_data()
-                await asyncio.sleep(self.collection_interval)
+                start_time = time.time()
+                
+                # Collect data from all sources
+                price_data = await self._collect_from_all_sources()
+                
+                if price_data:
+                    # Save to database
+                    if self.database:
+                        await self._save_to_database(price_data)
+                    
+                    # Broadcast to WebSocket clients
+                    await self._broadcast_price_update(price_data)
+                    
+                    # Update statistics
+                    self.stats["successful_updates"] += 1
+                    self.stats["last_update"] = datetime.now(timezone.utc)
+                    self.stats["last_price"] = price_data.price
+                    
+                    logger.debug(f"Price update: ${price_data.price:.2f} from {price_data.source}")
+                else:
+                    self.stats["failed_updates"] += 1
+                    logger.warning("Failed to collect price data from any source")
+                
+                self.stats["total_updates"] += 1
+                
+                # Calculate sleep time to maintain consistent interval
+                elapsed = time.time() - start_time
+                sleep_time = max(0, self.update_interval - elapsed)
+                
+                if sleep_time > 0:
+                    await asyncio.sleep(sleep_time)
+                
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Data collection error: {e}")
-                await asyncio.sleep(5)  # Brief pause before retry
+                logger.error(f"Error in collection loop: {e}")
+                self.stats["failed_updates"] += 1
+                await asyncio.sleep(5)  # Wait before retrying
     
-    async def _collect_data(self):
-        """Collect data from sources."""
-        price_data = None
+    async def _collect_from_all_sources(self) -> Optional[PriceData]:
+        """Collect data from all configured sources and return the best result."""
+        tasks = []
         
-        # Try data sources in priority order
-        for source in self.data_sources:
-            if not source.is_healthy():
-                logger.debug(f"Skipping unhealthy source: {source.name}")
-                continue
-            
-            try:
-                price_data = await source.get_price()
-                if price_data:
-                    logger.debug(f"Got price data from {source.name}: ${price_data.price}")
-                    break
-            except Exception as e:
-                logger.warning(f"Failed to get data from {source.name}: {e}")
-                continue
-        
-        if not price_data:
-            raise MarketDataException("All data sources failed")
-        
-        # Validate data
-        await self._validate_price_data(price_data)
-        
-        # Calculate technical indicators
-        await self._calculate_indicators(price_data)
-        
-        # Save to database
-        try:
-            await self.database.save_price_data(price_data)
-        except Exception as e:
-            logger.error(f"Failed to save price data: {e}")
-        
-        # Update cache
-        self.latest_price = price_data
-        
-        # Notify callbacks
-        for callback in self.callbacks:
-            try:
-                if asyncio.iscoroutinefunction(callback):
-                    await callback(price_data)
-                else:
-                    callback(price_data)
-            except Exception as e:
-                logger.error(f"Callback error: {e}")
-    
-    async def _validate_price_data(self, price_data: PriceData):
-        """Validate price data."""
-        # Basic validation
-        if price_data.price <= 0:
-            raise DataValidationException("Invalid price: must be positive")
-        
-        if price_data.volume < 0:
-            raise DataValidationException("Invalid volume: must be non-negative")
-        
-        # Price range validation (Bitcoin price should be reasonable)
-        if price_data.price < 1000 or price_data.price > 1000000:
-            raise DataValidationException(f"Price out of reasonable range: ${price_data.price}")
-        
-        # Bid/ask validation
-        if price_data.bid and price_data.ask:
-            if price_data.bid >= price_data.ask:
-                raise DataValidationException("Invalid bid/ask: bid >= ask")
-            
-            spread_pct = (price_data.ask - price_data.bid) / price_data.price
-            if spread_pct > 0.01:  # 1% spread threshold
-                logger.warning(f"Large spread detected: {spread_pct:.2%}")
-        
-        # Compare with recent prices for anomaly detection
-        if self.latest_price:
-            time_diff = (price_data.timestamp - self.latest_price.timestamp).total_seconds()
-            if time_diff > 0:  # Only check if newer
-                price_change = abs(price_data.price - self.latest_price.price) / self.latest_price.price
-                
-                # Allow larger changes for longer time differences
-                max_change = 0.05 + (time_diff / 3600) * 0.02  # 5% + 2% per hour
-                
-                if price_change > max_change:
-                    logger.warning(
-                        f"Large price change detected: {price_change:.2%} "
-                        f"from ${self.latest_price.price} to ${price_data.price}"
-                    )
-    
-    async def _calculate_indicators(self, price_data: PriceData):
-        """Calculate technical indicators."""
-        try:
-            # Get recent price history
-            recent_prices = await self.database.get_price_history(
-                symbol=price_data.symbol,
-                hours=48,  # Get 48 hours of data
-                limit=200
+        for source_name, source_config in self.sources.items():
+            task = asyncio.create_task(
+                self._collect_from_source(source_name, source_config)
             )
+            tasks.append(task)
+        
+        # Wait for all tasks to complete
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Find the best result (most complete data)
+        best_result = None
+        best_score = 0
+        
+        for i, result in enumerate(results):
+            source_name = list(self.sources.keys())[i]
             
-            if len(recent_prices) < 20:
-                logger.debug("Insufficient price history for indicators")
-                return
+            if isinstance(result, Exception):
+                logger.warning(f"Source {source_name} failed: {result}")
+                self.stats["sources_status"][source_name] = "error"
+                continue
             
-            # Extract prices
-            prices = [float(p.price) for p in reversed(recent_prices)]
-            prices.append(price_data.price)  # Add current price
+            if result is None:
+                self.stats["sources_status"][source_name] = "no_data"
+                continue
             
-            # Calculate indicators
-            if len(prices) >= 5:
-                sma_5 = TechnicalIndicators.sma(prices, 5)
-                if sma_5:
-                    price_data.sma_5 = sma_5[-1]
+            # Score based on data completeness
+            score = self._score_price_data(result)
             
-            if len(prices) >= 20:
-                sma_20 = TechnicalIndicators.sma(prices, 20)
-                if sma_20:
-                    price_data.sma_20 = sma_20[-1]
-                
-                bb = TechnicalIndicators.bollinger_bands(prices, 20)
-                if bb["upper"]:
-                    price_data.bb_upper = bb["upper"][-1]
-                    price_data.bb_lower = bb["lower"][-1]
+            if score > best_score:
+                best_result = result
+                best_score = score
             
-            if len(prices) >= 12:
-                ema_12 = TechnicalIndicators.ema(prices, 12)
-                if ema_12:
-                    price_data.ema_12 = ema_12[-1]
+            self.stats["sources_status"][source_name] = "success"
+        
+        return best_result
+    
+    async def _collect_from_source(self, source_name: str, source_config: Dict) -> Optional[PriceData]:
+        """Collect data from a single source."""
+        try:
+            # Rate limiting check
+            current_time = time.time()
+            last_request = self.last_request_time.get(source_name, 0)
             
-            if len(prices) >= 26:
-                ema_26 = TechnicalIndicators.ema(prices, 26)
-                if ema_26:
-                    price_data.ema_26 = ema_26[-1]
-                
-                macd_data = TechnicalIndicators.macd(prices, 12, 26, 9)
-                if macd_data["macd"]:
-                    price_data.macd = macd_data["macd"][-1]
-                if macd_data["signal"]:
-                    price_data.macd_signal = macd_data["signal"][-1]
+            if current_time - last_request < self.min_request_interval:
+                await asyncio.sleep(self.min_request_interval - (current_time - last_request))
             
-            if len(prices) >= 14:
-                rsi = TechnicalIndicators.rsi(prices, 14)
-                if rsi:
-                    price_data.rsi = rsi[-1]
-            
-            logger.debug(f"Calculated indicators for price: ${price_data.price}")
-            
+            # Make HTTP request
+            async with self.session.get(source_config["url"]) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    self.last_request_time[source_name] = time.time()
+                    
+                    # Parse data using source-specific parser
+                    return source_config["parser"](data, source_name)
+                else:
+                    logger.warning(f"Source {source_name} returned status {response.status}")
+                    return None
+        
         except Exception as e:
-            logger.error(f"Error calculating indicators: {e}")
+            logger.error(f"Error collecting from {source_name}: {e}")
+            return None
     
-    async def get_current_price(self, force_refresh: bool = False) -> Optional[PriceData]:
-        """Get current price data."""
-        if force_refresh or not self.latest_price:
-            await self._collect_data()
-        
-        return self.latest_price
-    
-    async def get_ohlc_data(
-        self, 
-        timeframe: str = "1h", 
-        limit: int = 100
-    ) -> List[OHLCData]:
-        """Get OHLC data from sources."""
-        for source in self.data_sources:
-            if not source.is_healthy():
-                continue
+    def _parse_coinbase_data(self, data: Dict, source: str) -> Optional[PriceData]:
+        """Parse Coinbase API response."""
+        try:
+            rates = data.get("data", {}).get("rates", {})
+            usd_rate = float(rates.get("USD", 0))
             
-            try:
-                ohlc_data = await source.get_ohlc(timeframe, limit)
-                if ohlc_data:
-                    # Calculate indicators for OHLC data
-                    await self._calculate_ohlc_indicators(ohlc_data)
-                    return ohlc_data
-            except Exception as e:
-                logger.warning(f"Failed to get OHLC from {source.name}: {e}")
-                continue
+            if usd_rate > 0:
+                # Coinbase gives BTC->USD rate, so we need the inverse
+                price = 1.0 / usd_rate
+                
+                return PriceData(
+                    timestamp=datetime.now(timezone.utc),
+                    price=price,
+                    source=source
+                )
+        except Exception as e:
+            logger.error(f"Error parsing Coinbase data: {e}")
         
-        raise MarketDataException("Failed to get OHLC data from all sources")
+        return None
     
-    async def _calculate_ohlc_indicators(self, ohlc_data: List[OHLCData]):
-        """Calculate indicators for OHLC data."""
-        if len(ohlc_data) < 20:
+    def _parse_coingecko_data(self, data: Dict, source: str) -> Optional[PriceData]:
+        """Parse CoinGecko API response."""
+        try:
+            bitcoin_data = data.get("bitcoin", {})
+            price = bitcoin_data.get("usd")
+            change_24h = bitcoin_data.get("usd_24h_change")
+            
+            if price:
+                return PriceData(
+                    timestamp=datetime.now(timezone.utc),
+                    price=float(price),
+                    change_24h=float(change_24h) if change_24h else None,
+                    source=source
+                )
+        except Exception as e:
+            logger.error(f"Error parsing CoinGecko data: {e}")
+        
+        return None
+    
+    def _parse_binance_data(self, data: Dict, source: str) -> Optional[PriceData]:
+        """Parse Binance API response."""
+        try:
+            price = data.get("lastPrice")
+            volume = data.get("volume")
+            high_24h = data.get("highPrice")
+            low_24h = data.get("lowPrice")
+            change_24h = data.get("priceChangePercent")
+            
+            if price:
+                return PriceData(
+                    timestamp=datetime.now(timezone.utc),
+                    price=float(price),
+                    volume=float(volume) if volume else None,
+                    high_24h=float(high_24h) if high_24h else None,
+                    low_24h=float(low_24h) if low_24h else None,
+                    change_24h=float(change_24h) if change_24h else None,
+                    source=source
+                )
+        except Exception as e:
+            logger.error(f"Error parsing Binance data: {e}")
+        
+        return None
+    
+    def _score_price_data(self, price_data: PriceData) -> int:
+        """Score price data based on completeness."""
+        score = 1  # Base score for having a price
+        
+        if price_data.volume is not None:
+            score += 1
+        if price_data.change_24h is not None:
+            score += 1
+        if price_data.high_24h is not None:
+            score += 1
+        if price_data.low_24h is not None:
+            score += 1
+        
+        return score
+    
+    async def _save_to_database(self, price_data: PriceData):
+        """Save price data to database."""
+        if not self.database:
             return
         
-        # Extract close prices
-        close_prices = [float(candle.close) for candle in ohlc_data]
-        
-        # Calculate indicators
-        sma_20 = TechnicalIndicators.sma(close_prices, 20)
-        ema_12 = TechnicalIndicators.ema(close_prices, 12)
-        ema_26 = TechnicalIndicators.ema(close_prices, 26)
-        rsi = TechnicalIndicators.rsi(close_prices, 14)
-        macd_data = TechnicalIndicators.macd(close_prices, 12, 26, 9)
-        bb = TechnicalIndicators.bollinger_bands(close_prices, 20)
-        
-        # Add indicators to candles
-        for i, candle in enumerate(ohlc_data):
-            if i < len(sma_20):
-                candle.sma_20 = sma_20[i]
+        try:
+            success = self.database.add_price_data(
+                timestamp=price_data.timestamp,
+                price=price_data.price,
+                volume=price_data.volume,
+                market_cap=price_data.market_cap
+            )
             
-            if i < len(ema_12):
-                candle.ema_12 = ema_12[i]
-            
-            if i < len(ema_26):
-                candle.ema_26 = ema_26[i]
-            
-            if i < len(rsi):
-                candle.rsi = rsi[i]
-            
-            macd_index = i - (len(close_prices) - len(macd_data["macd"]))
-            if macd_index >= 0 and macd_index < len(macd_data["macd"]):
-                candle.macd = macd_data["macd"][macd_index]
-            
-            signal_index = i - (len(close_prices) - len(macd_data["signal"]))
-            if signal_index >= 0 and signal_index < len(macd_data["signal"]):
-                candle.macd_signal = macd_data["signal"][signal_index]
-            
-            bb_index = i - (len(close_prices) - len(bb["upper"]))
-            if bb_index >= 0 and bb_index < len(bb["upper"]):
-                candle.bb_upper = bb["upper"][bb_index]
-                candle.bb_lower = bb["lower"][bb_index]
+            if success:
+                logger.debug(f"Saved price data: ${price_data.price:.2f} from {price_data.source}")
+            else:
+                logger.warning("Failed to save price data to database")
+                
+        except Exception as e:
+            logger.error(f"Database save error: {e}")
     
-    async def get_market_depth(self) -> Optional[MarketDepth]:
-        """Get market depth data."""
-        for source in self.data_sources:
-            if not source.is_healthy():
-                continue
-            
-            try:
-                depth = await source.get_depth()
-                if depth:
-                    return depth
-            except Exception as e:
-                logger.warning(f"Failed to get depth from {source.name}: {e}")
-                continue
+    async def _broadcast_price_update(self, price_data: PriceData):
+        """Broadcast price update to WebSocket clients."""
+        if not WEBSOCKET_AVAILABLE or not broadcast_price_update:
+            return
         
-        raise MarketDataException("Failed to get market depth from all sources")
-    
-    def get_source_status(self) -> Dict[str, Dict[str, Any]]:
-        """Get status of all data sources."""
-        status = {}
-        for source in self.data_sources:
-            status[source.name] = {
-                "enabled": source.enabled,
-                "healthy": source.is_healthy(),
-                "priority": source.priority,
-                "error_count": source.error_count,
-                "last_update": source.last_update.isoformat() if source.last_update else None
+        # Only broadcast if there are connected clients
+        if ws_manager and ws_manager.get_connection_count() == 0:
+            return
+        
+        try:
+            # Prepare broadcast data
+            broadcast_data = {
+                "price": price_data.price,
+                "volume": price_data.volume,
+                "change_24h": price_data.change_24h,
+                "high_24h": price_data.high_24h,
+                "low_24h": price_data.low_24h,
+                "source": price_data.source,
+                "timestamp": price_data.timestamp.timestamp(),
+                "market_cap": price_data.price * 19700000 if price_data.price else None  # Approximate BTC supply
             }
-        return status
+            
+            await broadcast_price_update(broadcast_data)
+            logger.debug(f"Broadcasted price update: ${price_data.price:.2f} to {ws_manager.get_connection_count()} clients")
+            
+        except Exception as e:
+            logger.error(f"WebSocket broadcast error: {e}")
     
-    async def health_check(self) -> Dict[str, Any]:
-        """Comprehensive health check."""
-        healthy_sources = sum(1 for source in self.data_sources if source.is_healthy())
+    async def get_current_price(self) -> Optional[Dict[str, Any]]:
+        """Get the most recent price data."""
+        if self.database:
+            try:
+                price_data = self.database.get_current_price()
+                if price_data:
+                    return {
+                        "price": price_data["price"],
+                        "timestamp": price_data["timestamp"],
+                        "volume": price_data.get("volume"),
+                        "market_cap": price_data.get("market_cap")
+                    }
+            except Exception as e:
+                logger.error(f"Error getting current price from database: {e}")
         
+        # Fallback: return last collected price
+        if self.stats["last_price"]:
+            return {
+                "price": self.stats["last_price"],
+                "timestamp": self.stats["last_update"].timestamp() if self.stats["last_update"] else time.time(),
+                "source": "collector_cache"
+            }
+        
+        return None
+    
+    async def get_price_history(self, hours: int = 24) -> List[Dict[str, Any]]:
+        """Get historical price data."""
+        if not self.database:
+            return []
+        
+        try:
+            price_history = self.database.get_recent_prices(limit=hours)
+            return [
+                {
+                    "timestamp": item["timestamp"],
+                    "price": item["price"],
+                    "volume": item.get("volume")
+                }
+                for item in price_history
+            ]
+        except Exception as e:
+            logger.error(f"Error getting price history: {e}")
+            return []
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get data collector statistics."""
         return {
             "is_running": self.is_running,
-            "healthy_sources": healthy_sources,
-            "total_sources": len(self.data_sources),
-            "latest_price": self.latest_price.price if self.latest_price else None,
-            "last_collection": self.latest_price.timestamp.isoformat() if self.latest_price else None,
-            "collection_interval": self.collection_interval,
-            "source_status": self.get_source_status()
+            "update_interval": self.update_interval,
+            "total_updates": self.stats["total_updates"],
+            "successful_updates": self.stats["successful_updates"],
+            "failed_updates": self.stats["failed_updates"],
+            "success_rate": (
+                (self.stats["successful_updates"] / self.stats["total_updates"] * 100)
+                if self.stats["total_updates"] > 0 else 0
+            ),
+            "last_update": self.stats["last_update"].isoformat() if self.stats["last_update"] else None,
+            "last_price": self.stats["last_price"],
+            "sources_status": self.stats["sources_status"],
+            "websocket_available": WEBSOCKET_AVAILABLE,
+            "websocket_clients": ws_manager.get_connection_count() if ws_manager else 0,
+            "database_connected": self.database is not None
         }
+    
+    async def force_update(self) -> Optional[PriceData]:
+        """Force an immediate data collection update."""
+        logger.info("Force updating price data...")
+        
+        try:
+            price_data = await self._collect_from_all_sources()
+            
+            if price_data:
+                # Save to database
+                if self.database:
+                    await self._save_to_database(price_data)
+                
+                # Broadcast to WebSocket clients
+                await self._broadcast_price_update(price_data)
+                
+                # Update statistics
+                self.stats["successful_updates"] += 1
+                self.stats["last_update"] = datetime.now(timezone.utc)
+                self.stats["last_price"] = price_data.price
+                
+                logger.info(f"Force update successful: ${price_data.price:.2f} from {price_data.source}")
+                return price_data
+            else:
+                logger.warning("Force update failed: no data collected")
+                self.stats["failed_updates"] += 1
+                return None
+                
+        except Exception as e:
+            logger.error(f"Force update error: {e}")
+            self.stats["failed_updates"] += 1
+            return None
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """Perform health check on data collector."""
+        health_status = {
+            "status": "healthy" if self.is_running else "stopped",
+            "is_running": self.is_running,
+            "session_active": self.session is not None and not self.session.closed,
+            "database_connected": self.database is not None,
+            "websocket_available": WEBSOCKET_AVAILABLE,
+            "last_update_ago": None,
+            "sources_health": {}
+        }
+        
+        # Check last update recency
+        if self.stats["last_update"]:
+            time_since_update = datetime.now(timezone.utc) - self.stats["last_update"]
+            health_status["last_update_ago"] = int(time_since_update.total_seconds())
+            
+            # Mark as unhealthy if no updates for too long
+            if time_since_update > timedelta(minutes=5):
+                health_status["status"] = "stale"
+        
+        # Check source health
+        for source_name in self.sources.keys():
+            source_status = self.stats["sources_status"].get(source_name, "unknown")
+            health_status["sources_health"][source_name] = source_status
+        
+        # Overall health determination
+        if health_status["status"] == "healthy":
+            failed_sources = sum(1 for status in health_status["sources_health"].values() 
+                               if status == "error")
+            if failed_sources >= len(self.sources) / 2:  # More than half failed
+                health_status["status"] = "degraded"
+        
+        return health_status
+    
+    async def restart(self):
+        """Restart the data collector."""
+        logger.info("Restarting data collector...")
+        
+        await self.stop()
+        await asyncio.sleep(2)  # Brief pause
+        await self.start()
+        
+        logger.info("Data collector restarted successfully")
+    
+    async def update_sources(self, new_sources: Dict[str, Dict]):
+        """Update data sources configuration."""
+        logger.info("Updating data sources configuration...")
+        self.sources.update(new_sources)
+        logger.info(f"Now using {len(self.sources)} data sources: {list(self.sources.keys())}")
+    
+    async def set_update_interval(self, interval: int):
+        """Change the update interval."""
+        if interval < 5:
+            raise ValueError("Update interval cannot be less than 5 seconds")
+        
+        self.update_interval = interval
+        logger.info(f"Update interval changed to {interval} seconds")
+        
+        # If running, restart with new interval
+        if self.is_running:
+            await self.restart()
+
+# Convenience functions for external use
+async def start_data_collection(update_interval: int = 30) -> DataCollector:
+    """Start data collection with specified interval."""
+    collector = DataCollector(update_interval)
+    await collector.start()
+    return collector
+
+async def get_live_bitcoin_price() -> Optional[Dict[str, Any]]:
+    """Get live Bitcoin price (one-time fetch)."""
+    collector = DataCollector()
+    
+    try:
+        # Initialize session temporarily
+        collector.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
+        
+        # Collect data
+        price_data = await collector._collect_from_all_sources()
+        
+        if price_data:
+            return {
+                "price": price_data.price,
+                "volume": price_data.volume,
+                "change_24h": price_data.change_24h,
+                "high_24h": price_data.high_24h,
+                "low_24h": price_data.low_24h,
+                "source": price_data.source,
+                "timestamp": price_data.timestamp.timestamp()
+            }
+        
+        return None
+        
+    finally:
+        # Cleanup session
+        if collector.session:
+            await collector.session.close()
+
+# Global collector instance for singleton pattern
+_global_collector: Optional[DataCollector] = None
+
+async def get_global_collector() -> DataCollector:
+    """Get or create global data collector instance."""
+    global _global_collector
+    
+    if _global_collector is None:
+        _global_collector = DataCollector()
+        await _global_collector.start()
+    
+    return _global_collector
+
+async def stop_global_collector():
+    """Stop global data collector instance."""
+    global _global_collector
+    
+    if _global_collector:
+        await _global_collector.stop()
+        _global_collector = None
+
+# Export main components
+__all__ = [
+    "DataCollector",
+    "PriceData", 
+    "start_data_collection",
+    "get_live_bitcoin_price",
+    "get_global_collector",
+    "stop_global_collector"
+]
