@@ -11,6 +11,7 @@
 
 </div>
 
+
 ## 🎯 Overview
 
 **Odin** is a sophisticated, production-ready Bitcoin trading bot designed for live cryptocurrency trading. Built with modern Python and FastAPI, it provides real-time data collection, multiple advanced trading strategies, live trade execution, and a comprehensive API for professional Bitcoin trading operations.
