@@ -1,10 +1,10 @@
 """
-WebSocket endpoint for real-time data streaming in Odin Trading Bot
-Clean version without circular imports.
+WebSocket Routes for Odin Bitcoin Trading Bot
 
-File: odin/api/routes/websocket.py
-Author: Odin Development Team
-License: MIT
+Real-time data streaming via WebSockets for the dashboard.
+Provides live Bitcoin price updates, trading signals, and system status.
+
+File: odin/api/routes/websockets.py
 """
 
 import asyncio
@@ -12,339 +12,312 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Set
-from fastapi import WebSocket, WebSocketDisconnect
-from fastapi.routing import APIRouter
+from fastapi import WebSocket, WebSocketDisconnect, APIRouter
+from fastapi.responses import HTMLResponse
 
 logger = logging.getLogger(__name__)
 
-# WebSocket router
-router = APIRouter()
-
+# WebSocket connection manager
 class ConnectionManager:
-    """Manages WebSocket connections for real-time data streaming."""
+    """Manages WebSocket connections for real-time updates."""
     
     def __init__(self):
-        self.active_connections: Set[WebSocket] = set()
-        self.connection_info: Dict[WebSocket, Dict] = {}
+        self.active_connections: List[WebSocket] = []
+        self.connection_count = 0
     
-    async def connect(self, websocket: WebSocket, client_id: str = None):
-        """Accept a new WebSocket connection."""
+    async def connect(self, websocket: WebSocket):
+        """Accept and store new WebSocket connection."""
         await websocket.accept()
-        self.active_connections.add(websocket)
-        self.connection_info[websocket] = {
-            "client_id": client_id,
-            "connected_at": datetime.now(),
-            "last_ping": datetime.now()
-        }
-        logger.info(f"WebSocket connected: {client_id or 'unknown'} (Total: {len(self.active_connections)})")
+        self.active_connections.append(websocket)
+        self.connection_count += 1
+        logger.info(f"WebSocket connected. Total connections: {len(self.active_connections)}")
     
     def disconnect(self, websocket: WebSocket):
-        """Remove a WebSocket connection."""
+        """Remove WebSocket connection."""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-            client_info = self.connection_info.pop(websocket, {})
-            client_id = client_info.get("client_id", "unknown")
-            logger.info(f"WebSocket disconnected: {client_id} (Total: {len(self.active_connections)})")
+        logger.info(f"WebSocket disconnected. Total connections: {len(self.active_connections)}")
     
-    async def send_personal_message(self, message: str, websocket: WebSocket):
-        """Send a message to a specific WebSocket connection."""
+    async def send_personal_message(self, message: dict, websocket: WebSocket):
+        """Send message to specific WebSocket."""
         try:
-            await websocket.send_text(message)
+            await websocket.send_text(json.dumps(message))
         except Exception as e:
             logger.error(f"Failed to send personal message: {e}")
             self.disconnect(websocket)
     
-    async def broadcast(self, message: str):
-        """Broadcast a message to all connected clients."""
+    async def broadcast(self, message: dict):
+        """Broadcast message to all connected WebSockets."""
         if not self.active_connections:
             return
         
-        disconnected = set()
-        for connection in self.active_connections.copy():
-            try:
-                await connection.send_text(message)
-            except Exception as e:
-                logger.error(f"Failed to broadcast to connection: {e}")
-                disconnected.add(connection)
+        message_str = json.dumps(message)
+        disconnected = []
         
-        # Clean up disconnected connections
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(message_str)
+            except Exception as e:
+                logger.warning(f"Failed to send to connection: {e}")
+                disconnected.append(connection)
+        
+        # Remove disconnected connections
         for connection in disconnected:
             self.disconnect(connection)
     
-    async def broadcast_json(self, data: dict):
-        """Broadcast JSON data to all connected clients."""
-        message = json.dumps(data)
-        await self.broadcast(message)
-    
     def get_connection_count(self) -> int:
-        """Get the number of active connections."""
+        """Get number of active connections."""
         return len(self.active_connections)
-    
-    def get_connection_info(self) -> List[Dict]:
-        """Get information about all active connections."""
-        return [
-            {
-                "client_id": info.get("client_id"),
-                "connected_at": info.get("connected_at").isoformat(),
-                "last_ping": info.get("last_ping").isoformat()
-            }
-            for info in self.connection_info.values()
-        ]
 
-# Global connection manager instance
+# Global connection manager
 manager = ConnectionManager()
 
+# Create router
+router = APIRouter()
+
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, client_id: str = None):
+async def websocket_endpoint(websocket: WebSocket):
     """
-    WebSocket endpoint for real-time data streaming.
+    Main WebSocket endpoint for real-time dashboard updates.
     
-    Supports the following message types:
-    - price_update: Real-time Bitcoin price updates
-    - portfolio_update: Portfolio value changes
-    - strategy_signal: Trading strategy signals
-    - trade_execution: Trade execution notifications
-    - system_alert: System alerts and notifications
+    Provides:
+    - Bitcoin price updates
+    - Portfolio changes
+    - Trading signals
+    - System status
     """
-    await manager.connect(websocket, client_id)
+    await manager.connect(websocket)
     
     try:
-        # Send welcome message
-        welcome_message = {
-            "type": "connection_established",
+        # Send initial connection confirmation
+        await manager.send_personal_message({
+            "type": "connection",
+            "status": "connected",
+            "timestamp": datetime.now().isoformat(),
+            "message": "Connected to Odin Trading Bot"
+        }, websocket)
+        
+        # Send initial data
+        await send_initial_data(websocket)
+        
+        # Start data streaming
+        await start_data_stream(websocket)
+        
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        logger.info("WebSocket client disconnected")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        manager.disconnect(websocket)
+
+async def send_initial_data(websocket: WebSocket):
+    """Send initial data when client connects."""
+    try:
+        # Get current data
+        from odin.core.data_collector import get_data_collector
+        collector = get_data_collector()
+        
+        current_price = await collector.get_current_price()
+        
+        initial_data = {
+            "type": "initial_data",
+            "timestamp": datetime.now().isoformat(),
             "data": {
-                "client_id": client_id,
-                "timestamp": datetime.now().isoformat(),
-                "message": "WebSocket connection established successfully"
+                "bitcoin_price": current_price,
+                "connection_status": "connected",
+                "system_status": "operational"
             }
         }
-        await manager.send_personal_message(json.dumps(welcome_message), websocket)
         
-        # Keep connection alive and handle incoming messages
+        await manager.send_personal_message(initial_data, websocket)
+        
+    except Exception as e:
+        logger.error(f"Failed to send initial data: {e}")
+
+async def start_data_stream(websocket: WebSocket):
+    """Start streaming real-time data to client."""
+    try:
+        from odin.core.data_collector import get_data_collector
+        collector = get_data_collector()
+        
+        # Add callback for price updates
+        async def price_callback(price_data):
+            message = {
+                "type": "price_update",
+                "timestamp": datetime.now().isoformat(),
+                "data": price_data
+            }
+            await manager.send_personal_message(message, websocket)
+        
+        collector.add_callback(price_callback)
+        
+        # Keep connection alive and handle client messages
         while True:
             try:
-                # Wait for messages from client with timeout
-                data = await asyncio.wait_for(
-                    websocket.receive_text(),
-                    timeout=300.0  # 5 minute timeout
-                )
+                # Wait for client message or timeout
+                message = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
                 
-                # Parse incoming message
-                try:
-                    message = json.loads(data)
-                    await handle_client_message(websocket, message)
-                except json.JSONDecodeError:
-                    error_response = {
-                        "type": "error",
-                        "data": {
-                            "message": "Invalid JSON format",
-                            "timestamp": datetime.now().isoformat()
-                        }
-                    }
-                    await manager.send_personal_message(json.dumps(error_response), websocket)
+                # Handle client messages
+                await handle_client_message(websocket, message)
                 
             except asyncio.TimeoutError:
                 # Send ping to keep connection alive
-                ping_message = {
+                await manager.send_personal_message({
                     "type": "ping",
-                    "data": {
-                        "timestamp": datetime.now().isoformat()
-                    }
-                }
-                await manager.send_personal_message(json.dumps(ping_message), websocket)
-                
+                    "timestamp": datetime.now().isoformat()
+                }, websocket)
             except WebSocketDisconnect:
-                logger.info("WebSocket client disconnected normally")
                 break
-            except Exception as e:
-                logger.error(f"WebSocket error: {e}")
-                break
-    
-    except Exception as e:
-        logger.error(f"WebSocket connection error: {e}")
-    finally:
-        manager.disconnect(websocket)
-
-async def handle_client_message(websocket: WebSocket, message: dict):
-    """Handle incoming messages from WebSocket clients."""
-    message_type = message.get("type")
-    
-    if message_type == "ping":
-        # Respond to ping with pong
-        pong_response = {
-            "type": "pong",
-            "data": {
-                "timestamp": datetime.now().isoformat()
-            }
-        }
-        await manager.send_personal_message(json.dumps(pong_response), websocket)
+                
+        # Remove callback when disconnecting
+        collector.remove_callback(price_callback)
         
-        # Update last ping time
-        if websocket in manager.connection_info:
-            manager.connection_info[websocket]["last_ping"] = datetime.now()
-    
-    elif message_type == "pong":
-        # Handle pong response
-        if websocket in manager.connection_info:
-            manager.connection_info[websocket]["last_ping"] = datetime.now()
-    
-    elif message_type == "subscribe":
-        # Handle subscription to specific data feeds
-        feeds = message.get("data", {}).get("feeds", [])
-        response = {
-            "type": "subscription_confirmed",
-            "data": {
-                "feeds": feeds,
-                "timestamp": datetime.now().isoformat(),
-                "message": f"Subscribed to {len(feeds)} feeds"
-            }
-        }
-        await manager.send_personal_message(json.dumps(response), websocket)
-    
-    elif message_type == "unsubscribe":
-        # Handle unsubscription
-        feeds = message.get("data", {}).get("feeds", [])
-        response = {
-            "type": "unsubscription_confirmed",
-            "data": {
-                "feeds": feeds,
-                "timestamp": datetime.now().isoformat(),
-                "message": f"Unsubscribed from {len(feeds)} feeds"
-            }
-        }
-        await manager.send_personal_message(json.dumps(response), websocket)
-    
-    else:
-        # Unknown message type
-        error_response = {
-            "type": "error",
-            "data": {
-                "message": f"Unknown message type: {message_type}",
+    except Exception as e:
+        logger.error(f"Data stream error: {e}")
+
+async def handle_client_message(websocket: WebSocket, message: str):
+    """Handle messages from WebSocket client."""
+    try:
+        data = json.loads(message)
+        message_type = data.get("type")
+        
+        if message_type == "ping":
+            # Respond to ping
+            await manager.send_personal_message({
+                "type": "pong",
                 "timestamp": datetime.now().isoformat()
+            }, websocket)
+            
+        elif message_type == "request_data":
+            # Client requesting specific data
+            await handle_data_request(websocket, data)
+            
+        elif message_type == "subscribe":
+            # Client subscribing to specific updates
+            await handle_subscription(websocket, data)
+            
+        else:
+            logger.warning(f"Unknown message type: {message_type}")
+            
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON received from client")
+    except Exception as e:
+        logger.error(f"Error handling client message: {e}")
+
+async def handle_data_request(websocket: WebSocket, data: dict):
+    """Handle specific data requests from client."""
+    try:
+        request_type = data.get("request")
+        
+        if request_type == "portfolio":
+            # Send portfolio data
+            portfolio_data = {
+                "type": "portfolio_data",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "total_value": 10000,
+                    "btc_balance": 0.25,
+                    "usd_balance": 8750,
+                    "daily_pnl": 150.00,
+                    "daily_pnl_percent": 1.5
+                }
             }
+            await manager.send_personal_message(portfolio_data, websocket)
+            
+        elif request_type == "strategies":
+            # Send strategy data
+            strategy_data = {
+                "type": "strategy_data",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "active_strategies": 2,
+                    "total_return": 12.5,
+                    "best_strategy": "Moving Average"
+                }
+            }
+            await manager.send_personal_message(strategy_data, websocket)
+            
+        elif request_type == "history":
+            # Send historical data
+            from odin.core.data_collector import get_data_collector
+            collector = get_data_collector()
+            
+            hours = data.get("hours", 24)
+            history = await collector.get_price_history(hours)
+            
+            history_data = {
+                "type": "history_data",
+                "timestamp": datetime.now().isoformat(),
+                "data": history
+            }
+            await manager.send_personal_message(history_data, websocket)
+            
+    except Exception as e:
+        logger.error(f"Error handling data request: {e}")
+
+async def handle_subscription(websocket: WebSocket, data: dict):
+    """Handle subscription requests from client."""
+    try:
+        channels = data.get("channels", [])
+        
+        response = {
+            "type": "subscription_response",
+            "timestamp": datetime.now().isoformat(),
+            "subscribed_channels": channels,
+            "status": "success"
         }
-        await manager.send_personal_message(json.dumps(error_response), websocket)
+        
+        await manager.send_personal_message(response, websocket)
+        
+    except Exception as e:
+        logger.error(f"Error handling subscription: {e}")
 
-# Utility functions for broadcasting data
-
+# Broadcast functions for external use
 async def broadcast_price_update(price_data: dict):
-    """Broadcast Bitcoin price update to all connected clients."""
-    if manager.get_connection_count() == 0:
-        return  # No clients connected
-    
+    """Broadcast price update to all connected clients."""
     message = {
         "type": "price_update",
-        "data": price_data,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "data": price_data
     }
-    await manager.broadcast_json(message)
+    await manager.broadcast(message)
+
+async def broadcast_trade_signal(signal_data: dict):
+    """Broadcast trading signal to all connected clients."""
+    message = {
+        "type": "trade_signal",
+        "timestamp": datetime.now().isoformat(),
+        "data": signal_data
+    }
+    await manager.broadcast(message)
 
 async def broadcast_portfolio_update(portfolio_data: dict):
     """Broadcast portfolio update to all connected clients."""
-    if manager.get_connection_count() == 0:
-        return  # No clients connected
-    
     message = {
         "type": "portfolio_update",
-        "data": portfolio_data,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "data": portfolio_data
     }
-    await manager.broadcast_json(message)
+    await manager.broadcast(message)
 
-async def broadcast_strategy_signal(strategy_name: str, signal_type: str, confidence: float, price: float):
-    """Broadcast strategy signal to all connected clients."""
-    if manager.get_connection_count() == 0:
-        return  # No clients connected
-    
-    message = {
-        "type": "strategy_signal",
-        "data": {
-            "strategy": strategy_name,
-            "signal": signal_type,
-            "confidence": confidence,
-            "price": price
-        },
-        "timestamp": datetime.now().isoformat()
-    }
-    await manager.broadcast_json(message)
-
-async def broadcast_trade_execution(trade_data: dict):
-    """Broadcast trade execution to all connected clients."""
-    if manager.get_connection_count() == 0:
-        return  # No clients connected
-    
-    message = {
-        "type": "trade_execution",
-        "data": trade_data,
-        "timestamp": datetime.now().isoformat()
-    }
-    await manager.broadcast_json(message)
-
-async def broadcast_system_alert(title: str, message_text: str, alert_type: str = "info"):
+async def broadcast_system_alert(alert_data: dict):
     """Broadcast system alert to all connected clients."""
-    if manager.get_connection_count() == 0:
-        return  # No clients connected
-    
     message = {
         "type": "system_alert",
-        "data": {
-            "title": title,
-            "message": message_text,
-            "type": alert_type
-        },
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "data": alert_data
     }
-    await manager.broadcast_json(message)
+    await manager.broadcast(message)
 
-async def broadcast_custom_message(message_type: str, data: dict):
-    """Broadcast custom message to all connected clients."""
-    if manager.get_connection_count() == 0:
-        return  # No clients connected
-    
-    message = {
-        "type": message_type,
-        "data": data,
-        "timestamp": datetime.now().isoformat()
-    }
-    await manager.broadcast_json(message)
+def get_connection_manager():
+    """Get the global connection manager."""
+    return manager
 
-# Health check endpoint for WebSocket connections
-@router.get("/ws/health")
-async def websocket_health():
-    """Get WebSocket connection health information."""
+# Health check for WebSocket system
+async def websocket_health_check() -> dict:
+    """Check WebSocket system health."""
     return {
-        "success": True,
-        "data": {
-            "active_connections": manager.get_connection_count(),
-            "connection_info": manager.get_connection_info(),
-            "websocket_enabled": True,
-            "status": "healthy"
-        },
-        "timestamp": datetime.now().isoformat()
+        "websocket_enabled": True,
+        "active_connections": manager.get_connection_count(),
+        "status": "healthy"
     }
-
-# WebSocket statistics endpoint
-@router.get("/ws/stats")
-async def websocket_stats():
-    """Get detailed WebSocket statistics."""
-    return {
-        "success": True,
-        "data": {
-            "total_connections": manager.get_connection_count(),
-            "connection_details": manager.get_connection_info(),
-            "server_time": datetime.now().isoformat(),
-            "websocket_version": "1.0.0"
-        }
-    }
-
-# Export all needed components
-__all__ = [
-    "router", 
-    "manager", 
-    "broadcast_price_update", 
-    "broadcast_portfolio_update",
-    "broadcast_strategy_signal", 
-    "broadcast_trade_execution", 
-    "broadcast_system_alert",
-    "broadcast_custom_message"
-]

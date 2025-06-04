@@ -1,806 +1,522 @@
 /**
- * Odin Bitcoin Trading Dashboard - WebSocket Manager
+ * WebSocket Client for Odin Bitcoin Trading Bot Dashboard
+ * 
+ * Handles real-time communication with the server and prevents
+ * browser crashes from WebSocket errors.
  */
 
-class WebSocketManager {
+class OdinWebSocket {
     constructor() {
         this.ws = null;
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 10;
+        this.maxReconnectAttempts = 5;
         this.reconnectDelay = 1000; // Start with 1 second
         this.maxReconnectDelay = 30000; // Max 30 seconds
-        this.heartbeatInterval = null;
-        this.heartbeatTimeout = null;
-        this.isConnected = false;
-        this.subscriptions = new Set();
+        this.isConnecting = false;
+        this.isManuallyDisconnected = false;
         this.messageQueue = [];
+        this.connectionTimeout = null;
         
-        // Event handlers
-        this.onPriceUpdate = this.onPriceUpdate.bind(this);
-        this.onPortfolioUpdate = this.onPortfolioUpdate.bind(this);
-        this.onStrategyUpdate = this.onStrategyUpdate.bind(this);
-        this.onOrderUpdate = this.onOrderUpdate.bind(this);
-        this.onSystemAlert = this.onSystemAlert.bind(this);
+        // Event callbacks
+        this.onConnectionChange = null;
+        this.onPriceUpdate = null;
+        this.onPortfolioUpdate = null;
+        this.onTradeSignal = null;
+        this.onSystemAlert = null;
         
-        // WebSocket URL (adjust based on your setup)
-        this.wsUrl = this.getWebSocketUrl();
+        this.init();
     }
-
-    /**
-     * Get WebSocket URL based on current location
-     */
-    getWebSocketUrl() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host;
-        return `${protocol}//${host}/ws`;
-    }
-
-    /**
-     * Initialize WebSocket connection
-     */
+    
     init() {
+        console.log('🔌 Initializing WebSocket connection...');
         this.connect();
     }
-
-    /**
-     * Connect to WebSocket server
-     */
+    
     connect() {
-        try {
-            console.log('Connecting to WebSocket server...');
-            
-            this.ws = new WebSocket(this.wsUrl);
-            
-            this.ws.onopen = this.onOpen.bind(this);
-            this.ws.onmessage = this.onMessage.bind(this);
-            this.ws.onclose = this.onClose.bind(this);
-            this.ws.onerror = this.onError.bind(this);
-            
-        } catch (error) {
-            console.error('WebSocket connection failed:', error);
-            this.handleReconnect();
-        }
-    }
-
-    /**
-     * Handle WebSocket open event
-     */
-    onOpen(event) {
-        console.log('WebSocket connected successfully');
-        
-        this.isConnected = true;
-        this.reconnectAttempts = 0;
-        this.reconnectDelay = 1000;
-        
-        // Update connection status
-        if (window.Dashboard) {
-            Dashboard.updateConnectionStatus('connected');
-        }
-        
-        // Start heartbeat
-        this.startHeartbeat();
-        
-        // Send authentication if needed
-        this.authenticate();
-        
-        // Subscribe to default channels
-        this.subscribeToDefaults();
-        
-        // Send queued messages
-        this.sendQueuedMessages();
-        
-        // Notify connection success
-        if (window.Dashboard) {
-            Dashboard.showNotification(
-                'Real-time Connection',
-                'Live data stream connected',
-                'success',
-                3000
-            );
-        }
-    }
-
-    /**
-     * Handle WebSocket message event
-     */
-    onMessage(event) {
-        try {
-            const data = JSON.parse(event.data);
-            this.handleMessage(data);
-        } catch (error) {
-            console.error('Failed to parse WebSocket message:', error);
-        }
-    }
-
-    /**
-     * Handle WebSocket close event
-     */
-    onClose(event) {
-        console.log('WebSocket connection closed:', event.code, event.reason);
-        
-        this.isConnected = false;
-        this.stopHeartbeat();
-        
-        // Update connection status
-        if (window.Dashboard) {
-            Dashboard.updateConnectionStatus('disconnected');
-        }
-        
-        // Handle reconnection if not a clean close
-        if (event.code !== 1000) {
-            this.handleReconnect();
-        }
-    }
-
-    /**
-     * Handle WebSocket error event
-     */
-    onError(error) {
-        console.error('WebSocket error:', error);
-        
-        if (window.Dashboard) {
-            Dashboard.updateConnectionStatus('disconnected');
-        }
-    }
-
-    /**
-     * Handle incoming messages
-     */
-    handleMessage(data) {
-        if (data.type === 'heartbeat') {
-            this.handleHeartbeat(data);
+        if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.CONNECTING)) {
+            console.log('⏳ Connection already in progress...');
             return;
         }
-
-        switch (data.type) {
+        
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            console.log('✅ WebSocket already connected');
+            return;
+        }
+        
+        this.isConnecting = true;
+        
+        try {
+            // Clear any existing connection timeout
+            if (this.connectionTimeout) {
+                clearTimeout(this.connectionTimeout);
+            }
+            
+            // Determine WebSocket URL
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            console.log(`🔗 Connecting to WebSocket: ${wsUrl}`);
+            
+            // Set connection timeout
+            this.connectionTimeout = setTimeout(() => {
+                if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+                    console.warn('⏰ WebSocket connection timeout');
+                    this.ws.close();
+                    this.handleConnectionFailure();
+                }
+            }, 10000); // 10 second timeout
+            
+            this.ws = new WebSocket(wsUrl);
+            this.setupEventHandlers();
+            
+        } catch (error) {
+            console.error('❌ WebSocket connection error:', error);
+            this.handleConnectionFailure();
+        }
+    }
+    
+    setupEventHandlers() {
+        if (!this.ws) return;
+        
+        this.ws.onopen = (event) => {
+            console.log('✅ WebSocket connected successfully');
+            this.isConnecting = false;
+            this.reconnectAttempts = 0;
+            this.reconnectDelay = 1000;
+            
+            // Clear connection timeout
+            if (this.connectionTimeout) {
+                clearTimeout(this.connectionTimeout);
+                this.connectionTimeout = null;
+            }
+            
+            // Update connection status
+            this.updateConnectionStatus('connected');
+            
+            // Send any queued messages
+            this.sendQueuedMessages();
+            
+            // Request initial data
+            this.requestInitialData();
+        };
+        
+        this.ws.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                this.handleMessage(message);
+            } catch (error) {
+                console.error('❌ Error parsing WebSocket message:', error);
+            }
+        };
+        
+        this.ws.onclose = (event) => {
+            console.log(`🔌 WebSocket closed: Code ${event.code}, Reason: ${event.reason}`);
+            this.isConnecting = false;
+            
+            // Clear connection timeout
+            if (this.connectionTimeout) {
+                clearTimeout(this.connectionTimeout);
+                this.connectionTimeout = null;
+            }
+            
+            // Update connection status
+            this.updateConnectionStatus('disconnected');
+            
+            // Only attempt reconnection if not manually disconnected
+            if (!this.isManuallyDisconnected) {
+                this.scheduleReconnect();
+            }
+        };
+        
+        this.ws.onerror = (error) => {
+            console.error('❌ WebSocket error:', error);
+            this.handleConnectionFailure();
+        };
+    }
+    
+    handleConnectionFailure() {
+        this.isConnecting = false;
+        
+        // Clear connection timeout
+        if (this.connectionTimeout) {
+            clearTimeout(this.connectionTimeout);
+            this.connectionTimeout = null;
+        }
+        
+        this.updateConnectionStatus('error');
+        
+        if (!this.isManuallyDisconnected) {
+            this.scheduleReconnect();
+        }
+    }
+    
+    scheduleReconnect() {
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.error('❌ Max reconnection attempts reached. Giving up.');
+            this.updateConnectionStatus('failed');
+            return;
+        }
+        
+        this.reconnectAttempts++;
+        const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), this.maxReconnectDelay);
+        
+        console.log(`🔄 Scheduling reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+        
+        setTimeout(() => {
+            if (!this.isManuallyDisconnected) {
+                this.connect();
+            }
+        }, delay);
+    }
+    
+    updateConnectionStatus(status) {
+        const statusElement = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+        
+        if (statusElement && statusText) {
+            switch (status) {
+                case 'connected':
+                    statusElement.className = 'status-indicator connected';
+                    statusText.textContent = 'Connected';
+                    break;
+                case 'connecting':
+                    statusElement.className = 'status-indicator connecting';
+                    statusText.textContent = 'Connecting...';
+                    break;
+                case 'disconnected':
+                    statusElement.className = 'status-indicator disconnected';
+                    statusText.textContent = 'Disconnected';
+                    break;
+                case 'error':
+                    statusElement.className = 'status-indicator error';
+                    statusText.textContent = 'Connection Error';
+                    break;
+                case 'failed':
+                    statusElement.className = 'status-indicator failed';
+                    statusText.textContent = 'Connection Failed';
+                    break;
+            }
+        }
+        
+        // Call connection change callback
+        if (this.onConnectionChange) {
+            this.onConnectionChange(status);
+        }
+    }
+    
+    handleMessage(message) {
+        console.log('📨 Received message:', message.type);
+        
+        switch (message.type) {
+            case 'connection':
+                console.log('🎉 Connection confirmed:', message.message);
+                break;
+                
+            case 'initial_data':
+                this.handleInitialData(message.data);
+                break;
+                
             case 'price_update':
-                this.onPriceUpdate(data.data);
+                this.handlePriceUpdate(message.data);
                 break;
                 
             case 'portfolio_update':
-                this.onPortfolioUpdate(data.data);
-                break;
-                
-            case 'strategy_update':
-                this.onStrategyUpdate(data.data);
-                break;
-                
-            case 'order_update':
-                this.onOrderUpdate(data.data);
-                break;
-                
-            case 'system_alert':
-                this.onSystemAlert(data.data);
-                break;
-                
-            case 'market_data':
-                this.onMarketDataUpdate(data.data);
+                this.handlePortfolioUpdate(message.data);
                 break;
                 
             case 'trade_signal':
-                this.onTradeSignal(data.data);
+                this.handleTradeSignal(message.data);
+                break;
+                
+            case 'system_alert':
+                this.handleSystemAlert(message.data);
+                break;
+                
+            case 'ping':
+                // Respond to ping
+                this.send({ type: 'pong' });
+                break;
+                
+            case 'pong':
+                // Server responded to our ping
+                console.log('🏓 Pong received');
                 break;
                 
             default:
-                console.log('Unknown message type:', data.type);
+                console.log('❓ Unknown message type:', message.type);
         }
     }
-
-    /**
-     * Handle price updates
-     */
-    onPriceUpdate(data) {
-        if (window.Dashboard) {
-            Dashboard.updateBitcoinPrice(data);
-        }
+    
+    handleInitialData(data) {
+        console.log('📊 Received initial data');
         
-        // Update price chart if visible
-        if (window.ChartManager && window.ChartManager.charts.price) {
-            const chart = window.ChartManager.charts.price;
-            const newLabel = window.ChartManager.formatChartTime(data.timestamp);
-            
-            // Add new data point
-            chart.data.labels.push(newLabel);
-            chart.data.datasets[0].data.push(data.price);
-            
-            // Keep only last 100 points for performance
-            if (chart.data.labels.length > 100) {
-                chart.data.labels.shift();
-                chart.data.datasets[0].data.shift();
-            }
-            
-            chart.update('none');
+        if (data.bitcoin_price && this.onPriceUpdate) {
+            this.onPriceUpdate(data.bitcoin_price);
         }
     }
-
-    /**
-     * Handle portfolio updates
-     */
-    onPortfolioUpdate(data) {
-        if (window.Dashboard) {
-            Dashboard.updatePortfolio(data);
+    
+    handlePriceUpdate(data) {
+        if (this.onPriceUpdate) {
+            this.onPriceUpdate(data);
         }
     }
-
-    /**
-     * Handle strategy updates
-     */
-    onStrategyUpdate(data) {
-        if (window.Dashboard) {
-            Dashboard.updateStrategies([data]);
-        }
-        
-        // Show notification for strategy events
-        if (data.event) {
-            const eventMessages = {
-                'activated': 'Strategy activated',
-                'deactivated': 'Strategy deactivated',
-                'signal_generated': 'New trading signal generated',
-                'trade_executed': 'Trade executed',
-                'optimization_complete': 'Parameter optimization completed'
-            };
-            
-            const message = eventMessages[data.event] || `Strategy ${data.event}`;
-            
-            if (window.Dashboard) {
-                Dashboard.showNotification(
-                    `${data.name} Strategy`,
-                    message,
-                    data.event === 'trade_executed' ? 'success' : 'info',
-                    5000
-                );
-            }
+    
+    handlePortfolioUpdate(data) {
+        if (this.onPortfolioUpdate) {
+            this.onPortfolioUpdate(data);
         }
     }
-
-    /**
-     * Handle order updates
-     */
-    onOrderUpdate(data) {
-        // Update orders table
-        if (window.Dashboard) {
-            Dashboard.loadOrders();
-        }
-        
-        // Show notification for important order events
-        const statusMessages = {
-            'filled': { type: 'success', message: 'Order filled successfully' },
-            'cancelled': { type: 'warning', message: 'Order cancelled' },
-            'rejected': { type: 'error', message: 'Order rejected' },
-            'expired': { type: 'warning', message: 'Order expired' }
-        };
-        
-        const statusInfo = statusMessages[data.status];
-        if (statusInfo && window.Dashboard) {
-            Dashboard.showNotification(
-                `Order ${data.status.charAt(0).toUpperCase() + data.status.slice(1)}`,
-                `${data.side.toUpperCase()} ${data.amount} BTC - ${statusInfo.message}`,
-                statusInfo.type,
-                5000
-            );
+    
+    handleTradeSignal(data) {
+        if (this.onTradeSignal) {
+            this.onTradeSignal(data);
         }
     }
-
-    /**
-     * Handle system alerts
-     */
-    onSystemAlert(data) {
-        if (window.Dashboard) {
-            Dashboard.showNotification(
-                data.title || 'System Alert',
-                data.message,
-                data.severity || 'info',
-                data.duration || 8000
-            );
-        }
-        
-        // Handle critical alerts
-        if (data.severity === 'critical') {
-            // Flash the browser tab
-            this.flashBrowserTab();
-            
-            // Play alert sound if available
-            this.playAlertSound();
+    
+    handleSystemAlert(data) {
+        if (this.onSystemAlert) {
+            this.onSystemAlert(data);
         }
     }
-
-    /**
-     * Handle market data updates
-     */
-    onMarketDataUpdate(data) {
-        // Update market indicators if they exist on the page
-        this.updateMarketIndicators(data);
-    }
-
-    /**
-     * Handle trade signals
-     */
-    onTradeSignal(data) {
-        if (window.Dashboard) {
-            Dashboard.showNotification(
-                `${data.strategy} Signal`,
-                `${data.signal.toUpperCase()} signal at $${data.price.toLocaleString()}`,
-                data.signal === 'buy' ? 'success' : 'warning',
-                8000
-            );
-        }
-    }
-
-    /**
-     * Start heartbeat mechanism
-     */
-    startHeartbeat() {
-        this.heartbeatInterval = setInterval(() => {
-            if (this.isConnected) {
-                this.send({
-                    type: 'heartbeat',
-                    timestamp: Date.now()
-                });
-                
-                // Set timeout for heartbeat response
-                this.heartbeatTimeout = setTimeout(() => {
-                    console.warn('Heartbeat timeout - connection may be lost');
-                    this.disconnect();
-                    this.handleReconnect();
-                }, 5000);
-            }
-        }, 30000); // Send heartbeat every 30 seconds
-    }
-
-    /**
-     * Stop heartbeat mechanism
-     */
-    stopHeartbeat() {
-        if (this.heartbeatInterval) {
-            clearInterval(this.heartbeatInterval);
-            this.heartbeatInterval = null;
-        }
-        
-        if (this.heartbeatTimeout) {
-            clearTimeout(this.heartbeatTimeout);
-            this.heartbeatTimeout = null;
-        }
-    }
-
-    /**
-     * Handle heartbeat response
-     */
-    handleHeartbeat(data) {
-        if (this.heartbeatTimeout) {
-            clearTimeout(this.heartbeatTimeout);
-            this.heartbeatTimeout = null;
-        }
-    }
-
-    /**
-     * Send authentication message
-     */
-    authenticate() {
-        // Add authentication logic here if needed
-        const authToken = localStorage.getItem('auth_token');
-        if (authToken) {
-            this.send({
-                type: 'authenticate',
-                token: authToken
-            });
-        }
-    }
-
-    /**
-     * Subscribe to default channels
-     */
-    subscribeToDefaults() {
-        const defaultChannels = [
-            'price_updates',
-            'portfolio_updates',
-            'strategy_updates',
-            'order_updates',
-            'system_alerts'
-        ];
-        
-        defaultChannels.forEach(channel => {
-            this.subscribe(channel);
-        });
-    }
-
-    /**
-     * Subscribe to a channel
-     */
-    subscribe(channel) {
-        if (this.subscriptions.has(channel)) {
-            return; // Already subscribed
-        }
-        
-        this.send({
-            type: 'subscribe',
-            channel: channel
-        });
-        
-        this.subscriptions.add(channel);
-        console.log(`Subscribed to channel: ${channel}`);
-    }
-
-    /**
-     * Unsubscribe from a channel
-     */
-    unsubscribe(channel) {
-        if (!this.subscriptions.has(channel)) {
-            return; // Not subscribed
-        }
-        
-        this.send({
-            type: 'unsubscribe',
-            channel: channel
-        });
-        
-        this.subscriptions.delete(channel);
-        console.log(`Unsubscribed from channel: ${channel}`);
-    }
-
-    /**
-     * Send message to WebSocket server
-     */
-    send(data) {
-        if (this.isConnected && this.ws) {
+    
+    send(message) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             try {
-                this.ws.send(JSON.stringify(data));
+                this.ws.send(JSON.stringify(message));
+                return true;
             } catch (error) {
-                console.error('Failed to send WebSocket message:', error);
-                this.messageQueue.push(data);
+                console.error('❌ Error sending message:', error);
+                return false;
             }
         } else {
-            // Queue message for when connection is restored
-            this.messageQueue.push(data);
+            console.log('📤 Queueing message (not connected):', message);
+            this.messageQueue.push(message);
+            return false;
         }
     }
-
-    /**
-     * Send queued messages
-     */
+    
     sendQueuedMessages() {
         while (this.messageQueue.length > 0) {
             const message = this.messageQueue.shift();
-            this.send(message);
-        }
-    }
-
-    /**
-     * Handle reconnection
-     */
-    handleReconnect() {
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            console.error('Max reconnection attempts reached. Giving up.');
-            if (window.Dashboard) {
-                Dashboard.showNotification(
-                    'Connection Failed',
-                    'Unable to establish real-time connection. Please refresh the page.',
-                    'error',
-                    0 // Don't auto-dismiss
-                );
+            if (!this.send(message)) {
+                // If send fails, put it back at the front of the queue
+                this.messageQueue.unshift(message);
+                break;
             }
-            return;
         }
-
-        this.reconnectAttempts++;
-        
-        // Exponential backoff with jitter
-        const jitter = Math.random() * 1000;
-        const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1) + jitter, this.maxReconnectDelay);
-        
-        console.log(`Attempting to reconnect in ${Math.round(delay / 1000)} seconds... (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-        
-        if (window.Dashboard) {
-            Dashboard.updateConnectionStatus('connecting');
-        }
-        
-        setTimeout(() => {
-            this.connect();
-        }, delay);
     }
-
-    /**
-     * Disconnect WebSocket
-     */
+    
+    requestInitialData() {
+        this.send({
+            type: 'request_data',
+            request: 'initial'
+        });
+    }
+    
+    requestPortfolioData() {
+        this.send({
+            type: 'request_data',
+            request: 'portfolio'
+        });
+    }
+    
+    requestStrategyData() {
+        this.send({
+            type: 'request_data',
+            request: 'strategies'
+        });
+    }
+    
+    requestHistoryData(hours = 24) {
+        this.send({
+            type: 'request_data',
+            request: 'history',
+            hours: hours
+        });
+    }
+    
+    subscribe(channels) {
+        this.send({
+            type: 'subscribe',
+            channels: channels
+        });
+    }
+    
+    ping() {
+        this.send({ type: 'ping' });
+    }
+    
     disconnect() {
+        console.log('🔌 Manually disconnecting WebSocket');
+        this.isManuallyDisconnected = true;
+        
         if (this.ws) {
-            this.ws.close(1000, 'Client disconnect');
-            this.ws = null;
-        }
-        
-        this.isConnected = false;
-        this.stopHeartbeat();
-        this.subscriptions.clear();
-    }
-
-    /**
-     * Update market indicators
-     */
-    updateMarketIndicators(data) {
-        // Update fear & greed index
-        const fearGreedElement = document.getElementById('fear-greed-index');
-        if (fearGreedElement && data.fear_greed_index) {
-            fearGreedElement.textContent = data.fear_greed_index.value;
-            fearGreedElement.className = `indicator ${data.fear_greed_index.classification.toLowerCase()}`;
-        }
-        
-        // Update market cap
-        const marketCapElement = document.getElementById('market-cap');
-        if (marketCapElement && data.market_cap) {
-            marketCapElement.textContent = this.formatLargeNumber(data.market_cap);
-        }
-        
-        // Update volume
-        const volumeElement = document.getElementById('volume-24h');
-        if (volumeElement && data.volume_24h) {
-            volumeElement.textContent = this.formatLargeNumber(data.volume_24h);
-        }
-        
-        // Update dominance
-        const dominanceElement = document.getElementById('btc-dominance');
-        if (dominanceElement && data.btc_dominance) {
-            dominanceElement.textContent = `${data.btc_dominance.toFixed(1)}%`;
+            this.ws.close(1000, 'Manual disconnect');
         }
     }
-
-    /**
-     * Flash browser tab for critical alerts
-     */
-    flashBrowserTab() {
-        const originalTitle = document.title;
-        let isFlashing = true;
-        let flashCount = 0;
-        const maxFlashes = 10;
+    
+    reconnect() {
+        console.log('🔄 Manual reconnection requested');
+        this.isManuallyDisconnected = false;
+        this.reconnectAttempts = 0;
+        this.connect();
+    }
+    
+    getConnectionState() {
+        if (!this.ws) return 'not_initialized';
         
-        const flashInterval = setInterval(() => {
-            if (flashCount >= maxFlashes) {
-                document.title = originalTitle;
-                clearInterval(flashInterval);
-                return;
+        switch (this.ws.readyState) {
+            case WebSocket.CONNECTING: return 'connecting';
+            case WebSocket.OPEN: return 'open';
+            case WebSocket.CLOSING: return 'closing';
+            case WebSocket.CLOSED: return 'closed';
+            default: return 'unknown';
+        }
+    }
+    
+    isConnected() {
+        return this.ws && this.ws.readyState === WebSocket.OPEN;
+    }
+}
+
+// Global WebSocket instance
+let odinWebSocket = null;
+
+// Initialize WebSocket when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Wait a bit before initializing WebSocket to ensure page is fully loaded
+    setTimeout(() => {
+        initializeWebSocket();
+    }, 1000);
+});
+
+function initializeWebSocket() {
+    try {
+        odinWebSocket = new OdinWebSocket();
+        
+        // Set up callbacks
+        odinWebSocket.onConnectionChange = (status) => {
+            console.log(`🔌 Connection status changed: ${status}`);
+            
+            // Handle connection status in UI
+            if (status === 'failed') {
+                showNotification('WebSocket connection failed. Some features may not work.', 'error');
+            } else if (status === 'connected') {
+                showNotification('Connected to Odin Trading Bot', 'success');
             }
-            
-            document.title = isFlashing ? '🚨 ALERT - Odin Dashboard' : originalTitle;
-            isFlashing = !isFlashing;
-            flashCount++;
-        }, 500);
-    }
-
-    /**
-     * Play alert sound
-     */
-    playAlertSound() {
-        try {
-            // Create audio context for alert sound
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-            oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
-            
-            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(0, audioContext.currentTime + 0.3);
-            
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.3);
-        } catch (error) {
-            console.warn('Could not play alert sound:', error);
-        }
-    }
-
-    /**
-     * Format large numbers for display
-     */
-    formatLargeNumber(num) {
-        if (num >= 1e12) {
-            return (num / 1e12).toFixed(2) + 'T';
-        } else if (num >= 1e9) {
-            return (num / 1e9).toFixed(2) + 'B';
-        } else if (num >= 1e6) {
-            return (num / 1e6).toFixed(2) + 'M';
-        } else if (num >= 1e3) {
-            return (num / 1e3).toFixed(2) + 'K';
-        }
-        return num.toFixed(2);
-    }
-
-    /**
-     * Request specific data update
-     */
-    requestUpdate(dataType, params = {}) {
-        this.send({
-            type: 'request_update',
-            data_type: dataType,
-            params: params
-        });
-    }
-
-    /**
-     * Send trading command
-     */
-    sendTradingCommand(command, params = {}) {
-        this.send({
-            type: 'trading_command',
-            command: command,
-            params: params,
-            timestamp: Date.now()
-        });
-    }
-
-    /**
-     * Update strategy parameters
-     */
-    updateStrategyParams(strategyId, params) {
-        this.send({
-            type: 'update_strategy_params',
-            strategy_id: strategyId,
-            params: params
-        });
-    }
-
-    /**
-     * Request strategy optimization
-     */
-    requestOptimization(strategyId, optimizationParams) {
-        this.send({
-            type: 'optimize_strategy',
-            strategy_id: strategyId,
-            params: optimizationParams
-        });
-    }
-
-    /**
-     * Get connection status
-     */
-    getConnectionStatus() {
-        return {
-            connected: this.isConnected,
-            reconnectAttempts: this.reconnectAttempts,
-            subscriptions: Array.from(this.subscriptions),
-            queuedMessages: this.messageQueue.length
         };
-    }
-
-    /**
-     * Enable/disable specific notifications
-     */
-    configureNotifications(config) {
-        this.send({
-            type: 'configure_notifications',
-            config: config
-        });
-    }
-
-    /**
-     * Request historical data for charts
-     */
-    requestHistoricalData(dataType, timeframe, limit = 100) {
-        this.send({
-            type: 'request_historical_data',
-            data_type: dataType,
-            timeframe: timeframe,
-            limit: limit
-        });
-    }
-
-    /**
-     * Set up custom event listeners
-     */
-    addEventListener(eventType, callback) {
-        document.addEventListener(`ws_${eventType}`, callback);
-    }
-
-    /**
-     * Remove custom event listeners
-     */
-    removeEventListener(eventType, callback) {
-        document.removeEventListener(`ws_${eventType}`, callback);
-    }
-
-    /**
-     * Dispatch custom events
-     */
-    dispatchEvent(eventType, data) {
-        const event = new CustomEvent(`ws_${eventType}`, {
-            detail: data
-        });
-        document.dispatchEvent(event);
-    }
-
-    /**
-     * Handle browser visibility changes
-     */
-    handleVisibilityChange() {
-        if (document.hidden) {
-            // Page is hidden, reduce update frequency
-            this.send({
-                type: 'set_update_frequency',
-                frequency: 'low'
-            });
-        } else {
-            // Page is visible, resume normal updates
-            this.send({
-                type: 'set_update_frequency',
-                frequency: 'normal'
-            });
-            
-            // Request fresh data
-            this.requestUpdate('all');
-        }
-    }
-
-    /**
-     * Set up network status monitoring
-     */
-    setupNetworkMonitoring() {
-        window.addEventListener('online', () => {
-            console.log('Network connection restored');
-            if (!this.isConnected) {
-                this.connect();
-            }
-        });
         
-        window.addEventListener('offline', () => {
-            console.log('Network connection lost');
-            if (window.Dashboard) {
-                Dashboard.showNotification(
-                    'Network Offline',
-                    'Internet connection lost. Attempting to reconnect...',
-                    'warning'
-                );
-            }
-        });
-    }
-
-    /**
-     * Initialize WebSocket manager
-     */
-    static init() {
-        if (!window.WebSocketManager) {
-            window.WebSocketManager = new WebSocketManager();
-        }
+        odinWebSocket.onPriceUpdate = (data) => {
+            // Update price display
+            updatePriceDisplay(data);
+        };
         
-        // Set up visibility change handler
-        document.addEventListener('visibilitychange', () => {
-            window.WebSocketManager.handleVisibilityChange();
-        });
+        odinWebSocket.onPortfolioUpdate = (data) => {
+            // Update portfolio display
+            updatePortfolioDisplay(data);
+        };
         
-        // Set up network monitoring
-        window.WebSocketManager.setupNetworkMonitoring();
+        odinWebSocket.onTradeSignal = (data) => {
+            // Show trading signal notification
+            showNotification(`Trading Signal: ${data.signal} at $${data.price}`, 'info');
+        };
         
-        // Connect
-        window.WebSocketManager.connect();
+        odinWebSocket.onSystemAlert = (data) => {
+            // Show system alert
+            showNotification(data.message, data.level || 'warning');
+        };
         
-        return window.WebSocketManager;
-    }
-
-    /**
-     * Cleanup on page unload
-     */
-    cleanup() {
-        this.disconnect();
-        this.stopHeartbeat();
-        this.messageQueue = [];
-        this.subscriptions.clear();
+        console.log('✅ WebSocket initialized successfully');
+        
+    } catch (error) {
+        console.error('❌ Failed to initialize WebSocket:', error);
+        showNotification('Failed to initialize real-time connection', 'error');
     }
 }
 
-// Auto-initialize when script loads
-document.addEventListener('DOMContentLoaded', () => {
-    WebSocketManager.init();
-});
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    if (window.WebSocketManager) {
-        window.WebSocketManager.cleanup();
+// Helper functions for UI updates
+function updatePriceDisplay(data) {
+    const priceElement = document.getElementById('bitcoin-price');
+    const changeElement = document.getElementById('price-change');
+    const timestampElement = document.getElementById('price-timestamp');
+    
+    if (priceElement && data.price) {
+        priceElement.textContent = `$${Number(data.price).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })}`;
     }
-});
-
-// Export for module usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = WebSocketManager;
+    
+    if (changeElement && data.change_24h) {
+        const change = Number(data.change_24h);
+        changeElement.textContent = `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
+        changeElement.className = `stat-change ${change >= 0 ? 'positive' : 'negative'}`;
+    }
+    
+    if (timestampElement) {
+        const timestamp = data.timestamp ? new Date(data.timestamp * 1000) : new Date();
+        timestampElement.textContent = `Last updated: ${timestamp.toLocaleTimeString()}`;
+    }
 }
+
+function updatePortfolioDisplay(data) {
+    const valueElement = document.getElementById('portfolio-value');
+    const changeElement = document.getElementById('portfolio-change');
+    const pnlElement = document.getElementById('daily-pnl');
+    
+    if (valueElement && data.total_value) {
+        valueElement.textContent = `$${Number(data.total_value).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })}`;
+    }
+    
+    if (changeElement && data.daily_pnl_percent) {
+        const change = Number(data.daily_pnl_percent);
+        changeElement.textContent = `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
+        changeElement.className = `stat-change ${change >= 0 ? 'positive' : 'negative'}`;
+    }
+    
+    if (pnlElement && data.daily_pnl) {
+        const pnl = Number(data.daily_pnl);
+        pnlElement.textContent = `${pnl > 0 ? '+' : ''}$${Math.abs(pnl).toFixed(2)}`;
+        pnlElement.className = `stat-value ${pnl >= 0 ? 'positive' : 'negative'}`;
+    }
+}
+
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <span class="notification-message">${message}</span>
+        <button class="notification-close">&times;</button>
+    `;
+    
+    // Add to container
+    const container = document.getElementById('notification-container');
+    if (container) {
+        container.appendChild(notification);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 5000);
+        
+        // Add close button functionality
+        const closeBtn = notification.querySelector('.notification-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            });
+        }
+    }
+}
+
+// Export WebSocket instance for use by other scripts
+window.OdinWebSocket = OdinWebSocket;
+window.odinWebSocket = odinWebSocket;
