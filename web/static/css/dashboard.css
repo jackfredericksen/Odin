@@ -1105,3 +1105,31 @@ input:focus {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
 }
+
+.chart-wrapper {
+    height: 400px !important;
+    max-height: 400px !important;
+    overflow: hidden !important;
+}
+
+.chart-wrapper canvas {
+    max-height: 400px !important;
+}
+
+.strategy-performance {
+    height: 250px !important;
+    max-height: 250px !important;
+    overflow: hidden !important;
+}
+
+.allocation-chart-container {
+    height: 200px !important;
+    max-height: 200px !important;
+    overflow: hidden !important;
+}
+
+/* Prevent infinite chart growth */
+canvas {
+    max-width: 100% !important;
+    max-height: 500px !important;
+}

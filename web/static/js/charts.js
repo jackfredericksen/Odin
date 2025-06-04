@@ -968,3 +968,4 @@ window.addEventListener('resize', () => {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = ChartManager;
 }
+
