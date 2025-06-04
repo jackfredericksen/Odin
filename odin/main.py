@@ -38,7 +38,7 @@ def main():
         
         # Initialize database
         try:
-            from core.database import get_database
+            from odin.core.database import get_database
             db = get_database()
             stats = db.get_database_stats()
             logger.info(f"📊 Database initialized: {stats.get('bitcoin_prices_count', 0)} price records")

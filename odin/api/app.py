@@ -1,16 +1,16 @@
 """
-Odin Bitcoin Trading Bot - Fixed FastAPI Application
-
-Fixed version that includes WebSocket support and removes circular import issues.
+Odin Bitcoin Trading Bot - Fixed FastAPI Application with Direct WebSocket
 """
 
 import asyncio
-from pathlib import Path
+import json
+import logging
 import random
 import time
-import logging
-import json
-from fastapi import FastAPI, Request
+from pathlib import Path
+from typing import List
+
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,7 +25,6 @@ except ImportError:
     try:
         from odin.core.config import get_settings
     except ImportError:
-        # Fallback settings
         class FallbackSettings:
             def __init__(self):
                 self.environment = "development"
@@ -35,6 +34,47 @@ except ImportError:
         
         def get_settings():
             return FallbackSettings()
+
+# WebSocket Connection Manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        logger.info(f"WebSocket connected. Total: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        logger.info(f"WebSocket disconnected. Total: {len(self.active_connections)}")
+
+    async def send_personal_message(self, message: dict, websocket: WebSocket):
+        try:
+            await websocket.send_text(json.dumps(message))
+        except Exception as e:
+            logger.error(f"Failed to send message: {e}")
+            self.disconnect(websocket)
+
+    async def broadcast(self, message: dict):
+        if not self.active_connections:
+            return
+        
+        message_str = json.dumps(message)
+        disconnected = []
+        
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(message_str)
+            except Exception:
+                disconnected.append(connection)
+        
+        for connection in disconnected:
+            self.disconnect(connection)
+
+# Global connection manager
+websocket_manager = ConnectionManager()
 
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
@@ -70,63 +110,102 @@ def create_app() -> FastAPI:
     if template_path.exists():
         templates = Jinja2Templates(directory=str(template_path))
     
-    # Include WebSocket routes
-    try:
-        from odin.api.routes.websockets import router as websocket_router
-        app.include_router(websocket_router)
-        logger.info("🔌 WebSocket support enabled")
-    except ImportError as e:
-        logger.warning(f"WebSocket module not available: {e}")
-    
-    # Add a simple WebSocket endpoint directly in the app
+    # DIRECT WEBSOCKET ENDPOINT (bypassing route imports)
     @app.websocket("/ws")
-    async def websocket_endpoint_fallback(websocket):
-        await websocket.accept()
-        try:
-            await websocket.send_text('{"type":"connection","status":"connected","message":"WebSocket connected"}')
-            while True:
-                await websocket.receive_text()
-        except Exception:
-            pass
-    logger.info("🔌 Fallback WebSocket endpoint created")
-    # Add this directly in app.py after middleware setup
-    @app.websocket("/ws")
-    async def websocket_endpoint(websocket):
-        """Direct WebSocket endpoint in app.py"""
-        await websocket.accept()
-        logger.info("WebSocket connection accepted")
+    async def websocket_endpoint(websocket: WebSocket):
+        """Direct WebSocket endpoint for real-time dashboard updates."""
+        await websocket_manager.connect(websocket)
         
         try:
             # Send connection confirmation
-            await websocket.send_text(json.dumps({
+            await websocket_manager.send_personal_message({
                 "type": "connection",
-                "status": "connected", 
+                "status": "connected",
                 "timestamp": time.time(),
                 "message": "Connected to Odin Trading Bot"
-            }))
+            }, websocket)
             
-            # Keep connection alive
+            # Send initial data
+            try:
+                from odin.core.data_collector import get_data_collector
+                collector = get_data_collector()
+                current_price = await collector.get_current_price()
+                
+                await websocket_manager.send_personal_message({
+                    "type": "initial_data",
+                    "timestamp": time.time(),
+                    "data": {
+                        "bitcoin_price": current_price,
+                        "connection_status": "connected"
+                    }
+                }, websocket)
+            except Exception as e:
+                logger.error(f"Failed to send initial data: {e}")
+                # Send fallback data
+                await websocket_manager.send_personal_message({
+                    "type": "initial_data",
+                    "timestamp": time.time(),
+                    "data": {
+                        "bitcoin_price": {
+                            "price": 45000 + random.uniform(-2000, 2000),
+                            "timestamp": time.time(),
+                            "source": "fallback"
+                        },
+                        "connection_status": "connected"
+                    }
+                }, websocket)
+            
+            # Keep connection alive and handle messages
             while True:
                 try:
+                    # Wait for message with timeout
                     message = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-                    # Echo back for now
-                    await websocket.send_text(json.dumps({
-                        "type": "pong",
-                        "timestamp": time.time()
-                    }))
+                    
+                    # Handle client messages
+                    try:
+                        data = json.loads(message)
+                        if data.get("type") == "ping":
+                            await websocket_manager.send_personal_message({
+                                "type": "pong",
+                                "timestamp": time.time()
+                            }, websocket)
+                        elif data.get("type") == "request_data":
+                            # Handle data requests
+                            request_type = data.get("request")
+                            if request_type == "portfolio":
+                                await websocket_manager.send_personal_message({
+                                    "type": "portfolio_data",
+                                    "timestamp": time.time(),
+                                    "data": {
+                                        "total_value": 10000 + random.uniform(-500, 500),
+                                        "btc_balance": 0.25,
+                                        "usd_balance": 8750,
+                                        "daily_pnl": random.uniform(-200, 200),
+                                        "daily_pnl_percent": random.uniform(-2, 2)
+                                    }
+                                }, websocket)
+                    except json.JSONDecodeError:
+                        pass
+                        
                 except asyncio.TimeoutError:
-                    await websocket.send_text(json.dumps({
+                    # Send ping to keep connection alive
+                    await websocket_manager.send_personal_message({
                         "type": "ping",
                         "timestamp": time.time()
-                    }))
-                except Exception:
+                    }, websocket)
+                except WebSocketDisconnect:
+                    break
+                except Exception as e:
+                    logger.error(f"WebSocket message error: {e}")
                     break
                     
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
         finally:
-            logger.info("WebSocket connection closed")
-
+            websocket_manager.disconnect(websocket)
+    
+    logger.info("🔌 Direct WebSocket endpoint created at /ws")
+    
     # Startup event
     @app.on_event("startup")
     async def startup_event():
@@ -141,6 +220,17 @@ def create_app() -> FastAPI:
             # Start data collection
             await collector.start_collection()
             logger.info("📊 Data collection started")
+            
+            # Set up price update broadcasting
+            async def price_broadcast_callback(price_data):
+                await websocket_manager.broadcast({
+                    "type": "price_update",
+                    "timestamp": time.time(),
+                    "data": price_data
+                })
+            
+            collector.add_callback(price_broadcast_callback)
+            logger.info("📡 Price broadcasting enabled")
             
         except Exception as e:
             logger.warning(f"Startup warning: {e}")
@@ -170,7 +260,8 @@ def create_app() -> FastAPI:
             "status": "healthy",
             "message": "Odin Bot is running",
             "version": "2.0.0",
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "websocket_connections": len(websocket_manager.active_connections)
         }
     
     @app.get("/api/v1/health/detailed")
@@ -179,15 +270,6 @@ def create_app() -> FastAPI:
         try:
             import psutil
             memory = psutil.virtual_memory()
-            
-            # Check WebSocket status
-            websocket_status = "disabled"
-            try:
-                from odin.api.routes.websockets import websocket_health_check
-                ws_health = await websocket_health_check()
-                websocket_status = "enabled" if ws_health["websocket_enabled"] else "disabled"
-            except:
-                websocket_status = "error"
             
             return {
                 "success": True,
@@ -200,8 +282,9 @@ def create_app() -> FastAPI:
                 "components": {
                     "database": "ready",
                     "trading_engine": "initialized",
-                    "websockets": websocket_status,
-                    "data_collector": "running"
+                    "websockets": "enabled",
+                    "data_collector": "running",
+                    "active_connections": len(websocket_manager.active_connections)
                 }
             }
         except Exception as e:
@@ -247,7 +330,7 @@ def create_app() -> FastAPI:
         try:
             from odin.core.data_collector import get_data_collector
             collector = get_data_collector()
-            history_data = await collector.get_price_history(min(hours, 168))  # Max 1 week
+            history_data = await collector.get_price_history(min(hours, 168))
             
             return {
                 "success": True,
@@ -255,7 +338,7 @@ def create_app() -> FastAPI:
             }
         except Exception as e:
             logger.error(f"Error getting historical data: {e}")
-            # Fallback to mock data
+            # Fallback mock data
             data = []
             base_price = 45000
             current_time = time.time()
@@ -319,14 +402,10 @@ def create_app() -> FastAPI:
                     "win_rate": 68.9,
                     "sharpe_ratio": 1.85,
                     "max_drawdown": -8.2,
-                    "volatility": 15.3,
-                    "performance_history": [
-                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-5, 15)}
-                        for i in range(30)
-                    ]
+                    "volatility": 15.3
                 },
                 {
-                    "id": "rsi_momentum",
+                    "id": "rsi_momentum", 
                     "name": "RSI Momentum",
                     "type": "rsi",
                     "active": False,
@@ -335,43 +414,7 @@ def create_app() -> FastAPI:
                     "win_rate": 43.5,
                     "sharpe_ratio": 0.92,
                     "max_drawdown": -12.5,
-                    "volatility": 18.7,
-                    "performance_history": [
-                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-10, 5)}
-                        for i in range(30)
-                    ]
-                },
-                {
-                    "id": "bollinger_bands",
-                    "name": "Bollinger Bands",
-                    "type": "bollinger_bands",
-                    "active": True,
-                    "return": 8.7,
-                    "total_trades": 67,
-                    "win_rate": 59.7,
-                    "sharpe_ratio": 1.34,
-                    "max_drawdown": -6.8,
-                    "volatility": 12.1,
-                    "performance_history": [
-                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-3, 12)}
-                        for i in range(30)
-                    ]
-                },
-                {
-                    "id": "macd_trend",
-                    "name": "MACD Trend",
-                    "type": "macd",
-                    "active": False,
-                    "return": 5.3,
-                    "total_trades": 34,
-                    "win_rate": 55.9,
-                    "sharpe_ratio": 1.12,
-                    "max_drawdown": -9.4,
-                    "volatility": 16.8,
-                    "performance_history": [
-                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-7, 10)}
-                        for i in range(30)
-                    ]
+                    "volatility": 18.7
                 }
             ]
         }
@@ -419,6 +462,7 @@ def create_app() -> FastAPI:
             }
         }
     
+    # Database initialization endpoint
     @app.get("/api/v1/database/init")
     async def init_database():
         """Initialize database with sample data."""
@@ -450,6 +494,7 @@ def create_app() -> FastAPI:
                 "message": "Odin Bitcoin Trading Bot API", 
                 "version": "2.0.0", 
                 "status": "running",
+                "websocket_connections": len(websocket_manager.active_connections),
                 "endpoints": {
                     "dashboard": "/",
                     "health": "/api/v1/health",

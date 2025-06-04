@@ -10,8 +10,8 @@ from typing import Optional, Generator
 import jwt
 from datetime import datetime, timedelta
 
-from core.database import DatabaseManager
-from core.data_collector import BitcoinDataCollector
+from odin.core.database import DatabaseManager
+from odin.core.data_collector import BitcoinDataCollector
 from strategies.moving_average import MovingAverageStrategy
 from strategies.rsi import RSIStrategy
 from strategies.bollinger_bands import BollingerBandsStrategy
