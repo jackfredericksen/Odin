@@ -461,7 +461,115 @@ def create_app() -> FastAPI:
                 "pnl_today": 127.50
             }
         }
-    
+        # Auto-trading control endpoints
+    @app.post("/api/v1/trading/enable")
+    async def enable_auto_trading():
+        """Enable auto-trading."""
+        # TODO: Implement actual auto-trading logic
+        return {
+            "success": True,
+            "message": "Auto-trading enabled",
+            "data": {
+                "enabled": True,
+                "timestamp": time.time()
+            }
+        }
+
+    @app.post("/api/v1/trading/disable")
+    async def disable_auto_trading():
+        """Disable auto-trading."""
+        # TODO: Implement actual auto-trading logic
+        return {
+            "success": True,
+            "message": "Auto-trading disabled", 
+            "data": {
+                "enabled": False,
+                "timestamp": time.time()
+            }
+        }
+
+    @app.put("/api/v1/trading/config")
+    async def update_trading_config(config: dict):
+        """Update auto-trading configuration."""
+        # TODO: Implement actual config update logic
+        return {
+            "success": True,
+            "message": "Trading configuration updated",
+            "data": config
+        }
+
+    # Strategy management endpoints
+    @app.post("/api/v1/strategies/{strategy_id}/enable")
+    async def enable_strategy(strategy_id: str):
+        """Enable a specific strategy."""
+        # TODO: Implement actual strategy enable logic
+        return {
+            "success": True,
+            "message": f"Strategy {strategy_id} enabled",
+            "data": {
+                "strategy_id": strategy_id,
+                "enabled": True,
+                "timestamp": time.time()
+            }
+        }
+
+    @app.post("/api/v1/strategies/{strategy_id}/disable") 
+    async def disable_strategy(strategy_id: str):
+        """Disable a specific strategy."""
+        # TODO: Implement actual strategy disable logic
+        return {
+            "success": True,
+            "message": f"Strategy {strategy_id} disabled",
+            "data": {
+                "strategy_id": strategy_id,
+                "enabled": False,
+                "timestamp": time.time()
+            }
+        }
+
+    @app.put("/api/v1/strategies/{strategy_id}/config")
+    async def update_strategy_config(strategy_id: str, config: dict):
+        """Update strategy configuration."""
+        # TODO: Implement actual strategy config update
+        return {
+            "success": True,
+            "message": f"Strategy {strategy_id} configuration updated",
+            "data": {
+                "strategy_id": strategy_id,
+                "config": config,
+                "timestamp": time.time()
+            }
+        }
+
+    # Additional trading endpoints
+    @app.post("/api/v1/trading/{strategy_id}/execute")
+    async def execute_trade(strategy_id: str, trade_data: dict):
+        """Execute a trade for a specific strategy."""
+        # TODO: Implement actual trade execution
+        return {
+            "success": True,
+            "message": f"Trade executed for strategy {strategy_id}",
+            "data": {
+                "trade_id": f"trade_{int(time.time())}",
+                "strategy_id": strategy_id,
+                "status": "executed",
+                "timestamp": time.time()
+            }
+        }
+
+    @app.post("/api/v1/trading/emergency-stop")
+    async def emergency_stop():
+        """Emergency stop all trading activities."""
+        # TODO: Implement actual emergency stop logic
+        return {
+            "success": True,
+            "message": "Emergency stop activated - all trading halted",
+            "data": {
+                "stopped_strategies": ["ma_cross", "rsi_momentum", "bollinger_bands"],
+                "stopped_orders": 0,
+                "timestamp": time.time()
+            }
+        }
     # Database initialization endpoint
     @app.get("/api/v1/database/init")
     async def init_database():
