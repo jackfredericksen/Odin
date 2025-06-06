@@ -1,3 +1,17 @@
+Here's a concise blurb you can add to your GitHub README:
+
+Support Humanitarian Efforts in Palestine
+The ongoing humanitarian crisis in Palestine has left millions in urgent need of aid. If you're looking to make a difference, consider supporting trusted organizations working on the ground to provide food, medical care, and essential relief:
+- UN Crisis Relief – Occupied Palestinian Territory Humanitarian Fund
+- Palestine Children's Relief Fund (PCRF)
+- Médecins Sans Frontières (Doctors Without Borders)
+- Anera (American Near East Refugee Aid)
+- Save the Children
+Every contribution helps provide critical assistance to those affected. Learn more and donate through the links above.
+
+
+
+
 # Odin - Professional Bitcoin Trading Bot (Updated)
 
 <div align="center">
