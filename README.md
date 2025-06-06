@@ -1,12 +1,10 @@
-Here's a concise blurb you can add to your GitHub README:
-
 Support Humanitarian Efforts in Palestine
 The ongoing humanitarian crisis in Palestine has left millions in urgent need of aid. If you're looking to make a difference, consider supporting trusted organizations working on the ground to provide food, medical care, and essential relief:
-- UN Crisis Relief – Occupied Palestinian Territory Humanitarian Fund
-- Palestine Children's Relief Fund (PCRF)
-- Médecins Sans Frontières (Doctors Without Borders)
-- Anera (American Near East Refugee Aid)
-- Save the Children
+- [UN Crisis Relief – Occupied Palestinian Territory Humanitarian Fund](https://crisisrelief.un.org/en/opt-crisis)
+- [Palestine Children's Relief Fund ](https://www.pcrf.net/)
+- [Doctors Without Borders](https://www.doctorswithoutborders.org/)
+- [Anera (American Near East Refugee Aid)](https://www.anera.org/)
+- [Save the Children](https://www.savethechildren.org/us/where-we-work/west-bank-gaza)
 Every contribution helps provide critical assistance to those affected. Learn more and donate through the links above.
 
 
