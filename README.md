@@ -6,6 +6,7 @@ The ongoing humanitarian crisis in Palestine has left millions in urgent need of
 - [Doctors Without Borders](https://www.doctorswithoutborders.org/)
 - [Anera (American Near East Refugee Aid)](https://www.anera.org/)
 - [Save the Children](https://www.savethechildren.org/us/where-we-work/west-bank-gaza)
+<br></br>
 Every contribution helps provide critical assistance to those affected. Learn more and donate through the links above.
 
 <br></br>
