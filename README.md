@@ -278,6 +278,7 @@ EXCHANGE_SECRET_KEY=your-exchange-secret
 EXCHANGE_SANDBOX=false
 ```
 
+
 ## 🧪 Testing
 
 ### Comprehensive Test Suite
