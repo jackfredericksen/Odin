@@ -1,4 +1,4 @@
-Support Humanitarian Efforts in Palestine
+Support Humanitarian Efforts in Palestine<br></br>
 The ongoing humanitarian crisis in Palestine has left millions in urgent need of aid. If you're looking to make a difference, consider supporting trusted organizations working on the ground to provide food, medical care, and essential relief:
 - [UN Crisis Relief – Occupied Palestinian Territory Humanitarian Fund](https://crisisrelief.un.org/en/opt-crisis)
 - [Palestine Children's Relief Fund ](https://www.pcrf.net/)
