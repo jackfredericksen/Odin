@@ -282,34 +282,39 @@ def create_app() -> FastAPI:
             "stats": stats
         }
     
-    # Include API routes
+    # Include API routes with better error handling
     try:
         from odin.api.routes.data import router as data_router
         app.include_router(data_router, prefix="/api/v1/data", tags=["data"])
+        print("Successfully imported data routes")
     except ImportError as e:
         print(f"Could not import data routes: {e}")
     
     try:
         from odin.api.routes.strategies import router as strategies_router
         app.include_router(strategies_router, prefix="/api/v1/strategies", tags=["strategies"])
+        print("Successfully imported strategy routes")
     except ImportError as e:
         print(f"Could not import strategy routes: {e}")
     
     try:
         from odin.api.routes.trading import router as trading_router
         app.include_router(trading_router, prefix="/api/v1/trading", tags=["trading"])
+        print("Successfully imported trading routes")
     except ImportError as e:
         print(f"Could not import trading routes: {e}")
     
     try:
         from odin.api.routes.portfolio import router as portfolio_router
         app.include_router(portfolio_router, prefix="/api/v1/portfolio", tags=["portfolio"])
+        print("Successfully imported portfolio routes")
     except ImportError as e:
         print(f"Could not import portfolio routes: {e}")
     
     try:
         from odin.api.routes.websockets import router as websocket_router
         app.include_router(websocket_router, prefix="/api/v1", tags=["websockets"])
+        print("Successfully imported websocket routes")
     except ImportError as e:
         print(f"Could not import websocket routes: {e}")
     

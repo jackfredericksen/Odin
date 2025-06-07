@@ -1,21 +1,12 @@
 """
-Strategy management endpoints
+Strategy management endpoints (CLEAN VERSION)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
 import random
 import time
-
-from odin.api.dependencies import (
-    get_strategy_by_name,
-    get_ma_strategy,
-    get_rsi_strategy,
-    get_bb_strategy,
-    get_macd_strategy,
-    get_strategy_rate_limiter
-)
 
 router = APIRouter()
 
@@ -95,11 +86,7 @@ async def list_strategies():
 
 
 @router.get("/{strategy_id}/chart/{hours}")
-async def get_strategy_chart(
-    strategy_id: str,
-    hours: int,
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def get_strategy_chart(strategy_id: str, hours: int):
     """Get strategy chart data with indicators."""
     # Generate mock chart data
     data_points = []
@@ -136,11 +123,7 @@ async def get_strategy_chart(
 
 
 @router.post("/{strategy_id}/backtest/{hours}")
-async def backtest_strategy(
-    strategy_id: str,
-    hours: int,
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def backtest_strategy(strategy_id: str, hours: int):
     """Run backtest for strategy."""
     return {
         "success": True,
@@ -172,10 +155,7 @@ async def backtest_strategy(
 
 
 @router.post("/{strategy_id}/optimize")
-async def optimize_strategy(
-    strategy_id: str,
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def optimize_strategy(strategy_id: str):
     """Optimize strategy parameters."""
     return {
         "success": True,
@@ -199,10 +179,7 @@ async def optimize_strategy(
 
 
 @router.post("/{strategy_id}/enable")
-async def enable_strategy(
-    strategy_id: str,
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def enable_strategy(strategy_id: str):
     """Enable a strategy."""
     return {
         "success": True,
@@ -216,10 +193,7 @@ async def enable_strategy(
 
 
 @router.post("/{strategy_id}/disable")
-async def disable_strategy(
-    strategy_id: str,
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def disable_strategy(strategy_id: str):
     """Disable a strategy."""
     return {
         "success": True,

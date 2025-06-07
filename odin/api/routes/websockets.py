@@ -1,5 +1,5 @@
 """
-WebSocket endpoints for real-time data
+WebSocket endpoints for real-time data (CLEAN VERSION)
 """
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect

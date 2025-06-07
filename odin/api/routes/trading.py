@@ -1,23 +1,18 @@
 """
-Trading management endpoints
+Trading management endpoints (CLEAN VERSION)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
 import random
 import time
 
-from odin.api.dependencies import get_strategy_rate_limiter
-
 router = APIRouter()
 
 
 @router.get("/history")
-async def get_trading_history(
-    limit: int = 10,
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def get_trading_history(limit: int = 10):
     """Get trading history."""
     orders = []
     strategies = ["ma_cross", "rsi_momentum", "bollinger_bands", "macd_trend"]
@@ -46,9 +41,7 @@ async def get_trading_history(
 
 
 @router.get("/status")
-async def get_trading_status(
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def get_trading_status():
     """Get auto-trading status."""
     return {
         "success": True,
@@ -69,9 +62,7 @@ async def get_trading_status(
 
 
 @router.post("/enable")
-async def enable_trading(
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def enable_trading():
     """Enable auto-trading."""
     return {
         "success": True,
@@ -86,9 +77,7 @@ async def enable_trading(
 
 
 @router.post("/disable")
-async def disable_trading(
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def disable_trading():
     """Disable auto-trading."""
     return {
         "success": True,
@@ -102,9 +91,7 @@ async def disable_trading(
 
 
 @router.get("/active")
-async def get_active_orders(
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def get_active_orders():
     """Get active orders."""
     active_orders = []
     
@@ -127,9 +114,7 @@ async def get_active_orders(
 
 
 @router.post("/emergency-stop")
-async def emergency_stop(
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def emergency_stop():
     """Emergency stop all trading."""
     return {
         "success": True,
@@ -144,9 +129,7 @@ async def emergency_stop(
 
 
 @router.get("/positions")
-async def get_positions(
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def get_positions():
     """Get current positions."""
     positions = []
     

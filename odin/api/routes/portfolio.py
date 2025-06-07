@@ -1,22 +1,18 @@
 """
-Portfolio management endpoints
+Portfolio management endpoints (CLEAN VERSION)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
 import random
 import time
 
-from odin.api.dependencies import get_strategy_rate_limiter
-
 router = APIRouter()
 
 
 @router.get("/")
-async def get_portfolio(
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def get_portfolio():
     """Get portfolio overview."""
     total_value = 10000 + random.uniform(-500, 500)
     change_24h = round(random.uniform(-3, 3), 2)
@@ -49,9 +45,7 @@ async def get_portfolio(
 
 
 @router.get("/summary")
-async def get_portfolio_summary(
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def get_portfolio_summary():
     """Get portfolio summary metrics."""
     return {
         "success": True,
@@ -72,9 +66,7 @@ async def get_portfolio_summary(
 
 
 @router.get("/allocation")
-async def get_portfolio_allocation(
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def get_portfolio_allocation():
     """Get current allocation breakdown."""
     return {
         "success": True,
@@ -99,9 +91,7 @@ async def get_portfolio_allocation(
 
 
 @router.post("/rebalance")
-async def rebalance_portfolio(
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def rebalance_portfolio():
     """Rebalance portfolio to target allocation."""
     return {
         "success": True,
@@ -128,10 +118,7 @@ async def rebalance_portfolio(
 
 
 @router.get("/performance/{hours}")
-async def get_portfolio_performance(
-    hours: int,
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def get_portfolio_performance(hours: int):
     """Get portfolio performance analytics."""
     # Generate performance history
     performance_data = []
@@ -175,9 +162,7 @@ async def get_portfolio_performance(
 
 
 @router.get("/risk-metrics")
-async def get_risk_metrics(
-    rate_limiter = Depends(get_strategy_rate_limiter)
-):
+async def get_risk_metrics():
     """Get portfolio risk analysis."""
     return {
         "success": True,
