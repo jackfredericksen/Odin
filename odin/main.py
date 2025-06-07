@@ -1,503 +1,413 @@
-# odin/main.py
+#!/usr/bin/env python3
 """
-Enhanced Odin Main Application with AI Features
-Integrates regime detection and adaptive strategies with existing trading bot
+Odin Bitcoin Trading Bot - Main Entry Point (WINDOWS COMPATIBLE)
 """
 
-import asyncio
-import logging
 import sys
 import os
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
 import uvicorn
+import logging
+import asyncio
+from pathlib import Path
+from datetime import datetime
+import importlib.util
 
-# Add the project root to Python path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
-# Import Odin components
-from config import get_config
-from api.app import create_app
-from core.data_collector import DataCollector
-from core.database import Database
-from core.trading_engine import TradingEngine
-from core.portfolio_manager import PortfolioManager
-from core.risk_manager import RiskManager
+# Configure logging with Windows-compatible format
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+    ]
+)
 
-# Import AI components
-from ai.regime_detection.regime_detector import MarketRegimeDetector
-from ai.strategy_selection.adaptive_manager import AdaptiveStrategyManager
-from strategies.ai_adaptive import AIAdaptiveStrategy
-
-# Global configuration
-config = get_config()
 logger = logging.getLogger(__name__)
 
-class OdinAIManager:
-    """
-    Manager for AI components initialization and coordination
-    Handles regime detection and adaptive strategy management
-    """
+def create_directories():
+    """Create necessary directories for the application."""
+    directories = [
+        'data',
+        'data/logs',
+        'data/backups',
+        'data/backups/daily'
+    ]
     
-    def __init__(self):
-        self.regime_detector = None
-        self.strategy_manager = None
-        self.ai_strategy = None
-        self.data_collector = None
-        self.initialized = False
-        self.update_task = None
+    for directory in directories:
+        dir_path = Path(directory)
+        if not dir_path.exists():
+            dir_path.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Created directory: {directory}")
+
+def check_python_version():
+    """Check if Python version is compatible."""
+    min_version = (3, 8)
+    current_version = sys.version_info[:2]
+    
+    if current_version < min_version:
+        logger.error(f"Python {min_version[0]}.{min_version[1]}+ required. Current: {current_version[0]}.{current_version[1]}")
+        return False
+    
+    logger.info(f"Python version check passed: {current_version[0]}.{current_version[1]}")
+    return True
+
+def check_dependencies():
+    """Check if required dependencies are installed."""
+    required_packages = [
+        ('fastapi', 'FastAPI'),
+        ('uvicorn', 'Uvicorn'),
+        ('pydantic', 'Pydantic'),
+        ('aiohttp', 'aiohttp'),
+        ('pandas', 'Pandas'),
+        ('numpy', 'NumPy')
+    ]
+    
+    missing_packages = []
+    
+    for package, display_name in required_packages:
+        try:
+            importlib.import_module(package)
+            logger.debug(f"{display_name} installed")
+        except ImportError:
+            missing_packages.append(display_name)
+            logger.error(f"{display_name} not installed")
+    
+    if missing_packages:
+        logger.error(f"Missing packages: {', '.join(missing_packages)}")
+        logger.error("Install with: pip install -r requirements.txt")
+        return False
+    
+    logger.info("All required dependencies are installed")
+    return True
+
+def check_configuration():
+    """Check application configuration."""
+    try:
+        from odin.config import get_settings
+        settings = get_settings()
         
-    async def initialize(self, data_collector: DataCollector):
-        """Initialize AI components with dependencies"""
-        try:
-            logger.info("🤖 Initializing Odin AI components...")
-            
-            self.data_collector = data_collector
-            
-            # Initialize regime detector
-            self.regime_detector = MarketRegimeDetector(config.ai.regime_model_path)
-            logger.info("✓ Regime detector initialized")
-            
-            # Initialize adaptive strategy manager
-            self.strategy_manager = AdaptiveStrategyManager(config.ai.strategy_config_path)
-            logger.info("✓ Adaptive strategy manager initialized")
-            
-            # Initialize AI adaptive strategy
-            self.ai_strategy = AIAdaptiveStrategy(
-                regime_update_frequency=config.ai.regime_update_frequency,
-                min_regime_confidence=config.ai.min_regime_confidence,
-                strategy_rebalance_frequency=config.ai.strategy_rebalance_frequency
-            )
-            logger.info("✓ AI adaptive strategy initialized")
-            
-            # Try to load existing models
-            models_loaded = self.regime_detector.load_models()
-            if models_loaded:
-                logger.info("✓ Loaded existing AI models")
-                # Test model with recent data
-                await self._test_models()
+        logger.info(f"Configuration loaded successfully")
+        logger.info(f"Environment: {settings.environment}")
+        logger.info(f"Debug mode: {settings.debug}")
+        logger.info(f"Host: {settings.host}:{settings.port}")
+        logger.info(f"Exchange: {settings.exchange_name} (sandbox: {settings.exchange_sandbox})")
+        logger.info(f"Live trading: {'enabled' if settings.enable_live_trading else 'disabled'}")
+        
+        # Check environment file
+        env_file = Path('.env')
+        if env_file.exists():
+            logger.info("Environment file (.env) found")
+        else:
+            logger.warning("No .env file found - using defaults")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Configuration error: {e}")
+        return False
+
+def initialize_database():
+    """Initialize and check database connection."""
+    try:
+        from odin.core.database import get_database, init_sample_data
+        
+        logger.info("Initializing database...")
+        db = get_database()
+        
+        # Get database statistics
+        stats = db.get_database_stats()
+        
+        if stats.get('bitcoin_prices_count', 0) == 0:
+            logger.info("No price data found, initializing with sample data...")
+            success = init_sample_data(db)
+            if success:
+                stats = db.get_database_stats()
+                logger.info("Sample data initialized successfully")
             else:
-                logger.info("⚠️  No existing models found - will train on first data batch")
-                # Try to train models with available data
-                await self._initial_training()
-            
-            # Set up background AI update loop
-            if config.ai.adaptive_strategy_enabled:
-                self.update_task = asyncio.create_task(self._ai_update_loop())
-                logger.info("✓ AI update loop started")
-            
-            self.initialized = True
-            logger.info("🚀 Odin AI initialization complete")
-            
-        except Exception as e:
-            logger.error(f"❌ AI initialization failed: {e}")
-            self.initialized = False
-            raise
+                logger.warning("Failed to initialize sample data")
+        
+        logger.info(f"Database statistics:")
+        logger.info(f"   - Bitcoin prices: {stats.get('bitcoin_prices_count', 0)} records")
+        logger.info(f"   - Strategies: {stats.get('strategies_count', 0)} configured")
+        logger.info(f"   - Active strategies: {stats.get('active_strategies', 0)}")
+        logger.info(f"   - Total trades: {stats.get('trades_today', 0)} today")
+        logger.info(f"   - Database size: {stats.get('database_size_mb', 0):.2f} MB")
+        
+        if stats.get('price_data_range'):
+            logger.info(f"   - Data range: {stats['price_data_range'].get('start')} to {stats['price_data_range'].get('end')}")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        logger.error("Check database configuration and permissions")
+        return False
+
+def check_data_collector():
+    """Check data collection system."""
+    try:
+        from odin.core.data_collector import DataCollector
+        from odin.core.database import get_database
+        
+        logger.info("Checking data collection system...")
+        
+        db = get_database()
+        collector = DataCollector(database=db)
+        
+        # Check data sources
+        source_status = collector.get_source_status()
+        healthy_sources = sum(1 for status in source_status.values() if status['healthy'])
+        
+        logger.info(f"Data sources: {healthy_sources}/{len(source_status)} healthy")
+        
+        for name, status in source_status.items():
+            status_text = "OK" if status['healthy'] else "ERROR"
+            logger.info(f"   {name}: {status_text} (priority {status['priority']}, errors: {status['error_count']})")
+        
+        if healthy_sources == 0:
+            logger.warning("No healthy data sources available - using mock data")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Data collector check failed: {e}")
+        return False
+
+def check_strategies():
+    """Check trading strategies."""
+    try:
+        from odin.strategies.moving_average import MovingAverageStrategy
+        from odin.strategies.rsi import RSIStrategy
+        from odin.strategies.bollinger_bands import BollingerBandsStrategy
+        from odin.strategies.macd import MACDStrategy
+        
+        strategies = [
+            ("Moving Average", MovingAverageStrategy),
+            ("RSI", RSIStrategy),
+            ("Bollinger Bands", BollingerBandsStrategy),
+            ("MACD", MACDStrategy)
+        ]
+        
+        logger.info("Checking trading strategies...")
+        
+        loaded_strategies = 0
+        for name, strategy_class in strategies:
+            try:
+                strategy = strategy_class()
+                logger.info(f"   {name}: OK")
+                loaded_strategies += 1
+            except Exception as e:
+                logger.error(f"   {name}: ERROR - {e}")
+        
+        logger.info(f"{loaded_strategies}/{len(strategies)} strategies loaded successfully")
+        return loaded_strategies > 0
+        
+    except Exception as e:
+        logger.error(f"Strategy check failed: {e}")
+        return False
+
+def check_api_routes():
+    """Check API routes availability."""
+    try:
+        from odin.api.app import create_app
+        
+        logger.info("Checking API system...")
+        
+        # Try to create the app
+        app = create_app()
+        
+        # Count routes
+        route_count = len(app.routes)
+        logger.info(f"FastAPI app created with {route_count} routes")
+        
+        # Check key endpoints exist
+        route_paths = [route.path for route in app.routes if hasattr(route, 'path')]
+        
+        key_endpoints = [
+            "/api/v1/health",
+            "/api/v1/data/current",
+            "/api/v1/portfolio",
+            "/api/v1/strategies/list"
+        ]
+        
+        for endpoint in key_endpoints:
+            if endpoint in route_paths:
+                logger.info(f"   {endpoint}: OK")
+            else:
+                logger.warning(f"   {endpoint}: NOT FOUND")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"API check failed: {e}")
+        return False
+
+async def startup_health_check():
+    """Perform comprehensive startup health check."""
+    logger.info("Performing startup health checks...")
     
-    async def _initial_training(self):
-        """Attempt initial model training with available data"""
+    checks = [
+        ("Python Version", check_python_version),
+        ("Dependencies", check_dependencies),
+        ("Configuration", check_configuration),
+        ("Database", initialize_database),
+        ("Data Collector", check_data_collector),
+        ("Trading Strategies", check_strategies),
+        ("API Routes", check_api_routes)
+    ]
+    
+    passed_checks = 0
+    total_checks = len(checks)
+    
+    for check_name, check_function in checks:
+        logger.info(f"Running {check_name} check...")
         try:
-            logger.info("🎯 Attempting initial AI model training...")
-            
-            # Get historical data for training
-            historical_data = await self.data_collector.get_historical_data(
-                start_date=None,  # Get all available data
-                end_date=None
-            )
-            
-            if historical_data.empty or len(historical_data) < config.ai.min_training_samples:
-                logger.warning(f"⚠️  Insufficient data for training: {len(historical_data)} samples")
-                logger.info("💡 Models will be trained when sufficient data is collected")
-                return False
-            
-            # Prepare features
-            features = self.regime_detector.prepare_features(historical_data)
-            
-            if features.empty or len(features) < config.ai.min_training_samples:
-                logger.warning("⚠️  Feature preparation failed or insufficient features")
-                return False
-            
-            # Train models
-            training_success = self.regime_detector.train_models(features)
-            
-            if training_success:
-                logger.info(f"✅ Initial model training successful with {len(features)} samples")
-                return True
+            if check_function():
+                passed_checks += 1
             else:
-                logger.error("❌ Initial model training failed")
-                return False
-                
+                logger.warning(f"{check_name} check failed")
         except Exception as e:
-            logger.error(f"❌ Initial training error: {e}")
+            logger.error(f"{check_name} check error: {e}")
+    
+    logger.info(f"Health checks completed: {passed_checks}/{total_checks} passed")
+    
+    if passed_checks < total_checks:
+        logger.warning("Some health checks failed - application may not work correctly")
+        if passed_checks < total_checks // 2:
+            logger.error("Too many critical checks failed - stopping startup")
             return False
     
-    async def _test_models(self):
-        """Test loaded models with recent data"""
-        try:
-            # Get recent data
-            recent_data = await self.data_collector.get_recent_data(hours=24)
-            
-            if not recent_data.empty:
-                regime, confidence = self.regime_detector.detect_regime(recent_data)
-                logger.info(f"✓ Model test successful: {regime} (confidence: {confidence:.3f})")
-                
-                # Update strategy manager with detected regime
-                if confidence >= config.ai.min_regime_confidence:
-                    self.strategy_manager.update_regime(regime, confidence)
-                    logger.info(f"✓ Strategy manager updated for {regime}")
-                
-        except Exception as e:
-            logger.warning(f"⚠️  Model testing failed: {e}")
-    
-    async def _ai_update_loop(self):
-        """Background task for periodic AI updates"""
-        update_interval = 300  # 5 minutes
-        
-        logger.info(f"🔄 Starting AI update loop (interval: {update_interval}s)")
-        
-        while True:
-            try:
-                await asyncio.sleep(update_interval)
-                
-                if self.initialized and self.data_collector:
-                    await self._perform_ai_update()
-                
-            except asyncio.CancelledError:
-                logger.info("🛑 AI update loop cancelled")
-                break
-            except Exception as e:
-                logger.error(f"❌ AI update loop error: {e}")
-                await asyncio.sleep(60)  # Wait before retrying
-    
-    async def _perform_ai_update(self):
-        """Perform a single AI update cycle"""
-        try:
-            # Get recent data
-            recent_data = await self.data_collector.get_recent_data(hours=24)
-            
-            if recent_data.empty:
-                logger.debug("⚠️  No recent data for AI update")
-                return
-            
-            # Update regime detection
-            regime, confidence = self.regime_detector.detect_regime(recent_data)
-            
-            # Update strategy manager if confidence is sufficient
-            if confidence >= config.ai.min_regime_confidence:
-                regime_changed = self.strategy_manager.update_regime(regime, confidence)
-                
-                if regime_changed:
-                    logger.info(f"📊 Regime change detected: {regime} (confidence: {confidence:.3f})")
-                else:
-                    logger.debug(f"📊 Regime confirmed: {regime} (confidence: {confidence:.3f})")
-            else:
-                logger.debug(f"⚠️  Low regime confidence: {confidence:.3f}")
-            
-            # Check if models need retraining based on performance
-            await self._check_retraining_needed()
-            
-        except Exception as e:
-            logger.error(f"❌ AI update cycle failed: {e}")
-    
-    async def _check_retraining_needed(self):
-        """Check if AI models need retraining based on performance"""
-        try:
-            # Get recent performance metrics
-            recent_performance = {
-                'accuracy': 0.8,  # Would be calculated from actual performance
-                'avg_confidence': self.strategy_manager.current_confidence
-            }
-            
-            # Check if retraining is needed
-            needs_retraining = self.regime_detector.retrain_if_needed(recent_performance)
-            
-            if needs_retraining:
-                logger.info("🔄 AI models need retraining due to performance degradation")
-                # Could trigger automatic retraining here
-                
-        except Exception as e:
-            logger.error(f"❌ Retraining check failed: {e}")
-    
-    async def shutdown(self):
-        """Shutdown AI components gracefully"""
-        try:
-            logger.info("🛑 Shutting down AI components...")
-            
-            if self.update_task:
-                self.update_task.cancel()
-                try:
-                    await self.update_task
-                except asyncio.CancelledError:
-                    pass
-            
-            # Save any pending data or models here
-            logger.info("✓ AI components shutdown complete")
-            
-        except Exception as e:
-            logger.error(f"❌ AI shutdown error: {e}")
+    return True
 
-# Global instances
-ai_manager = OdinAIManager()
-data_collector = None
-trading_engine = None
-portfolio_manager = None
-risk_manager = None
+def display_startup_banner():
+    """Display startup banner with system information."""
+    banner = """
+    ================================================================
+    
+       ODIN BITCOIN TRADING BOT - v2.0.0
+       Professional Trading Automation System
+       
+    ================================================================
+    """
+    print(banner)
+    
+    # System information
+    logger.info("Starting Odin Bitcoin Trading Bot")
+    logger.info(f"Startup time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Python: {sys.version.split()[0]}")
+    logger.info(f"Working directory: {os.getcwd()}")
+    logger.info(f"Project root: {project_root}")
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan manager with AI initialization"""
-    global data_collector, trading_engine, portfolio_manager, risk_manager
-    
-    # Startup
-    logger.info("🚀 Starting Odin Trading Bot with AI features...")
-    
-    try:
-        # Initialize database
-        logger.info("📊 Initializing database...")
-        database = Database(config.DATABASE_URL)
-        await database.initialize()
-        logger.info("✓ Database initialized")
-        
-        # Initialize core components
-        logger.info("⚙️  Initializing core components...")
-        
-        # Data collector
-        data_collector = DataCollector()
-        await data_collector.start()
-        logger.info("✓ Data collector started")
-        
-        # Risk manager
-        risk_manager = RiskManager(
-            max_position_size=config.MAX_POSITION_SIZE,
-            risk_per_trade=config.RISK_PER_TRADE
-        )
-        logger.info("✓ Risk manager initialized")
-        
-        # Portfolio manager
-        portfolio_manager = PortfolioManager(risk_manager=risk_manager)
-        logger.info("✓ Portfolio manager initialized")
-        
-        # Trading engine
-        trading_engine = TradingEngine(
-            portfolio_manager=portfolio_manager,
-            risk_manager=risk_manager,
-            live_trading_enabled=config.ENABLE_LIVE_TRADING
-        )
-        logger.info("✓ Trading engine initialized")
-        
-        # Initialize AI components
-        await ai_manager.initialize(data_collector)
-        
-        # Store instances in app state for access by routes
-        app.state.data_collector = data_collector
-        app.state.trading_engine = trading_engine
-        app.state.portfolio_manager = portfolio_manager
-        app.state.risk_manager = risk_manager
-        app.state.ai_manager = ai_manager
-        
-        logger.info("🎉 Odin startup complete - Ready for trading!")
-        
-        yield
-        
-    except Exception as e:
-        logger.error(f"❌ Startup failed: {e}")
-        raise
-    
-    # Shutdown
-    logger.info("🛑 Shutting down Odin...")
-    
-    try:
-        # Shutdown AI components first
-        await ai_manager.shutdown()
-        
-        # Shutdown core components
-        if trading_engine:
-            await trading_engine.stop()
-            logger.info("✓ Trading engine stopped")
-        
-        if data_collector:
-            await data_collector.stop()
-            logger.info("✓ Data collector stopped")
-        
-        if database:
-            await database.close()
-            logger.info("✓ Database closed")
-        
-        logger.info("✅ Odin shutdown complete")
-        
-    except Exception as e:
-        logger.error(f"❌ Shutdown error: {e}")
-
-def setup_logging():
-    """Setup comprehensive logging configuration"""
-    
-    # Create logs directory
-    os.makedirs("data/logs", exist_ok=True)
-    
-    # Configure logging
-    logging_config = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'detailed': {
-                'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            },
-            'simple': {
-                'format': '%(levelname)s - %(message)s'
-            }
-        },
-        'handlers': {
-            'file': {
-                'level': 'INFO',
-                'class': 'logging.handlers.RotatingFileHandler',
-                'filename': 'data/logs/odin.log',
-                'maxBytes': 10485760,  # 10MB
-                'backupCount': 5,
-                'formatter': 'detailed'
-            },
-            'console': {
-                'level': 'INFO',
-                'class': 'logging.StreamHandler',
-                'formatter': 'simple'
-            },
-            'trading': {
-                'level': 'INFO',
-                'class': 'logging.handlers.RotatingFileHandler',
-                'filename': 'data/logs/trading.log',
-                'maxBytes': 10485760,
-                'backupCount': 3,
-                'formatter': 'detailed'
-            },
-            'ai': {
-                'level': 'INFO',
-                'class': 'logging.handlers.RotatingFileHandler',
-                'filename': 'data/logs/ai.log',
-                'maxBytes': 10485760,
-                'backupCount': 3,
-                'formatter': 'detailed'
-            }
-        },
-        'loggers': {
-            '': {  # Root logger
-                'handlers': ['file', 'console'],
-                'level': 'INFO',
-                'propagate': False
-            },
-            'odin.core.trading_engine': {
-                'handlers': ['trading'],
-                'level': 'INFO',
-                'propagate': True
-            },
-            'odin.ai': {
-                'handlers': ['ai'],
-                'level': 'INFO',
-                'propagate': True
-            }
-        }
-    }
-    
-    import logging.config
-    logging.config.dictConfig(logging_config)
-
-def create_enhanced_app() -> FastAPI:
-    """Create FastAPI application with AI enhancements"""
-    
-    app = create_app(lifespan=lifespan)
-    
-    # Mount static files for web interface
-    if os.path.exists("web/static"):
-        app.mount("/static", StaticFiles(directory="web/static"), name="static")
-    
-    # Add dashboard route
-    @app.get("/dashboard", response_class=HTMLResponse)
-    async def dashboard():
-        """Serve the trading dashboard"""
-        dashboard_path = "web/templates/dashboard.html"
-        if os.path.exists(dashboard_path):
-            with open(dashboard_path, 'r') as f:
-                return HTMLResponse(content=f.read())
-        else:
-            return HTMLResponse(content="<h1>Dashboard not found</h1><p>Please ensure web/templates/dashboard.html exists</p>")
-    
-    # Enhanced root endpoint with AI status
-    @app.get("/")
-    async def root():
-        ai_status = "active" if ai_manager.initialized else "initializing"
-        
-        return {
-            "message": "Odin Bitcoin Trading Bot with AI",
-            "version": "2.0.0",
-            "ai_status": ai_status,
-            "features": [
-                "Real-time Bitcoin trading",
-                "Advanced technical analysis", 
-                "AI-powered regime detection",
-                "Adaptive strategy selection",
-                "Risk management",
-                "Portfolio optimization",
-                "Live trading execution"
-            ],
-            "endpoints": {
-                "documentation": "/docs",
-                "dashboard": "/dashboard",
-                "health": "/api/v1/health",
-                "ai_health": "/api/v1/ai/health",
-                "current_regime": "/api/v1/ai/regime/current"
-            }
-        }
-    
-    return app
+def display_access_information():
+    """Display access information for the user."""
+    logger.info("")
+    logger.info("Application is now running!")
+    logger.info("================================================================")
+    logger.info("Dashboard:          http://localhost:8000")
+    logger.info("API Documentation:  http://localhost:8000/docs")
+    logger.info("Alternative Docs:   http://localhost:8000/redoc")
+    logger.info("Health Check:       http://localhost:8000/api/v1/health")
+    logger.info("Bitcoin Data:       http://localhost:8000/api/v1/data/current")
+    logger.info("Portfolio:          http://localhost:8000/api/v1/portfolio")
+    logger.info("Strategies:         http://localhost:8000/api/v1/strategies/list")
+    logger.info("================================================================")
+    logger.info("")
+    logger.info("Press Ctrl+C to stop the application")
 
 async def main():
-    """Main application entry point"""
-    
-    # Setup logging first
-    setup_logging()
-    logger = logging.getLogger(__name__)
-    
-    logger.info("🚀 Starting Odin Bitcoin Trading Bot v2.0.0")
-    logger.info(f"📁 Working directory: {os.getcwd()}")
-    logger.info(f"🐍 Python version: {sys.version}")
-    
+    """Main application entry point with comprehensive startup sequence."""
     try:
-        # Create application
-        app = create_enhanced_app()
+        # Create necessary directories
+        create_directories()
+        
+        # Display startup banner
+        display_startup_banner()
+        
+        # Run comprehensive health checks
+        if not await startup_health_check():
+            logger.error("Critical startup checks failed - exiting")
+            sys.exit(1)
+        
+        # Import and create FastAPI app after all checks pass
+        from odin.api.app import create_app
+        app = create_app()
+        
+        # Display access information
+        display_access_information()
+        
+        # Start data collection if available
+        try:
+            from odin.core.data_collector import DataCollector
+            from odin.core.database import get_database
+            
+            db = get_database()
+            collector = DataCollector(database=db)
+            
+            # Start data collection in background
+            asyncio.create_task(collector.start_collection())
+            logger.info("Data collection started in background")
+            
+        except Exception as e:
+            logger.warning(f"Could not start data collection: {e}")
         
         # Configure uvicorn
-        uvicorn_config = uvicorn.Config(
+        config = uvicorn.Config(
             app,
-            host=config.API_HOST,
-            port=config.API_PORT,
-            log_level="info" if config.API_DEBUG else "warning",
-            access_log=True,
-            reload=config.API_DEBUG
+            host="0.0.0.0",
+            port=8000,
+            reload=False,  # Disable reload to prevent import issues
+            log_level="info",
+            access_log=True
         )
         
-        # Start server
-        server = uvicorn.Server(uvicorn_config)
-        
-        logger.info(f"🌐 Server starting on http://{config.API_HOST}:{config.API_PORT}")
-        logger.info(f"📊 Dashboard available at http://{config.API_HOST}:{config.API_PORT}/dashboard")
-        logger.info(f"📚 API docs at http://{config.API_HOST}:{config.API_PORT}/docs")
-        
+        # Start the server
+        server = uvicorn.Server(config)
         await server.serve()
         
     except KeyboardInterrupt:
-        logger.info("👋 Received shutdown signal")
+        logger.info("Received shutdown signal")
+        logger.info("Cleaning up...")
+        
+        # Cleanup operations
+        try:
+            # Stop data collection
+            if 'collector' in locals():
+                await collector.stop_collection()
+                logger.info("Data collection stopped")
+        except:
+            pass
+        
+        logger.info("Cleanup completed")
+        logger.info("Odin Trading Bot stopped successfully")
+        
+    except ImportError as e:
+        logger.error(f"Import error: {e}")
+        logger.error("Troubleshooting steps:")
+        logger.error("   1. Install dependencies: pip install -r requirements.txt")
+        logger.error("   2. Check Pydantic version: pip install pydantic==2.5.0 pydantic-settings==2.1.0")
+        logger.error("   3. Verify file structure and imports")
+        logger.error("   4. Check Python path and working directory")
+        sys.exit(1)
+        
     except Exception as e:
-        logger.error(f"❌ Application failed to start: {e}")
-        raise
-    finally:
-        logger.info("🛑 Application shutdown")
+        logger.error(f"Unexpected error during startup: {e}")
+        logger.error("Check the logs above for specific error details")
+        import traceback
+        logger.error(f"Stack trace: {traceback.format_exc()}")
+        sys.exit(1)
 
-if __name__ == "__main__":
+def sync_main():
+    """Synchronous wrapper for async main function."""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n👋 Goodbye!")
+        pass  # Already handled in main()
     except Exception as e:
-        print(f"❌ Fatal error: {e}")
+        logger.error(f"Critical error: {e}")
         sys.exit(1)
+
+if __name__ == "__main__":
+    sync_main()

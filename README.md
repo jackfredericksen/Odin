@@ -9,47 +9,37 @@ The ongoing humanitarian crisis in Palestine has left millions in urgent need of
 <br></br>
 
 
-# Odin - Professional Bitcoin Trading Bot (Updated)
+# Odin - Professional Bitcoin Trading Bot
 
 <div align="center">
 
-🚀 **Advanced Bitcoin Trading Bot with Real-Time Data, Live Trading & AI-Ready Architecture**
+🚀 **Advanced Bitcoin Trading Bot with Live Trading & Professional API Architecture**
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Production Ready](https://img.shields.io/badge/production-ready-brightgreen.svg)](#)
-[![Real Data](https://img.shields.io/badge/real%20data-enabled-success.svg)](#)
+[![Dashboard Working](https://img.shields.io/badge/dashboard-fully_functional-success.svg)](#)
 
 </div>
 
 ## 🎯 Overview
 
-**Odin** is a sophisticated, production-ready Bitcoin trading bot designed for live cryptocurrency trading with real-time data integration. Built with modern Python and FastAPI, it provides real-time Bitcoin data collection, multiple advanced trading strategies, live trade execution, comprehensive risk management, and a professional API with WebSocket support for real-time dashboard updates.
+**Odin** is a sophisticated, production-ready Bitcoin trading bot designed for live cryptocurrency trading. Built with modern Python and FastAPI, it provides real-time data collection, multiple advanced trading strategies, live trade execution, and a comprehensive web dashboard for professional Bitcoin trading operations.
 
-### ⚡ Latest Features (Recently Added)
-
-- 🔴 **Real Bitcoin Data Integration** - Live data from Coinbase, CoinGecko, and Binance APIs
-- 🔴 **WebSocket Real-Time Updates** - Stable WebSocket connections for live dashboard updates
-- 🔴 **Complete Trading API** - All trading endpoints implemented (enable/disable, execute, emergency stop)
-- 🔴 **Fixed Chart Rendering** - Optimized chart sizes prevent browser crashes
-- 🔴 **Strategy Management** - Enable/disable individual strategies via API
-- 🔴 **Auto-Trading Controls** - Complete auto-trading enable/disable functionality
-- 🔴 **Performance Optimizations** - Memory-efficient data collection and chart rendering
-- 🔴 **AI/ML Ready Architecture** - Foundation prepared for machine learning features
-
-### 🚀 Core Features
+### ⚡ Key Features
 
 - 🔄 **Live Trading System** - Real Bitcoin trading with exchange integration
 - 📊 **Advanced Trading Strategies** - MA, RSI, Bollinger Bands, and MACD indicators
 - 🛡️ **Production-Grade Architecture** - Modular API design, comprehensive testing
 - 💰 **Portfolio Management** - Real-time tracking, P&L calculation, risk management
 - 📈 **Strategy Optimization** - Live parameter tuning and performance analysis
-- 🔌 **Professional API** - 40+ REST endpoints with comprehensive documentation
-- 🌐 **Real-Time WebSocket** - Live price updates and trading notifications
-- 🎨 **Modern Dashboard** - Responsive UI with real-time charts and controls
+- 🔌 **Professional API** - 50+ REST endpoints with comprehensive documentation
+- 🌐 **Interactive Dashboard** - Full-featured web interface with real-time updates
 - 🔐 **Enterprise Security** - JWT authentication, rate limiting, comprehensive logging
+- 📡 **WebSocket Support** - Real-time price feeds, trading signals, and notifications
+- 🤖 **AI Enhancement** - Machine learning regime detection and adaptive strategy selection
 
 ## 🚀 Quick Start
 
@@ -66,8 +56,8 @@ cp .env.example .env
 # Start with Docker Compose
 docker-compose up -d
 
-# Access the API
-curl http://localhost:8000/api/v1/health
+# Access the dashboard
+open http://localhost:8000
 ```
 
 ### Manual Installation
@@ -90,79 +80,258 @@ python -m odin.main
 # Access dashboard at http://localhost:8000
 ```
 
-## 📊 Real Bitcoin Data Sources
+## 🏗️ Complete Project Structure
 
-Odin now fetches live Bitcoin data from multiple sources with automatic failover:
-
-1. **Coinbase API** - Primary source for price data
-2. **CoinGecko API** - Secondary source with volume and 24h change
-3. **Binance API** - Tertiary source for additional redundancy
-4. **Mock Data Fallback** - Ensures system stability if all APIs fail
-
-### Data Collection Features
-- **30-second intervals** for real-time updates
-- **Automatic source failover** if APIs are unavailable
-- **1000-point rolling history** for efficient memory usage
-- **Real-time WebSocket broadcasting** to dashboard clients
-- **Historical data simulation** with realistic price movements
-
-## 🔧 Complete API Endpoints
-
-### **Real-Time Data (`/api/v1/data/`)**
-```bash
-GET    /current                        # Current Bitcoin price & metrics
-GET    /history/{hours}                # Historical price data (real/simulated)
-GET    /ohlc/{timeframe}               # OHLC candlestick data
-GET    /stats                          # Data source statistics
-POST   /refresh                        # Force data refresh
+```
+odin-bitcoin-bot/
+├── README.md                           # This documentation
+├── requirements.txt                    # Python dependencies
+├── requirements-dev.txt                # Development dependencies  
+├── pyproject.toml                      # Modern Python project config
+├── .env.example                        # Environment template
+├── .gitignore                          # Git ignore rules
+├── docker-compose.yml                  # Docker development environment
+├── Dockerfile                          # Container definition
+├── LICENSE                             # MIT license
+│
+├── odin/                               # Main application package
+│   ├── __init__.py                     # Package initialization
+│   ├── main.py                         # Application entry point
+│   ├── config.py                       # Configuration management
+│   │
+│   ├── api/                            # FastAPI web layer
+│   │   ├── __init__.py                 # API package init
+│   │   ├── app.py                      # FastAPI application setup
+│   │   ├── dependencies.py             # Dependency injection container
+│   │   ├── middleware.py               # Auth, rate limiting, security
+│   │   └── routes/                     # API route handlers
+│   │       ├── __init__.py             # Routes package init
+│   │       ├── data.py                 # Bitcoin data endpoints
+│   │       ├── health.py               # Health check endpoints
+│   │       ├── websockets.py           # WebSocket real-time updates
+│   │       ├── strategies.py           # Strategy management API
+│   │       ├── trading.py              # Trading control API
+│   │       ├── portfolio.py            # Portfolio management API
+│   │       │
+│   │       ├── strategies/             # Legacy strategy endpoints
+│   │       │   ├── analysis.py         # Strategy analysis & charts
+│   │       │   ├── backtesting.py      # Backtesting endpoints
+│   │       │   ├── comparison.py       # Strategy comparison
+│   │       │   ├── optimization.py     # Parameter optimization
+│   │       │   └── signals.py          # Signal management
+│   │       │
+│   │       ├── trading/                # Legacy trading endpoints
+│   │       │   ├── execution.py        # Live trade execution
+│   │       │   ├── orders.py           # Order management
+│   │       │   └── positions.py        # Position management
+│   │       │
+│   │       ├── portfolio/              # Legacy portfolio endpoints
+│   │       │   ├── status.py           # Portfolio status
+│   │       │   ├── performance.py      # Performance analytics
+│   │       │   └── risk.py             # Risk management
+│   │       │
+│   │       ├── market/                 # Market data endpoints
+│   │       │   ├── regime.py           # Market regime analysis
+│   │       │   ├── alerts.py           # Market alerts
+│   │       │   └── depth.py            # Order book data
+│   │       │
+│   │       └── ai/                     # AI enhancement endpoints
+│   │           └── regime.py           # AI regime detection API
+│   │
+│   ├── core/                           # Core business logic
+│   │   ├── __init__.py                 # Core package init
+│   │   ├── trading_engine.py           # Live trade execution engine
+│   │   ├── portfolio_manager.py        # Portfolio operations & tracking
+│   │   ├── risk_manager.py             # Risk management & controls
+│   │   ├── data_collector.py           # Real-time Bitcoin data collection
+│   │   ├── database.py                 # Database operations & models
+│   │   ├── exceptions.py               # Custom exception classes
+│   │   ├── models.py                   # Pydantic data models
+│   │   └── config.py                   # Core configuration
+│   │
+│   ├── strategies/                     # Trading strategy implementations
+│   │   ├── __init__.py                 # Strategies package init
+│   │   ├── base.py                     # Abstract base strategy class
+│   │   ├── moving_average.py           # MA crossover strategy
+│   │   ├── rsi.py                      # RSI momentum strategy
+│   │   ├── bollinger_bands.py          # Bollinger Bands volatility strategy
+│   │   ├── macd.py                     # MACD trend momentum strategy
+│   │   ├── ai_adaptive.py              # AI-enhanced adaptive strategy
+│   │   └── ai_enhanced/                # AI strategy modules
+│   │
+│   ├── ai/                             # AI enhancement features
+│   │   ├── __init__.py                 # AI package init
+│   │   ├── regime_detection/           # Market regime detection
+│   │   │   ├── regime_detector.py      # ML regime detection
+│   │   │   ├── market_states.py        # Market state definitions
+│   │   │   └── regime_visualizer.py    # Regime visualization
+│   │   └── strategy_selection/         # Adaptive strategy selection
+│   │       └── adaptive_manager.py     # AI strategy manager
+│   │
+│   └── utils/                          # Utility functions and helpers
+│       ├── __init__.py                 # Utils package init
+│       ├── logging.py                  # Logging configuration
+│       └── validators.py               # Input validation helpers
+│
+├── web/                                # Frontend web interface
+│   ├── static/                         # Static assets
+│   │   ├── css/
+│   │   │   ├── dashboard.css           # Main dashboard styling
+│   │   │   ├── components.css          # Reusable component styles
+│   │   │   └── responsive.css          # Mobile responsive styles
+│   │   ├── js/
+│   │   │   ├── dashboard.js            # Main dashboard functionality
+│   │   │   ├── charts.js               # Chart.js configurations
+│   │   │   ├── websockets.js           # Real-time data handling
+│   │   │   └── strategies.js           # Strategy management UI
+│   │   └── images/
+│   │       ├── logo.png                # Odin logo
+│   │       └── favicon.ico             # Browser favicon
+│   └── templates/                      # HTML templates
+│       └── dashboard.html              # Main trading dashboard
+│
+├── tests/                              # Comprehensive test suite
+│   ├── __init__.py                     # Test package init
+│   ├── conftest.py                     # Pytest configuration & fixtures
+│   ├── unit/                           # Unit tests
+│   │   ├── test_strategies.py          # Strategy unit tests
+│   │   ├── test_trading_engine.py      # Trading engine tests
+│   │   ├── test_portfolio_manager.py   # Portfolio manager tests
+│   │   ├── test_data_collector.py      # Data collection tests
+│   │   └── test_api.py                 # API endpoint tests
+│   ├── integration/                    # Integration tests
+│   │   ├── test_full_system.py         # End-to-end system tests
+│   │   ├── test_api_integration.py     # API integration tests
+│   │   └── test_trading_flow.py        # Live trading flow tests
+│   └── performance/                    # Performance benchmarks
+│       ├── test_strategy_speed.py      # Strategy execution speed
+│       ├── test_api_performance.py     # API response times
+│       └── test_data_processing.py     # Data processing speed
+│
+├── scripts/                            # Utility and deployment scripts
+│   ├── setup.py                        # Project setup and initialization
+│   ├── migrate.py                      # Database migration script
+│   ├── deploy.py                       # Production deployment script
+│   ├── generate_data.py                # Generate sample test data
+│   └── performance_monitor.py          # System performance monitoring
+│
+├── docs/                               # Project documentation
+│   ├── api.md                          # Complete API documentation
+│   ├── deployment.md                   # Production deployment guide
+│   ├── strategies.md                   # Trading strategy documentation
+│   └── architecture.md                 # System architecture overview
+│
+├── .github/workflows/                  # CI/CD automation
+│   ├── ci.yml                          # Continuous integration
+│   ├── deploy.yml                      # Deployment workflow
+│   └── tests.yml                       # Automated testing
+│
+├── docker/                             # Docker configuration files
+│   ├── app.dockerfile                  # Application container
+│   ├── nginx.dockerfile                # Web server container
+│   └── postgres.dockerfile             # Database container
+│
+├── config/                             # Configuration files
+│   ├── development.yml                 # Development environment config
+│   ├── production.yml                  # Production environment config
+│   └── logging.yml                     # Logging configuration
+│
+└── data/                               # Data storage directory
+    ├── bitcoin_data.db                 # SQLite database (auto-generated)
+    ├── logs/                           # Application logs
+    └── backups/                        # Database backups
 ```
 
-### **Auto-Trading Controls (`/api/v1/trading/`)**
-```bash
-POST   /enable                         # Enable auto-trading
-POST   /disable                        # Disable auto-trading
-GET    /status                         # Auto-trading status
-PUT    /config                         # Update auto-trading config
-POST   /emergency-stop                 # Emergency stop all trading
-POST   /{strategy}/execute             # Execute trade for strategy
-GET    /history                        # Trading history
-```
+## 📊 File Count Summary
+
+| **Category** | **Files** | **Purpose** |
+|--------------|-----------|-------------|
+| **API Routes** | 23 files | Complete REST API + WebSocket endpoints |
+| **Core Logic** | 9 files | Business logic & engines |
+| **Strategies** | 6 files | Trading strategy implementations |
+| **AI Features** | 8 files | Machine learning enhancements |
+| **Tests** | 12 files | Comprehensive test coverage |
+| **Frontend** | 8 files | Web interface & dashboard |
+| **Configuration** | 8 files | Environment & deployment config |
+| **Documentation** | 6 files | Complete project documentation |
+| **Scripts** | 6 files | Utility & deployment scripts |
+| **Docker** | 4 files | Containerization & deployment |
+| **GitHub Actions** | 3 files | CI/CD automation |
+| **Root Files** | 9 files | Project configuration |
+| **Total** | **102 files** | **Professional codebase** |
+
+## 🔧 Complete API Endpoints (50+ Routes)
 
 ### **Strategy Management (`/api/v1/strategies/`)**
 ```bash
 GET    /list                           # List all strategies
-POST   /{strategy_id}/enable           # Enable specific strategy
-POST   /{strategy_id}/disable          # Disable specific strategy
-PUT    /{strategy_id}/config           # Update strategy configuration
-GET    /{strategy}/analysis            # Strategy analysis
-GET    /{strategy}/backtest/{hours}    # Strategy backtesting
+GET    /{strategy_id}/chart/{hours}    # Chart data with indicators
+POST   /{strategy_id}/backtest/{hours} # Strategy backtesting
+POST   /{strategy_id}/optimize         # Parameter optimization
+POST   /{strategy_id}/enable           # Enable strategy
+POST   /{strategy_id}/disable          # Disable strategy
 GET    /compare/all/{hours}            # Strategy comparison
+GET    /leaderboard                    # Performance rankings
 ```
 
-### **Portfolio Management (`/api/v1/portfolio/`)**
+#### **Live Trading (`/api/v1/trading/`)**
 ```bash
-GET    /                               # Portfolio status & overview
-GET    /performance/{hours}            # Performance analytics
+GET    /history                        # Trading history
+GET    /status                         # Auto-trading status
+POST   /enable                         # Enable auto-trading
+POST   /disable                        # Disable auto-trading
+GET    /active                         # Active orders
+GET    /positions                      # Current positions
+POST   /emergency-stop                 # Emergency stop all trading
+```
+
+#### **Portfolio Management (`/api/v1/portfolio/`)**
+```bash
+GET    /                               # Portfolio overview
+GET    /summary                        # Portfolio summary metrics
 GET    /allocation                     # Current allocation breakdown
+GET    /performance/{hours}            # Performance analytics
 POST   /rebalance                      # Portfolio rebalancing
 GET    /risk-metrics                   # Risk analysis & metrics
 ```
 
-### **WebSocket Connection (`/ws`)**
-- **Real-time price updates** from live Bitcoin APIs
-- **Portfolio change notifications**
-- **Trading signal alerts**
-- **System status updates**
-- **Connection management** with automatic reconnection
+#### **Real-time Data (`/api/v1/data/`)**
+```bash
+GET    /current                        # Current Bitcoin price & metrics
+GET    /history/{hours}                # Historical price data
+GET    /ohlc/{timeframe}               # OHLC candlestick data
+GET    /stats                          # Statistical analysis
+POST   /refresh                        # Force data refresh
+GET    /export/{format}                # Export data (CSV/JSON/XLSX)
+```
 
-## 📊 Trading Strategies (Production Ready)
+#### **WebSocket Endpoints (`/api/v1/ws/`)**
+```bash
+WS     /data                           # Real-time price updates
+WS     /portfolio                      # Portfolio live updates
+WS     /signals                        # Trading signal notifications
+WS     /status                         # System status updates
+```
 
-| **Strategy** | **Type** | **Best For** | **Signals** | **Parameters** | **Status** |
-|--------------|----------|--------------|-------------|----------------|------------|
-| **Moving Average (MA)** | Trend Following | Trending markets | Golden/Death Cross | Short: 5, Long: 20 | ✅ Implemented |
-| **RSI Momentum** | Mean Reversion | Sideways markets | Overbought/Oversold | Period: 14, Levels: 30/70 | ✅ Implemented |
-| **Bollinger Bands** | Volatility | Breakouts & reversions | Band touches | Period: 20, StdDev: 2 | ✅ Implemented |
-| **MACD** | Trend Momentum | Trend changes | Line crossovers | Fast: 12, Slow: 26, Signal: 9 | ✅ Implemented |
+#### **Health & Monitoring (`/api/v1/health/`)**
+```bash
+GET    /                               # Basic health check
+GET    /detailed                       # Comprehensive health status
+GET    /database                       # Database connectivity
+GET    /metrics                        # System performance metrics
+```
+
+## 📈 Trading Strategies
+
+### Professional Strategy Suite
+
+| **Strategy** | **Type** | **Best For** | **Signals** | **Parameters** |
+|--------------|----------|--------------|-------------|----------------|
+| **Moving Average (MA)** | Trend Following | Trending markets | Golden/Death Cross | Short: 5, Long: 20 |
+| **RSI Momentum** | Mean Reversion | Sideways markets | Overbought/Oversold | Period: 14, Levels: 30/70 |
+| **Bollinger Bands** | Volatility | Breakouts & reversions | Band touches | Period: 20, StdDev: 2 |
+| **MACD** | Trend Momentum | Trend changes | Line crossovers | Fast: 12, Slow: 26, Signal: 9 |
+| **AI Adaptive** | Machine Learning | All market conditions | ML predictions | Dynamic parameters |
 
 ### Live Strategy Features
 - **Real-time signal generation** with confidence scoring
@@ -189,22 +358,36 @@ GET    /risk-metrics                   # Risk analysis & metrics
 - **Stop-loss automation** - Dynamic stop-loss management
 - **Drawdown protection** - Maximum drawdown controls
 
-## 🌐 Real-Time Dashboard Features
+## 🌐 Interactive Dashboard
 
-### Fixed & Optimized UI
-- **Chart size optimization** - Prevents browser crashes from oversized charts
-- **Real-time WebSocket updates** - Live price and portfolio data
-- **Strategy control panels** - Enable/disable strategies in real-time
-- **Auto-trading toggles** - Control automated trading from dashboard
-- **Emergency stop button** - Immediate halt of all trading activities
-- **Performance monitoring** - Live strategy performance visualization
+### Full-Featured Web Interface
+- **Real-time price charts** with technical indicators
+- **Strategy management** - Enable/disable, configure parameters
+- **Live trading controls** - Start/stop trading, emergency stops
+- **Portfolio overview** - Balance, P&L, allocation visualization
+- **Performance analytics** - Strategy comparison, optimization results
+- **Risk monitoring** - Exposure limits, drawdown tracking
+- **Trade history** - Complete trading log with filters
+- **WebSocket updates** - Real-time data without page refresh
 
-### Dashboard Sections
-- **Price Chart** - Real-time Bitcoin price with technical indicators
-- **Strategy Panel** - Live strategy status and performance metrics
-- **Portfolio Allocation** - Real-time portfolio distribution
-- **Recent Orders** - Live trading history and order status
-- **System Status** - WebSocket connection, data sources, system health
+### Dashboard Features
+- **📊 Interactive Charts** - TradingView-style price charts
+- **⚡ Real-time Updates** - Live price feeds and portfolio changes
+- **🎛️ Strategy Controls** - One-click enable/disable strategies
+- **📈 Performance Metrics** - Sharpe ratio, drawdown, win rate
+- **🔄 Portfolio Rebalancing** - Automated allocation management
+- **📱 Responsive Design** - Works on desktop, tablet, and mobile
+- **🔔 Notifications** - Trading alerts and system status
+
+## 🤖 AI Enhancement Features
+
+### Machine Learning Integration
+- **Market Regime Detection** - Identify bull/bear/sideways markets
+- **Adaptive Strategy Selection** - ML-driven strategy switching
+- **Dynamic Parameter Optimization** - AI-powered parameter tuning
+- **Sentiment Analysis** - News and social media sentiment
+- **Pattern Recognition** - Chart pattern identification
+- **Risk Prediction** - ML-based risk assessment
 
 ## 🔐 Security & Authentication
 
@@ -224,22 +407,21 @@ GET    /risk-metrics                   # Risk analysis & metrics
 
 ## 📈 Performance & Monitoring
 
-### System Metrics (Optimized)
+### System Metrics
 - **API Response Time**: <100ms average, <500ms 99th percentile
-- **Data Collection**: 30-second intervals with automatic failover
-- **Memory Usage**: ~150MB with real data and optimized charts
+- **Data Collection**: 30-second intervals with failover
+- **Memory Usage**: ~150MB with full dataset
 - **Strategy Processing**: <500ms for real-time analysis
 - **Database Size**: ~2MB per day of price data
 - **WebSocket Latency**: <50ms for live updates
-- **Chart Rendering**: Optimized to prevent browser crashes
 
-### Monitoring & Health Checks
+### Comprehensive Health Checks
 - **System health** monitoring with detailed metrics
 - **Database connectivity** and performance tracking
-- **External API** status and response times (Coinbase, CoinGecko, Binance)
+- **External API** status and response times
 - **Trading engine** health and execution quality
 - **Portfolio performance** tracking and attribution
-- **WebSocket connection** monitoring and auto-reconnection
+- **Kubernetes-ready** liveness and readiness probes
 
 ## 🚀 Deployment
 
@@ -265,12 +447,6 @@ ODIN_HOST=0.0.0.0
 ODIN_PORT=8000
 ODIN_SECRET_KEY=your-secret-key
 
-# Real Data Sources
-COINBASE_API_ENABLED=true
-COINGECKO_API_ENABLED=true
-BINANCE_API_ENABLED=true
-DATA_COLLECTION_INTERVAL=30
-
 # Database
 DATABASE_URL=postgresql://user:pass@localhost/odin_db
 
@@ -289,7 +465,6 @@ EXCHANGE_SECRET_KEY=your-exchange-secret
 EXCHANGE_SANDBOX=false
 ```
 
-
 ## 🧪 Testing
 
 ### Comprehensive Test Suite
@@ -306,22 +481,17 @@ pytest tests/unit/                     # Unit tests
 pytest tests/integration/              # Integration tests
 pytest tests/performance/              # Performance tests
 
-# Test real data integration
-pytest tests/integration/test_data_collector.py
-pytest tests/integration/test_websocket.py
+# Run strategy-specific tests
+pytest tests/unit/test_strategies.py
+pytest tests/integration/test_trading_flow.py
 ```
 
-## 🎯 Next Steps: AI/ML Integration Ready
-
-The Odin architecture is now prepared for advanced AI/ML features:
-
-- **Real-time data pipeline** for ML model training
-- **Modular strategy framework** for AI strategy integration
-- **Performance tracking** for ML model evaluation
-- **Risk management** for AI trading decisions
-- **WebSocket infrastructure** for real-time AI predictions
-
-See the AI/ML Development Plan for detailed implementation roadmap.
+### Test Coverage
+- **Unit tests** - Individual component testing
+- **Integration tests** - End-to-end system testing
+- **Performance tests** - Load and speed testing
+- **Strategy tests** - Trading strategy validation
+- **API tests** - Endpoint testing and validation
 
 ## 📚 Documentation
 
@@ -330,12 +500,25 @@ See the AI/ML Development Plan for detailed implementation roadmap.
 - **[Deployment Guide](docs/deployment.md)** - Production setup instructions
 - **[Strategy Development](docs/strategies.md)** - Custom strategy creation
 - **[Architecture Overview](docs/architecture.md)** - System design details
-- **[AI/ML Integration Plan](docs/ai-ml-plan.md)** - Machine learning roadmap
 
 ### Interactive Documentation
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
 - **OpenAPI JSON**: `http://localhost:8000/openapi.json`
+
+## 🎯 Access URLs
+
+Once running, access these URLs:
+
+```
+📊 Dashboard:          http://localhost:8000
+📖 API Documentation:  http://localhost:8000/docs
+📋 Alternative Docs:   http://localhost:8000/redoc
+💚 Health Check:       http://localhost:8000/api/v1/health
+₿  Bitcoin Data:       http://localhost:8000/api/v1/data/current
+💼 Portfolio:          http://localhost:8000/api/v1/portfolio
+📈 Strategies:         http://localhost:8000/api/v1/strategies/list
+```
 
 ## 🤝 Contributing
 
@@ -344,7 +527,6 @@ See the AI/ML Development Plan for detailed implementation roadmap.
 ```bash
 # Install development dependencies
 pip install -r requirements-dev.txt
-pip install aiohttp  # For real data collection
 
 # Install pre-commit hooks
 pre-commit install
@@ -358,30 +540,60 @@ flake8 odin/ tests/
 mypy odin/
 ```
 
+### Code Quality Standards
+- **Code formatting**: Black, isort
+- **Linting**: Flake8, mypy
+- **Testing**: >90% coverage required
+- **Documentation**: All public APIs documented
+- **Security**: No hardcoded secrets, input validation
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## ⚠️ Disclaimer
 
-**Odin is for educational and research purposes. Cryptocurrency trading involves significant financial risk. Never trade with money you cannot afford to lose. Always test thoroughly with paper trading before using real funds. The AI/ML features are experimental and should be used with extreme caution.**
+**Odin is for educational and research purposes. Cryptocurrency trading involves significant financial risk. Never trade with money you cannot afford to lose. Always test thoroughly with paper trading before using real funds.**
 
 ## 🙏 Acknowledgments
 
 - **FastAPI** - Modern, fast web framework
-- **Coinbase, CoinGecko, Binance** - Real-time Bitcoin data sources
+- **SQLAlchemy** - Robust database operations
+- **Pydantic** - Data validation and settings
 - **Chart.js** - Beautiful data visualization
-- **WebSocket** - Real-time communication
 - **The Bitcoin Community** - Inspiration and support
+
+## 🆕 What's New in v2.0
+
+### ✨ Major Features Added:
+- **🌐 Complete Dashboard Functionality** - All buttons and features now work
+- **📡 WebSocket Real-time Updates** - Live price feeds and notifications
+- **🎛️ Strategy Management UI** - Enable/disable, backtest, optimize strategies
+- **💼 Portfolio Management** - Rebalancing, performance analytics, risk metrics
+- **🔄 Trading Controls** - Start/stop trading, view positions, emergency stops
+- **🖥️ Windows Compatibility** - No more Unicode encoding errors
+- **🔍 Comprehensive Health Checks** - Detailed startup diagnostics
+- **🤖 AI Enhancement Ready** - Machine learning framework integrated
+- **📊 50+ API Endpoints** - Complete REST API with documentation
+- **🛡️ Production Ready** - Enterprise security and monitoring
+
+### 🔧 Technical Improvements:
+- **Fixed all import issues** - Clean, working codebase
+- **Added missing API routes** - Dashboard fully functional
+- **WebSocket implementation** - Real-time data streaming
+- **Comprehensive error handling** - Graceful fallbacks
+- **Better logging system** - Windows-compatible output
+- **Enhanced configuration** - Flexible environment setup
 
 ---
 
 <div align="center">
 
-**Made with ❤️ for professional Bitcoin trading and AI/ML research**
+**Made with ❤️ for professional Bitcoin trading**
 
 [⭐ Star this repo](https://github.com/jackfredericksen/Odin) if you find it useful!
 
-**Odin - Where Norse wisdom meets modern trading technology and artificial intelligence** ⚡🤖
+**Odin v2.0 - Where Norse wisdom meets modern trading technology** ⚡
 
 </div>
+│   │

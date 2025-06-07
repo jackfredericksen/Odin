@@ -1,19 +1,18 @@
 """
-API routes package - organized and modular
+API Routes Package
+
+This package contains all the FastAPI route handlers for the Odin trading bot.
 """
 
-from . import data, health
+# Import all routers for easy access
+from .data import router as data_router
 from .strategies import router as strategies_router
 from .trading import router as trading_router
 from .portfolio import router as portfolio_router
-from .market import router as market_router
-from .websockets import websocket
+
 __all__ = [
-    "data",
-    "health", 
-    "strategies_router",
+    "data_router",
+    "strategies_router", 
     "trading_router",
-    "portfolio_router",
-    "market_router",
-    "websockets"
+    "portfolio_router"
 ]
