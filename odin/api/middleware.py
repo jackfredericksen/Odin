@@ -1,62 +1,182 @@
+# odin/api/middleware.py
 """
-Authentication, rate limiting, and other middleware
+Custom middleware for Odin API
+Includes security headers, rate limiting, and request logging
+Compatible with Python 3.8+
 """
 
-from fastapi import Request, Response, HTTPException, status
+import time
+import logging
+from typing import Callable, Dict, Any, Tuple, List, Union
+from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
-import time
-import logging
-import json
-from typing import Callable, Dict, Any
-from datetime import datetime, timedelta
-import hashlib
-import asyncio
 
-from odin.config import settings
-
-# Setup logging
 logger = logging.getLogger(__name__)
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses"""
+    
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        response = await call_next(request)
+        
+        # Security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        
+        # API identification
+        response.headers["X-API-Version"] = "2.0.0"
+        response.headers["X-Powered-By"] = "Odin Trading Bot"
+        
+        return response
 
-class LoggingMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware for logging HTTP requests and responses
-    """
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Rate limiting middleware with per-endpoint limits"""
     
     def __init__(self, app: ASGIApp):
         super().__init__(app)
-        
+        self.client_requests: Dict[str, Dict[str, Any]] = {}
+    
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Start timing
+        # Skip rate limiting for health checks and static files
+        if request.url.path in ["/health", "/", "/docs", "/redoc", "/openapi.json"]:
+            return await call_next(request)
+        
+        if request.url.path.startswith("/static"):
+            return await call_next(request)
+        
+        # Get client identifier
+        client_ip = self._get_client_ip(request)
+        current_time = time.time()
+        
+        # Determine endpoint type and rate limit
+        endpoint_type, limit, window = self._get_rate_limit_for_path(request.url.path)
+        
+        # Check rate limit
+        if not self._check_rate_limit(client_ip, endpoint_type, limit, window, current_time):
+            logger.warning(f"Rate limit exceeded for {client_ip} on {endpoint_type}")
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": "Rate limit exceeded",
+                    "detail": f"Maximum {limit} requests per {window} seconds for {endpoint_type} endpoints",
+                    "retry_after": window
+                },
+                headers={
+                    "X-RateLimit-Limit": str(limit),
+                    "X-RateLimit-Remaining": "0",
+                    "Retry-After": str(window)
+                }
+            )
+        
+        # Process request
+        response = await call_next(request)
+        
+        # Add rate limit headers
+        remaining = self._get_remaining_requests(client_ip, endpoint_type, limit, window, current_time)
+        response.headers["X-RateLimit-Limit"] = str(limit)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        response.headers["X-RateLimit-Reset"] = str(int(current_time + window))
+        
+        return response
+    
+    def _get_client_ip(self, request: Request) -> str:
+        """Get client IP address"""
+        # Check for forwarded header (load balancer)
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+        
+        # Check for real IP header
+        real_ip = request.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip
+        
+        # Fallback to direct client IP
+        return request.client.host if request.client else "unknown"
+    
+    def _get_rate_limit_for_path(self, path: str) -> Tuple[str, int, int]:
+        """Get rate limit configuration for path"""
+        if "/ai/" in path:
+            return "ai", 40, 60  # 40 requests per minute
+        elif "/trading/" in path:
+            return "trading", 30, 60  # 30 requests per minute
+        elif "/data/" in path:
+            return "data", 60, 60  # 60 requests per minute
+        elif "/strategies/" in path:
+            return "strategies", 20, 60  # 20 requests per minute
+        elif "/portfolio/" in path:
+            return "portfolio", 50, 60  # 50 requests per minute
+        elif "/market/" in path:
+            return "market", 40, 60  # 40 requests per minute
+        else:
+            return "general", 100, 60  # 100 requests per minute
+    
+    def _check_rate_limit(self, client_ip: str, endpoint_type: str, limit: int, window: int, current_time: float) -> bool:
+        """Check if request is within rate limit"""
+        if client_ip not in self.client_requests:
+            self.client_requests[client_ip] = {}
+        
+        if endpoint_type not in self.client_requests[client_ip]:
+            self.client_requests[client_ip][endpoint_type] = []
+        
+        # Clean old requests outside the window
+        self.client_requests[client_ip][endpoint_type] = [
+            req_time for req_time in self.client_requests[client_ip][endpoint_type]
+            if current_time - req_time < window
+        ]
+        
+        # Check if limit exceeded
+        if len(self.client_requests[client_ip][endpoint_type]) >= limit:
+            return False
+        
+        # Add current request
+        self.client_requests[client_ip][endpoint_type].append(current_time)
+        return True
+    
+    def _get_remaining_requests(self, client_ip: str, endpoint_type: str, limit: int, window: int, current_time: float) -> int:
+        """Get remaining requests in current window"""
+        if client_ip not in self.client_requests or endpoint_type not in self.client_requests[client_ip]:
+            return limit
+        
+        # Count requests in current window
+        requests_in_window = len([
+            req_time for req_time in self.client_requests[client_ip][endpoint_type]
+            if current_time - req_time < window
+        ])
+        
+        return max(0, limit - requests_in_window)
+
+class LoggingMiddleware(BaseHTTPMiddleware):
+    """Request and response logging middleware"""
+    
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         start_time = time.time()
         
-        # Get client IP
-        client_ip = self.get_client_ip(request)
-        
         # Log request
-        logger.info(
-            f"Request: {request.method} {request.url.path} "
-            f"from {client_ip} - User-Agent: {request.headers.get('user-agent', 'Unknown')}"
-        )
+        client_ip = request.client.host if request.client else "unknown"
+        logger.info(f"Request: {request.method} {request.url.path} from {client_ip}")
         
         # Process request
         try:
             response = await call_next(request)
             
-            # Calculate processing time
+            # Calculate response time
             process_time = time.time() - start_time
             
             # Log response
             logger.info(
                 f"Response: {response.status_code} for {request.method} {request.url.path} "
-                f"in {process_time:.3f}s"
+                f"({process_time:.3f}s)"
             )
             
-            # Add custom headers
+            # Add response time header
             response.headers["X-Process-Time"] = str(process_time)
-            response.headers["X-Server"] = "Odin-Bitcoin-Bot"
             
             return response
             
@@ -64,303 +184,285 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             process_time = time.time() - start_time
             logger.error(
                 f"Error: {str(e)} for {request.method} {request.url.path} "
-                f"in {process_time:.3f}s from {client_ip}"
+                f"({process_time:.3f}s)"
             )
             raise
-    
-    def get_client_ip(self, request: Request) -> str:
-        """Extract client IP address"""
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-        
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
-        
-        return request.client.host if request.client else "unknown"
 
-
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    """
-    Rate limiting middleware with different limits for different endpoints
-    """
-    
-    def __init__(self, app: ASGIApp):
-        super().__init__(app)
-        self.requests: Dict[str, list] = {}
-        self.cleanup_interval = 60  # Cleanup every minute
-        self.last_cleanup = time.time()
-        
-        # Rate limits by endpoint pattern
-        self.rate_limits = {
-            "/api/v1/data/current": {"requests": 60, "window": 60},  # 60 per minute
-            "/api/v1/data/history": {"requests": 30, "window": 60},  # 30 per minute
-            "/api/v1/strategies": {"requests": 20, "window": 60},    # 20 per minute
-            "default": {"requests": 100, "window": 60}               # 100 per minute default
-        }
+class RequestValidationMiddleware(BaseHTTPMiddleware):
+    """Request validation and sanitization middleware"""
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Get client identifier
-        client_id = self.get_client_id(request)
+        # Validate request size
+        if hasattr(request, 'headers'):
+            content_length = request.headers.get('content-length')
+            if content_length and int(content_length) > 10 * 1024 * 1024:  # 10MB limit
+                return JSONResponse(
+                    status_code=413,
+                    content={"error": "Request too large", "max_size": "10MB"}
+                )
         
-        # Get rate limit for this endpoint
-        limit_config = self.get_rate_limit_config(request.url.path)
+        # Validate content type for POST/PUT requests
+        if request.method in ["POST", "PUT", "PATCH"]:
+            content_type = request.headers.get('content-type', '')
+            valid_types = ['application/json', 'multipart/form-data', 'application/x-www-form-urlencoded']
+            
+            if content_type and not any(ct in content_type for ct in valid_types):
+                return JSONResponse(
+                    status_code=415,
+                    content={
+                        "error": "Unsupported media type", 
+                        "supported": valid_types
+                    }
+                )
         
-        # Check rate limit
-        if not self.is_allowed(client_id, limit_config):
-            logger.warning(f"Rate limit exceeded for {client_id} on {request.url.path}")
-            return JSONResponse(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                content={
-                    "error": "Rate limit exceeded",
-                    "message": f"Too many requests. Limit: {limit_config['requests']} per {limit_config['window']} seconds",
-                    "status": "error"
-                },
-                headers={
-                    "Retry-After": str(limit_config['window']),
-                    "X-RateLimit-Limit": str(limit_config['requests']),
-                    "X-RateLimit-Window": str(limit_config['window'])
-                }
-            )
-        
-        # Cleanup old requests periodically
-        await self.cleanup_old_requests()
-        
+        return await call_next(request)
+
+class CacheControlMiddleware(BaseHTTPMiddleware):
+    """Add appropriate cache control headers"""
+    
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         response = await call_next(request)
         
-        # Add rate limit headers
-        remaining = self.get_remaining_requests(client_id, limit_config)
-        response.headers["X-RateLimit-Limit"] = str(limit_config['requests'])
-        response.headers["X-RateLimit-Remaining"] = str(remaining)
-        response.headers["X-RateLimit-Window"] = str(limit_config['window'])
-        
-        return response
-    
-    def get_client_id(self, request: Request) -> str:
-        """Get client identifier for rate limiting"""
-        # Try to get authenticated user first
-        auth_header = request.headers.get("Authorization")
-        if auth_header:
-            # Hash the auth header for privacy
-            return hashlib.sha256(auth_header.encode()).hexdigest()[:16]
-        
-        # Fall back to IP address
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            ip = forwarded.split(",")[0].strip()
-        else:
-            ip = request.client.host if request.client else "unknown"
-        
-        return f"ip_{ip}"
-    
-    def get_rate_limit_config(self, path: str) -> Dict[str, int]:
-        """Get rate limit configuration for path"""
-        for pattern, config in self.rate_limits.items():
-            if pattern == "default":
-                continue
-            if path.startswith(pattern):
-                return config
-        return self.rate_limits["default"]
-    
-    def is_allowed(self, client_id: str, limit_config: Dict[str, int]) -> bool:
-        """Check if request is allowed"""
-        now = time.time()
-        window_start = now - limit_config['window']
-        
-        # Initialize or clean client requests
-        if client_id not in self.requests:
-            self.requests[client_id] = []
-        
-        # Remove old requests
-        self.requests[client_id] = [
-            req_time for req_time in self.requests[client_id]
-            if req_time > window_start
-        ]
-        
-        # Check if under limit
-        if len(self.requests[client_id]) >= limit_config['requests']:
-            return False
-        
-        # Add current request
-        self.requests[client_id].append(now)
-        return True
-    
-    def get_remaining_requests(self, client_id: str, limit_config: Dict[str, int]) -> int:
-        """Get remaining requests for client"""
-        current_count = len(self.requests.get(client_id, []))
-        return max(0, limit_config['requests'] - current_count)
-    
-    async def cleanup_old_requests(self):
-        """Cleanup old request records"""
-        now = time.time()
-        if now - self.last_cleanup < self.cleanup_interval:
-            return
-        
-        # Remove empty client records
-        to_remove = []
-        for client_id, requests in self.requests.items():
-            if not requests or (now - max(requests)) > 3600:  # 1 hour old
-                to_remove.append(client_id)
-        
-        for client_id in to_remove:
-            del self.requests[client_id]
-        
-        self.last_cleanup = now
-
-
-class AuthenticationMiddleware(BaseHTTPMiddleware):
-    """
-    Authentication middleware for protected endpoints
-    """
-    
-    def __init__(self, app: ASGIApp):
-        super().__init__(app)
-        
-        # Protected endpoints (require authentication)
-        self.protected_endpoints = {
-            "/api/v1/admin/",
-            "/api/v1/trading/",
-            "/api/v1/portfolio/"
-        }
-        
-        # Admin endpoints (require admin role)
-        self.admin_endpoints = {
-            "/api/v1/admin/",
-            "/api/v1/system/"
-        }
-    
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Set cache control based on endpoint
         path = request.url.path
         
-        # Check if endpoint requires authentication
-        requires_auth = any(path.startswith(endpoint) for endpoint in self.protected_endpoints)
-        requires_admin = any(path.startswith(endpoint) for endpoint in self.admin_endpoints)
+        if "/static/" in path:
+            # Static files - cache for 1 hour
+            response.headers["Cache-Control"] = "public, max-age=3600"
+        elif "/api/v1/data/" in path:
+            # Data endpoints - cache for 30 seconds
+            response.headers["Cache-Control"] = "public, max-age=30"
+        elif "/api/v1/health" in path:
+            # Health checks - cache for 10 seconds
+            response.headers["Cache-Control"] = "public, max-age=10"
+        elif "/docs" in path or "/redoc" in path:
+            # Documentation - cache for 5 minutes
+            response.headers["Cache-Control"] = "public, max-age=300"
+        else:
+            # Other endpoints - no cache
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
         
-        if requires_auth or requires_admin:
-            auth_header = request.headers.get("Authorization")
-            
-            if not auth_header or not auth_header.startswith("Bearer "):
-                return JSONResponse(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    content={
-                        "error": "Authentication required",
-                        "message": "Missing or invalid authorization header",
-                        "status": "error"
-                    },
-                    headers={"WWW-Authenticate": "Bearer"}
-                )
-            
-            # Extract token (this would normally validate JWT)
-            token = auth_header.split(" ")[1]
-            
-            # For demo purposes, we'll use simple token validation
-            # In production, you'd validate JWT tokens properly
-            user = self.validate_token(token)
-            
-            if not user:
-                return JSONResponse(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    content={
-                        "error": "Invalid token",
-                        "message": "The provided token is invalid or expired",
-                        "status": "error"
-                    }
-                )
-            
-            # Check admin access
-            if requires_admin and user.get("role") != "admin":
-                return JSONResponse(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    content={
-                        "error": "Insufficient privileges",
-                        "message": "Admin access required",
-                        "status": "error"
-                    }
-                )
-            
-            # Add user to request state
-            request.state.user = user
-        
-        return await call_next(request)
-    
-    def validate_token(self, token: str) -> Dict[str, Any]:
-        """
-        Validate authentication token
-        
-        In production, this would:
-        1. Validate JWT signature
-        2. Check expiration
-        3. Fetch user from database
-        4. Validate permissions
-        """
-        # Demo implementation
-        demo_tokens = {
-            "demo_user_token": {"username": "demo_user", "role": "user"},
-            "demo_admin_token": {"username": "admin", "role": "admin"}
-        }
-        
-        return demo_tokens.get(token)
+        return response
 
-
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """
-    Add security headers to responses
-    """
+class APIMetricsMiddleware(BaseHTTPMiddleware):
+    """Collect API metrics for monitoring"""
     
     def __init__(self, app: ASGIApp):
         super().__init__(app)
+        self.request_count = 0
+        self.error_count = 0
+        self.response_times: List[float] = []
+        self.endpoint_stats: Dict[str, Dict[str, Union[int, float]]] = {}
+        self.start_time = time.time()
+    
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        start_time = time.time()
+        self.request_count += 1
         
-        self.security_headers = {
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-            "X-XSS-Protection": "1; mode=block",
-            "Referrer-Policy": "strict-origin-when-cross-origin",
-            "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'",
+        endpoint = f"{request.method} {request.url.path}"
+        
+        try:
+            response = await call_next(request)
+            
+            # Record metrics
+            process_time = time.time() - start_time
+            self.response_times.append(process_time)
+            
+            # Keep only last 1000 response times
+            if len(self.response_times) > 1000:
+                self.response_times = self.response_times[-1000:]
+            
+            # Update endpoint stats
+            if endpoint not in self.endpoint_stats:
+                self.endpoint_stats[endpoint] = {
+                    "count": 0,
+                    "total_time": 0.0,
+                    "errors": 0,
+                    "avg_time": 0.0
+                }
+            
+            stats = self.endpoint_stats[endpoint]
+            stats["count"] += 1
+            stats["total_time"] += process_time
+            stats["avg_time"] = stats["total_time"] / stats["count"]
+            
+            if response.status_code >= 400:
+                self.error_count += 1
+                stats["errors"] += 1
+            
+            # Add metrics headers
+            response.headers["X-Request-Count"] = str(self.request_count)
+            if self.response_times:
+                avg_response_time = sum(self.response_times) / len(self.response_times)
+                response.headers["X-Avg-Response-Time"] = f"{avg_response_time:.3f}"
+            
+            return response
+            
+        except Exception as e:
+            self.error_count += 1
+            if endpoint in self.endpoint_stats:
+                self.endpoint_stats[endpoint]["errors"] += 1
+            raise
+    
+    def get_metrics(self) -> Dict[str, Any]:
+        """Get collected metrics"""
+        current_time = time.time()
+        uptime = current_time - self.start_time
+        avg_response_time = sum(self.response_times) / len(self.response_times) if self.response_times else 0
+        
+        # Calculate requests per second
+        rps = self.request_count / uptime if uptime > 0 else 0
+        
+        # Calculate error rate
+        error_rate = (self.error_count / max(self.request_count, 1)) * 100
+        
+        # Get top endpoints by request count
+        top_endpoints = sorted(
+            self.endpoint_stats.items(),
+            key=lambda x: x[1]["count"],
+            reverse=True
+        )[:10]
+        
+        # Get slowest endpoints
+        slowest_endpoints = sorted(
+            [(k, v) for k, v in self.endpoint_stats.items() if v["count"] > 0],
+            key=lambda x: x[1]["avg_time"],
+            reverse=True
+        )[:5]
+        
+        return {
+            "uptime_seconds": round(uptime, 2),
+            "total_requests": self.request_count,
+            "total_errors": self.error_count,
+            "error_rate_percent": round(error_rate, 2),
+            "requests_per_second": round(rps, 2),
+            "avg_response_time_ms": round(avg_response_time * 1000, 2),
+            "total_endpoints": len(self.endpoint_stats),
+            "top_endpoints": [
+                {
+                    "endpoint": endpoint,
+                    "count": int(stats["count"]),
+                    "avg_time_ms": round(float(stats["avg_time"]) * 1000, 2),
+                    "errors": int(stats["errors"])
+                }
+                for endpoint, stats in top_endpoints
+            ],
+            "slowest_endpoints": [
+                {
+                    "endpoint": endpoint,
+                    "avg_time_ms": round(float(stats["avg_time"]) * 1000, 2),
+                    "count": int(stats["count"])
+                }
+                for endpoint, stats in slowest_endpoints
+            ],
+            "response_time_percentiles": self._calculate_percentiles()
         }
+    
+    def _calculate_percentiles(self) -> Dict[str, float]:
+        """Calculate response time percentiles"""
+        if not self.response_times:
+            return {}
         
-        if settings.ODIN_ENV == "production":
-            self.security_headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        sorted_times = sorted(self.response_times)
+        
+        def percentile(data: List[float], p: float) -> float:
+            """Calculate percentile"""
+            k = (len(data) - 1) * p / 100
+            f = int(k)
+            c = k - f
+            if f == len(data) - 1:
+                return data[f]
+            return data[f] * (1 - c) + data[f + 1] * c
+        
+        return {
+            "p50_ms": round(percentile(sorted_times, 50) * 1000, 2),
+            "p90_ms": round(percentile(sorted_times, 90) * 1000, 2),
+            "p95_ms": round(percentile(sorted_times, 95) * 1000, 2),
+            "p99_ms": round(percentile(sorted_times, 99) * 1000, 2)
+        }
+
+class CorrelationIdMiddleware(BaseHTTPMiddleware):
+    """Add correlation IDs to requests for tracing"""
+    
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        import uuid
+        
+        # Get or generate correlation ID
+        correlation_id = request.headers.get("X-Correlation-ID")
+        if not correlation_id:
+            correlation_id = str(uuid.uuid4())
+        
+        # Add to request state
+        request.state.correlation_id = correlation_id
+        
+        # Process request
+        response = await call_next(request)
+        
+        # Add correlation ID to response
+        response.headers["X-Correlation-ID"] = correlation_id
+        
+        return response
+
+class CompressionMiddleware(BaseHTTPMiddleware):
+    """Add compression headers for large responses"""
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         response = await call_next(request)
         
-        # Add security headers
-        for header, value in self.security_headers.items():
-            response.headers[header] = value
+        # Check if client accepts compression
+        accept_encoding = request.headers.get("Accept-Encoding", "")
+        
+        # Add appropriate headers for large responses
+        if hasattr(response, 'body'):
+            body = getattr(response, 'body', b'')
+            if len(body) > 1024:
+                if "gzip" in accept_encoding:
+                    response.headers["Content-Encoding"] = "gzip"
+                elif "deflate" in accept_encoding:
+                    response.headers["Content-Encoding"] = "deflate"
         
         return response
 
+# Global metrics instance for access in health checks
+api_metrics: Union[APIMetricsMiddleware, None] = None
 
-class HealthCheckMiddleware(BaseHTTPMiddleware):
-    """
-    Handle health check requests quickly without processing
-    """
-    
-    def __init__(self, app: ASGIApp):
-        super().__init__(app)
-        
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Quick health check response
-        if request.url.path == "/health":
-            return JSONResponse(
-                content={
-                    "status": "healthy",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "version": "1.0.0"
-                }
-            )
-        
-        return await call_next(request)
+def get_api_metrics() -> Union[APIMetricsMiddleware, None]:
+    """Get the API metrics middleware instance"""
+    global api_metrics
+    return api_metrics
 
+def set_api_metrics(metrics: APIMetricsMiddleware) -> None:
+    """Set the API metrics middleware instance"""
+    global api_metrics
+    api_metrics = metrics
 
-def setup_middleware(app):
-    """
-    Setup all middleware in the correct order
-    """
-    # The order matters - middleware is processed in reverse order
-    app.add_middleware(SecurityHeadersMiddleware)
-    app.add_middleware(HealthCheckMiddleware)
-    app.add_middleware(AuthenticationMiddleware)
-    app.add_middleware(RateLimitMiddleware)
-    app.add_middleware(LoggingMiddleware)
+# Middleware configuration helper
+def get_middleware_stack() -> List[type]:
+    """Get the recommended middleware stack"""
+    return [
+        SecurityHeadersMiddleware,
+        CorrelationIdMiddleware,
+        APIMetricsMiddleware,
+        RateLimitMiddleware,
+        RequestValidationMiddleware,
+        CacheControlMiddleware,
+        CompressionMiddleware,
+        LoggingMiddleware
+    ]
+
+# Export all middleware classes
+__all__ = [
+    "SecurityHeadersMiddleware",
+    "RateLimitMiddleware", 
+    "LoggingMiddleware",
+    "RequestValidationMiddleware",
+    "CacheControlMiddleware",
+    "APIMetricsMiddleware",
+    "CorrelationIdMiddleware",
+    "CompressionMiddleware",
+    "get_api_metrics",
+    "set_api_metrics",
+    "get_middleware_stack"
+]

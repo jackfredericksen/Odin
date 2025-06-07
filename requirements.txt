@@ -1,67 +1,110 @@
-# Odin Bitcoin Trading Bot - Production Dependencies
+# odin/requirements.txt
+# Odin Bitcoin Trading Bot v2.0.0 - Complete Dependencies with AI Features
 
-# Web Framework
+# Core FastAPI and Web Framework
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-jinja2==3.1.2
 python-multipart==0.0.6
 
-# Database
-sqlalchemy==2.0.23
-alembic==1.12.1
-psycopg2-binary==2.9.9
-asyncpg==0.29.0
+# Data Models and Validation
+pydantic==2.5.0
+pydantic-settings==2.1.0
 
-# Data Processing
+# Database and ORM
+sqlalchemy==2.0.23
+alembic==1.13.1
+asyncpg==0.29.0  # PostgreSQL async driver
+aiosqlite==0.19.0  # SQLite async driver
+
+# Data Processing and Analysis
 pandas==2.1.3
 numpy==1.25.2
 scipy==1.11.4
-ta==0.10.2  # Technical Analysis library
 
-# HTTP Requests
-httpx==0.25.2
-aiohttp==3.9.1
+# HTTP Requests and WebSockets
 requests==2.31.0
-
-# WebSocket
+aiohttp==3.9.1
 websockets==12.0
-python-socketio==5.10.0
+httpx==0.25.2
 
-# Authentication & Security
+# AI and Machine Learning Dependencies
+scikit-learn==1.3.2
+hmmlearn==0.3.0
+joblib==1.3.2
+matplotlib==3.8.2
+seaborn==0.13.0
+
+# Security and Authentication
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
+cryptography==41.0.8
 
-# Configuration
-pydantic==2.5.0
-pydantic-settings==2.1.0
-python-decouple==3.8
-
-# Async Support
-asyncio==3.4.3
+# File Handling and Storage
 aiofiles==23.2.1
+openpyxl==3.1.2  # Excel file support
+xlsxwriter==3.1.9
 
-# Logging
-structlog==23.2.0
-colorlog==6.8.0
-
-# Trading APIs (choose based on your exchange)
-ccxt==4.1.57  # Unified crypto exchange API
-binance-connector==3.5.0  # Binance specific
-
-# Data Validation
-marshmallow==3.20.1
-cerberus==1.3.5
-
-# Utilities
+# Date and Time Handling
 python-dateutil==2.8.2
 pytz==2023.3
-click==8.1.7
 
-# Monitoring
+# Logging and Monitoring
+structlog==23.2.0
 prometheus-client==0.19.0
-psutil==5.9.6
 
-# Testing (for basic tests)
+# Configuration Management
+python-dotenv==1.0.0
+pyyaml==6.0.1
+
+# Testing Framework
 pytest==7.4.3
 pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+
+# Development Tools
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.7.1
+pre-commit==3.6.0
+
+# Type Hints and Stubs
+types-requests==2.31.0.10
+types-python-dateutil==2.8.19.14
+
+# Optional: GPU acceleration (uncomment if using GPU for deep learning)
+# torch==2.1.0
+# torchvision==0.16.0
+# torchaudio==2.1.0
+
+# Optional: Advanced plotting and visualization
+# plotly==5.17.0
+# dash==2.16.1
+
+# Optional: Redis for caching and rate limiting (production use)
+# redis==5.0.1
+# aioredis==2.0.1
+
+# Optional: Message queue for background tasks
+# celery==5.3.4
+# kombu==5.3.4
+
+# Optional: Additional data sources
+# yfinance==0.2.18
+# alpha-vantage==2.3.1
+# ccxt==4.1.57  # Cryptocurrency exchange trading library
+
+# Performance and Optimization
+numba==0.58.1  # Just-in-time compilation for numerical functions
+cython==3.0.6  # Optional: for performance-critical code
+
+# Memory profiling and debugging (development)
+memory-profiler==0.61.0
+psutil==5.9.6
+
+# Production WSGI/ASGI server
+gunicorn==21.2.0
+
+# Pin setuptools to avoid conflicts
+setuptools>=65.0.0

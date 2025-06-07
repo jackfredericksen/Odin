@@ -1,109 +1,43 @@
 version: '3.8'
 
 services:
-  # Main Odin Application
-  odin-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  odin-api:
+    build: .
     ports:
       - "8000:8000"
     environment:
       - ODIN_ENV=development
-      - DATABASE_URL=postgresql://odin_user:odin_password@postgres:5432/odin_db
-      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=sqlite:///data/bitcoin_data.db
+      - AI_ADAPTIVE_STRATEGIES=true
+      - AI_REGIME_UPDATE_FREQ=20
+      - AI_MIN_REGIME_CONFIDENCE=0.6
     volumes:
-      - ./odin:/app/odin
-      - ./web:/app/web
       - ./data:/app/data
-      - ./config:/app/config
-    depends_on:
-      - postgres
-      - redis
+      - ./logs:/app/logs
     restart: unless-stopped
-    networks:
-      - odin-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: odin_user
-      POSTGRES_PASSWORD: odin_password
-      POSTGRES_DB: odin_db
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
-    networks:
-      - odin-network
-
-  # Redis for Caching & WebSocket
+  # Optional: Add Redis for caching AI model results
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
     restart: unless-stopped
-    networks:
-      - odin-network
 
-  # Nginx Reverse Proxy (Production-like setup)
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./docker/nginx.conf:/etc/nginx/nginx.conf
-      - ./web/static:/var/www/static
-      - ./data/logs/nginx:/var/log/nginx
-    depends_on:
-      - odin-app
-    restart: unless-stopped
-    networks:
-      - odin-network
-
-  # Prometheus Monitoring (optional)
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-    networks:
-      - odin-network
-
-  # Grafana Dashboard (optional)
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
+  # Optional: Add PostgreSQL for production
+  postgres:
+    image: postgres:15-alpine
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - POSTGRES_DB=odin
+      - POSTGRES_USER=odin
+      - POSTGRES_PASSWORD=odin_password
     volumes:
-      - grafana_data:/var/lib/grafana
-      - ./config/grafana:/etc/grafana/provisioning
-    depends_on:
-      - prometheus
-    networks:
-      - odin-network
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
 volumes:
   postgres_data:
-  redis_data:
-  prometheus_data:
-  grafana_data:
-
-networks:
-  odin-network:
-    driver: bridge
