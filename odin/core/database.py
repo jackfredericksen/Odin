@@ -11,7 +11,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class DatabaseManager:
+class Database:
     """Simple SQLite database manager for Odin Bitcoin Trading Bot."""
     
     def __init__(self, db_path: str = "data/bitcoin_data.db"):
@@ -473,11 +473,11 @@ class DatabaseManager:
         pass
 
 # Convenience functions
-def get_database(db_path: str = "data/bitcoin_data.db") -> DatabaseManager:
+def get_database(db_path: str = "data/bitcoin_data.db") -> Database:
     """Get database manager instance."""
-    return DatabaseManager(db_path)
+    return Database(db_path)
 
-def init_sample_data(db: DatabaseManager) -> bool:
+def init_sample_data(db: Database) -> bool:
     """Initialize database with sample data for testing."""
     try:
         import random

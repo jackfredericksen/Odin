@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta
 
 # Import core components
-from ..core.data_collector import DataCollector
+from ..core.data_collector import BitcoinDataCollector
 from ..core.database import Database
 from ..core.trading_engine import TradingEngine
 from ..core.portfolio_manager import PortfolioManager
@@ -30,7 +30,7 @@ security = HTTPBearer(auto_error=False)
 config = get_config()
 
 # Global instances (in production, these would be managed by dependency injection container)
-_data_collector: Optional[DataCollector] = None
+_data_collector: Optional[BitcoinDataCollector] = None
 _database: Optional[Database] = None
 _trading_engine: Optional[TradingEngine] = None
 _portfolio_manager: Optional[PortfolioManager] = None
@@ -44,11 +44,11 @@ _ai_strategy: Optional[AIAdaptiveStrategy] = None
 # Rate limiting storage (in production, use Redis)
 _rate_limit_storage: Dict[str, Dict[str, Any]] = {}
 
-def get_data_collector() -> DataCollector:
+def get_data_collector() -> BitcoinDataCollector:
     """Get data collector instance"""
     global _data_collector
     if _data_collector is None:
-        _data_collector = DataCollector()
+        _data_collector = BitcoinDataCollector()
     return _data_collector
 
 def get_database() -> Database:
@@ -413,7 +413,7 @@ def validate_regime_name(regime: str) -> str:
 async def get_authenticated_data_collector(
     _: Dict[str, Any] = Depends(get_current_user),
     _rate_limit: bool = Depends(rate_limit_data)
-) -> DataCollector:
+) -> BitcoinDataCollector:
     """Get data collector with authentication and rate limiting"""
     return get_data_collector()
 

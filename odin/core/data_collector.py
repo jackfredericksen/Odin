@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Callable, Optional
 
 logger = logging.getLogger(__name__)
 
-class RealBitcoinDataCollector:
+class BitcoinDataCollector:
     """Real Bitcoin data collector with multiple data sources."""
     
     def __init__(self, collection_interval: int = 30):
@@ -295,9 +295,9 @@ class RealBitcoinDataCollector:
 # Global instance
 _collector = None
 
-def get_data_collector() -> RealBitcoinDataCollector:
+def get_data_collector() -> BitcoinDataCollector:
     """Get global collector instance."""
     global _collector
     if _collector is None:
-        _collector = RealBitcoinDataCollector()
+        _collector = BitcoinDataCollector()
     return _collector

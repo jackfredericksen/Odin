@@ -2,7 +2,7 @@
 Core Data Models for Odin Bitcoin Trading Bot
 Complete set of Pydantic models for all data structures.
 """
-
+import time
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -30,6 +30,11 @@ class OrderType(str, Enum):
     STOP_LOSS = "stop_loss"
     TAKE_PROFIT = "take_profit"
 
+class OrderSide(str, Enum):
+    """Order side enum."""
+    BUY = "buy"
+    SELL = "sell"
+
 class OrderStatus(str, Enum):
     """Order status."""
     PENDING = "pending"
@@ -37,6 +42,17 @@ class OrderStatus(str, Enum):
     CANCELLED = "cancelled"
     REJECTED = "rejected"
     EXPIRED = "expired"
+
+class PositionType(str, Enum):
+    """Position types."""
+    LONG = "long"
+    SHORT = "short"
+
+class SignalType(str, Enum):
+    """Signal types (alias for StrategySignal)."""
+    BUY = "buy"
+    SELL = "sell"
+    HOLD = "hold"
 
 # Price Data Models
 class PriceData(BaseModel):
@@ -140,6 +156,59 @@ class Trade(BaseModel):
     pnl: Optional[float] = None
     pnl_percentage: Optional[float] = None
     notes: Optional[str] = None
+
+class TradeOrder(BaseModel):
+    """Trade order model for placing orders."""
+    id: str = Field(default_factory=lambda: f"order_{int(time.time() * 1000000)}")
+    timestamp: datetime = Field(default_factory=datetime.now)
+    strategy_name: str
+    symbol: str = "BTC-USD"
+    order_type: OrderType
+    side: OrderSide
+    quantity: float = Field(..., gt=0)
+    price: Optional[float] = Field(None, gt=0)
+    stop_price: Optional[float] = Field(None, gt=0)
+    time_in_force: Optional[str] = "GTC"
+    
+    # Order tracking
+    exchange_order_id: Optional[str] = None
+    status: OrderStatus = OrderStatus.PENDING
+    filled_quantity: float = Field(0.0, ge=0)
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: Optional[datetime] = None
+
+class TradeExecution(BaseModel):
+    """Trade execution details."""
+    id: str
+    timestamp: datetime = Field(default_factory=datetime.now)
+    strategy_name: str
+    symbol: str = "BTC-USD"
+    side: OrderSide
+    quantity: float = Field(..., gt=0)
+    price: float = Field(..., gt=0)
+    fee: Optional[float] = Field(None, ge=0)
+    trade_id: str
+    order_id: Optional[str] = None
+    slippage: Optional[float] = None
+    market_impact: Optional[float] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+class TradeSignal(BaseModel):
+    """Trade signal model."""
+    id: str = Field(default_factory=lambda: f"signal_{int(time.time() * 1000000)}")
+    strategy_name: str
+    symbol: str = "BTC-USD"
+    signal_type: StrategySignal
+    confidence: float = Field(..., ge=0, le=1)
+    price: float = Field(..., gt=0)
+    timestamp: datetime = Field(default_factory=datetime.now)
+    reasoning: Optional[str] = None
+    indicators: Dict[str, float] = Field(default_factory=dict)
+    executed: bool = False
+    execution_price: Optional[float] = None
+    execution_time: Optional[datetime] = None
 
 class Position(BaseModel):
     """Trading position model."""
@@ -297,3 +366,61 @@ class TradingConfig(BaseModel):
     stop_loss_pct: float = Field(0.05, ge=0, le=0.2)
     take_profit_pct: float = Field(0.10, ge=0, le=0.5)
     enable_live_trading: bool = False
+
+# Utility Functions
+def create_price_data(timestamp: datetime, price: float, volume: float = None, source: str = "api") -> PriceData:
+    """Create a PriceData instance."""
+    return PriceData(timestamp=timestamp, price=price, volume=volume, source=source)
+
+def create_trade_execution(trade_id: str, strategy_name: str, side: str, quantity: float, price: float) -> TradeExecution:
+    """Create a TradeExecution instance."""
+    return TradeExecution(
+        id=trade_id,
+        strategy_name=strategy_name,
+        symbol="BTC-USD",
+        side=OrderSide(side),
+        quantity=quantity,
+        price=price,
+        trade_id=trade_id
+    )
+
+def create_api_response(success: bool, data: Any = None, message: str = None) -> APIResponse:
+    """Create an APIResponse instance."""
+    return APIResponse(success=success, data=data, message=message)
+
+# Export all models
+__all__ = [
+    # Enums
+    'StrategyType', 'StrategySignal', 'OrderType', 'OrderSide', 'OrderStatus', 
+    'PositionType', 'SignalType',
+    
+    # Price Models
+    'PriceData', 'OHLCData', 'HistoricalData',
+    
+    # Market Models
+    'MarketDepth', 'MarketSummary',
+    
+    # Trading Models
+    'Signal', 'Trade', 'TradeOrder', 'TradeExecution', 'TradeSignal', 'Position',
+    
+    # Portfolio Models
+    'PortfolioSnapshot', 'PortfolioSummary',
+    
+    # Strategy Models
+    'StrategyConfig', 'StrategyPerformance', 'BacktestResult',
+    
+    # WebSocket Models
+    'WebSocketMessage', 'ConnectionStatus',
+    
+    # API Models
+    'APIResponse', 'HealthCheck', 'ErrorResponse',
+    
+    # Statistics Models
+    'DataStats', 'DatabaseStats',
+    
+    # Configuration Models
+    'DatabaseConfig', 'APIConfig', 'TradingConfig',
+    
+    # Utility Functions
+    'create_price_data', 'create_trade_execution', 'create_api_response'
+]
