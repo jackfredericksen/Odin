@@ -49,7 +49,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         if request.url.path.startswith("/static"):
             return await call_next(request)
-        
+        # Skip rate limiting for WebSocket connections1
+        if request.url.path.startswith("/ws"):
+            return await call_next(request)
         # Get client identifier
         client_ip = self._get_client_ip(request)
         current_time = time.time()

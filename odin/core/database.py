@@ -523,3 +523,5 @@ def init_sample_data(db: DatabaseManager) -> bool:
     except Exception as e:
         logger.error(f"Error initializing sample data: {e}")
         return False
+
+Database = DatabaseManager # Alias for convenience 

@@ -35,6 +35,8 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        # ADD THIS LINE:
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$"
     )
     
     # Mount static files
@@ -85,7 +87,26 @@ def create_app() -> FastAPI:
                 "status": "error",
                 "error": str(e)
             }
-    
+    @app.get("/api/v1/health/websocket")
+
+    async def websocket_health():
+        """WebSocket health check."""
+        try:
+            # Check if WebSocket routes are properly registered
+            websocket_routes = [route for route in app.routes if hasattr(route, 'path') and route.path.startswith('/ws')]
+            return {
+                "success": True,
+                "websocket_routes": len(websocket_routes),
+                "available_endpoints": [route.path for route in websocket_routes if hasattr(route, 'path')],
+                "status": "WebSocket endpoints are ready"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "status": "error",
+                "error": str(e)
+            }
+        
     # Bitcoin data endpoints
     @app.get("/api/v1/data/current")
     async def get_bitcoin_data():
@@ -313,7 +334,7 @@ def create_app() -> FastAPI:
     
     try:
         from odin.api.routes.websockets import router as websocket_router
-        app.include_router(websocket_router, prefix="/api/v1", tags=["websockets"])
+        app.include_router(websocket_router, prefix="", tags=["websockets"])
         print("Successfully imported websocket routes")
     except ImportError as e:
         print(f"Could not import websocket routes: {e}")

@@ -448,3 +448,5 @@ class Strategy(ABC):
 
     def __repr__(self) -> str:
         return self.__str__()
+
+BaseStrategy = Strategy  # Alias for backward compatibility

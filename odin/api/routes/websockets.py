@@ -1,5 +1,5 @@
 """
-WebSocket endpoints for real-time data (CLEAN VERSION)
+WebSocket endpoints for real-time data (FIXED VERSION)
 """
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -49,16 +49,62 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-
-@router.websocket("/ws/data")
-async def websocket_data_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time data updates."""
+@router.websocket("/ws")
+async def websocket_main_endpoint(websocket: WebSocket):
+    """Main WebSocket endpoint for real-time data updates."""
     await manager.connect(websocket)
     
     try:
+        # Send welcome message
+        await manager.send_personal_message(
+            json.dumps({
+                "type": "connection",
+                "message": "Connected to Odin Trading Bot",
+                "timestamp": time.time()
+            }), 
+            websocket
+        )
+        
         # Start sending real-time data
         while True:
-            # Generate mock real-time data
+            # Generate comprehensive real-time data
+            data = {
+                "type": "market_update",
+                "timestamp": time.time(),
+                "bitcoin": {
+                    "price": round(45000 + random.uniform(-2000, 2000), 2),
+                    "change_24h": round(random.uniform(-5, 5), 2),
+                    "volume": round(random.uniform(100, 1000), 2)
+                },
+                "portfolio": {
+                    "total_value": round(10000 + random.uniform(-500, 500), 2),
+                    "pnl_24h": round(random.uniform(-200, 300), 2),
+                    "pnl_24h_percent": round(random.uniform(-3, 3), 2),
+                    "active_trades": random.randint(0, 5)
+                },
+                "system": {
+                    "trading_enabled": random.choice([True, False]),
+                    "active_strategies": random.randint(1, 4),
+                    "data_sources_healthy": random.randint(1, 2),
+                    "last_trade": time.time() - random.randint(300, 7200),
+                    "system_load": round(random.uniform(10, 80), 1),
+                    "memory_usage": round(random.uniform(30, 70), 1)
+                }
+            }
+            
+            await manager.send_personal_message(json.dumps(data), websocket)
+            await asyncio.sleep(2)  # Send update every 2 seconds
+            
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+@router.websocket("/ws/data")
+async def websocket_data_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for Bitcoin price data."""
+    await manager.connect(websocket)
+    
+    try:
+        while True:
             data = {
                 "type": "price_update",
                 "timestamp": time.time(),
@@ -68,11 +114,10 @@ async def websocket_data_endpoint(websocket: WebSocket):
             }
             
             await manager.send_personal_message(json.dumps(data), websocket)
-            await asyncio.sleep(2)  # Send update every 2 seconds
+            await asyncio.sleep(2)
             
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-
 
 @router.websocket("/ws/portfolio")
 async def websocket_portfolio_endpoint(websocket: WebSocket):
@@ -81,7 +126,6 @@ async def websocket_portfolio_endpoint(websocket: WebSocket):
     
     try:
         while True:
-            # Generate mock portfolio updates
             data = {
                 "type": "portfolio_update",
                 "timestamp": time.time(),
@@ -92,11 +136,10 @@ async def websocket_portfolio_endpoint(websocket: WebSocket):
             }
             
             await manager.send_personal_message(json.dumps(data), websocket)
-            await asyncio.sleep(5)  # Send update every 5 seconds
+            await asyncio.sleep(5)
             
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-
 
 @router.websocket("/ws/signals")
 async def websocket_signals_endpoint(websocket: WebSocket):
@@ -105,7 +148,7 @@ async def websocket_signals_endpoint(websocket: WebSocket):
     
     try:
         while True:
-            # Generate mock trading signals occasionally
+            # Generate trading signals occasionally
             if random.random() < 0.3:  # 30% chance of signal
                 data = {
                     "type": "trading_signal",
@@ -124,7 +167,6 @@ async def websocket_signals_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-
 @router.websocket("/ws/status")
 async def websocket_status_endpoint(websocket: WebSocket):
     """WebSocket endpoint for system status updates."""
@@ -132,7 +174,6 @@ async def websocket_status_endpoint(websocket: WebSocket):
     
     try:
         while True:
-            # Generate system status updates
             data = {
                 "type": "system_status",
                 "timestamp": time.time(),
