@@ -284,6 +284,79 @@ if PYDANTIC_VERSION > 0:
         pnl: Optional[float] = Field(None, description="Profit and Loss")
         pnl_percentage: Optional[float] = Field(None, description="P&L as percentage")
 
+    class TradeOrder(OdinBaseModel):
+        """Trade order model for order management."""
+        id: str = Field(..., description="Order unique identifier")
+        portfolio_id: str = Field(..., description="Associated portfolio ID")
+        strategy_id: Optional[str] = Field(None, description="Strategy that generated this order")
+        
+        # Order details
+        symbol: str = Field(default="BTC-USD", description="Trading symbol")
+        side: OrderSide = Field(..., description="Buy or sell")
+        order_type: OrderType = Field(..., description="Order type (market, limit, etc.)")
+        status: OrderStatus = Field(default=OrderStatus.PENDING, description="Order status")
+        
+        # Amounts and pricing
+        quantity: float = Field(..., gt=0, description="Order quantity")
+        price: Optional[float] = Field(None, gt=0, description="Order price (for limit orders)")
+        filled_quantity: float = Field(default=0, ge=0, description="Filled quantity")
+        average_fill_price: Optional[float] = Field(None, gt=0, description="Average fill price")
+        
+        # Fees and costs
+        fees: float = Field(default=0, ge=0, description="Trading fees")
+        commission: float = Field(default=0, ge=0, description="Commission paid")
+        
+        # Risk management
+        stop_loss: Optional[float] = Field(None, gt=0, description="Stop loss price")
+        take_profit: Optional[float] = Field(None, gt=0, description="Take profit price")
+        
+        # Timestamps
+        created_at: datetime = Field(default_factory=datetime.now, description="Order creation time")
+        updated_at: datetime = Field(default_factory=datetime.now, description="Last update time")
+        filled_at: Optional[datetime] = Field(None, description="Order fill time")
+        
+        # Execution details
+        exchange_order_id: Optional[str] = Field(None, description="Exchange order ID")
+        error_message: Optional[str] = Field(None, description="Error message if failed")
+        
+        # Performance tracking
+        pnl: Optional[float] = Field(None, description="Realized P&L for this order")
+        pnl_percentage: Optional[float] = Field(None, description="P&L as percentage")
+
+    class TradeSignal(OdinBaseModel):
+        """Trade signal model for strategy signals."""
+        id: str = Field(..., description="Signal unique identifier")
+        strategy_id: str = Field(..., description="Strategy that generated the signal")
+        
+        # Signal details
+        symbol: str = Field(default="BTC-USD", description="Trading symbol")
+        signal_type: SignalType = Field(..., description="Signal type (buy/sell/hold)")
+        confidence: float = Field(..., ge=0, le=1, description="Signal confidence (0-1)")
+        strength: float = Field(default=0.5, ge=0, le=1, description="Signal strength")
+        
+        # Price information
+        price: float = Field(..., gt=0, description="Price when signal generated")
+        target_price: Optional[float] = Field(None, gt=0, description="Target price")
+        stop_loss_price: Optional[float] = Field(None, gt=0, description="Stop loss price")
+        
+        # Technical indicators
+        indicators: Optional[Dict[str, float]] = Field(None, description="Technical indicators")
+        reasoning: Optional[str] = Field(None, description="Signal reasoning")
+        
+        # Risk metrics
+        risk_score: float = Field(default=0.5, ge=0, le=1, description="Risk score")
+        expected_return: Optional[float] = Field(None, description="Expected return percentage")
+        
+        # Execution tracking
+        executed: bool = Field(default=False, description="Whether signal was executed")
+        execution_id: Optional[str] = Field(None, description="Related execution ID")
+        execution_price: Optional[float] = Field(None, gt=0, description="Actual execution price")
+        
+        # Timestamps
+        created_at: datetime = Field(default_factory=datetime.now, description="Signal creation time")
+        expires_at: Optional[datetime] = Field(None, description="Signal expiration time")
+        executed_at: Optional[datetime] = Field(None, description="Signal execution time")
+
 else:
     @dataclass
     class TradeExecution(OdinBaseModel):
@@ -305,6 +378,65 @@ else:
         def __post_init__(self):
             if self.amount <= 0:
                 raise ValueError('Amount must be positive')
+            if self.price <= 0:
+                raise ValueError('Price must be positive')
+
+    @dataclass
+    class TradeOrder(OdinBaseModel):
+        id: str
+        portfolio_id: str
+        strategy_id: Optional[str] = None
+        symbol: str = "BTC-USD"
+        side: OrderSide = OrderSide.BUY
+        order_type: OrderType = OrderType.MARKET
+        status: OrderStatus = OrderStatus.PENDING
+        quantity: float = 0.0
+        price: Optional[float] = None
+        filled_quantity: float = 0.0
+        average_fill_price: Optional[float] = None
+        fees: float = 0.0
+        commission: float = 0.0
+        stop_loss: Optional[float] = None
+        take_profit: Optional[float] = None
+        created_at: datetime = field(default_factory=datetime.now)
+        updated_at: datetime = field(default_factory=datetime.now)
+        filled_at: Optional[datetime] = None
+        exchange_order_id: Optional[str] = None
+        error_message: Optional[str] = None
+        pnl: Optional[float] = None
+        pnl_percentage: Optional[float] = None
+        
+        def __post_init__(self):
+            if self.quantity <= 0:
+                raise ValueError('Quantity must be positive')
+            if self.price is not None and self.price <= 0:
+                raise ValueError('Price must be positive')
+
+    @dataclass
+    class TradeSignal(OdinBaseModel):
+        id: str
+        strategy_id: str
+        symbol: str = "BTC-USD"
+        signal_type: SignalType = SignalType.HOLD
+        confidence: float = 0.5
+        strength: float = 0.5
+        price: float = 0.0
+        target_price: Optional[float] = None
+        stop_loss_price: Optional[float] = None
+        indicators: Optional[Dict[str, float]] = None
+        reasoning: Optional[str] = None
+        risk_score: float = 0.5
+        expected_return: Optional[float] = None
+        executed: bool = False
+        execution_id: Optional[str] = None
+        execution_price: Optional[float] = None
+        created_at: datetime = field(default_factory=datetime.now)
+        expires_at: Optional[datetime] = None
+        executed_at: Optional[datetime] = None
+        
+        def __post_init__(self):
+            if not 0 <= self.confidence <= 1:
+                raise ValueError('Confidence must be between 0 and 1')
             if self.price <= 0:
                 raise ValueError('Price must be positive')
 
@@ -363,6 +495,297 @@ if PYDANTIC_VERSION > 0:
         # Allocation
         allocation: Optional[Dict[str, float]] = Field(None, description="Asset allocation percentages")
 
+    class Portfolio(OdinBaseModel):
+        """Portfolio management model."""
+        id: str = Field(..., description="Portfolio unique identifier")
+        name: str = Field(..., description="Portfolio name")
+        description: Optional[str] = Field(None, description="Portfolio description")
+        
+        # Core values
+        total_value: float = Field(..., gt=0, description="Total portfolio value in USD")
+        cash_balance: float = Field(..., ge=0, description="Available cash balance")
+        invested_amount: float = Field(..., ge=0, description="Total invested amount")
+        
+        # Performance metrics
+        unrealized_pnl: Optional[float] = Field(None, description="Unrealized P&L")
+        realized_pnl: Optional[float] = Field(None, description="Realized P&L")
+        daily_pnl: Optional[float] = Field(None, description="24h P&L")
+        daily_pnl_percentage: Optional[float] = Field(None, description="24h P&L percentage")
+        
+        # Risk metrics
+        max_drawdown: Optional[float] = Field(None, description="Maximum drawdown")
+        sharpe_ratio: Optional[float] = Field(None, description="Sharpe ratio")
+        volatility: Optional[float] = Field(None, ge=0, description="Portfolio volatility")
+        
+        # Allocation
+        allocation: Optional[Dict[str, float]] = Field(None, description="Asset allocation percentages")
+        target_allocation: Optional[Dict[str, float]] = Field(None, description="Target allocation percentages")
+        
+        # Timestamps
+        created_at: datetime = Field(default_factory=datetime.now, description="Portfolio creation time")
+        updated_at: datetime = Field(default_factory=datetime.now, description="Last update time")
+        
+        # Status
+        status: str = Field(default="active", description="Portfolio status")
+
+    class PortfolioSummary(OdinBaseModel):
+        """Portfolio summary metrics model."""
+        portfolio_id: str = Field(..., description="Portfolio ID")
+        
+        # Core metrics
+        total_value: float = Field(..., gt=0, description="Total portfolio value")
+        available_cash: float = Field(..., ge=0, description="Available cash")
+        invested_amount: float = Field(..., ge=0, description="Total invested")
+        
+        # P&L metrics
+        unrealized_pnl: float = Field(default=0, description="Unrealized P&L")
+        realized_pnl: float = Field(default=0, description="Realized P&L")
+        total_fees_paid: float = Field(default=0, ge=0, description="Total fees paid")
+        
+        # Performance metrics
+        number_of_trades: int = Field(default=0, ge=0, description="Total number of trades")
+        win_rate: float = Field(default=0, ge=0, le=100, description="Win rate percentage")
+        avg_trade_size: float = Field(default=0, ge=0, description="Average trade size")
+        largest_win: float = Field(default=0, description="Largest winning trade")
+        largest_loss: float = Field(default=0, description="Largest losing trade")
+        
+        # Time tracking
+        created_at: datetime = Field(default_factory=datetime.now, description="Summary creation time")
+        updated_at: datetime = Field(default_factory=datetime.now, description="Last update time")
+
+    class Allocation(OdinBaseModel):
+        """Portfolio allocation model."""
+        portfolio_id: str = Field(..., description="Portfolio ID")
+        
+        # Current allocation
+        current_allocation: Dict[str, float] = Field(..., description="Current asset allocation percentages")
+        target_allocation: Dict[str, float] = Field(..., description="Target asset allocation percentages")
+        
+        # Allocation drift
+        allocation_drift: Dict[str, float] = Field(..., description="Difference between current and target")
+        drift_percentage: float = Field(..., description="Total drift as percentage")
+        
+        # Rebalancing
+        rebalance_needed: bool = Field(default=False, description="Whether rebalancing is needed")
+        rebalance_threshold: float = Field(default=5.0, description="Rebalance threshold percentage")
+        last_rebalance: Optional[datetime] = Field(None, description="Last rebalance timestamp")
+        
+        # Metadata
+        created_at: datetime = Field(default_factory=datetime.now, description="Creation time")
+        updated_at: datetime = Field(default_factory=datetime.now, description="Last update time")
+
+    class PerformanceMetrics(OdinBaseModel):
+        """Performance metrics model."""
+        portfolio_id: str = Field(..., description="Portfolio ID")
+        timeframe: str = Field(..., description="Timeframe (1d, 7d, 30d, etc.)")
+        
+        # Return metrics
+        total_return: float = Field(..., description="Total return percentage")
+        annualized_return: float = Field(..., description="Annualized return percentage")
+        daily_return: float = Field(default=0, description="Daily return percentage")
+        
+        # Risk-adjusted metrics
+        sharpe_ratio: float = Field(..., description="Sharpe ratio")
+        sortino_ratio: Optional[float] = Field(None, description="Sortino ratio")
+        calmar_ratio: Optional[float] = Field(None, description="Calmar ratio")
+        
+        # Volatility metrics
+        volatility: float = Field(..., ge=0, description="Volatility percentage")
+        downside_volatility: Optional[float] = Field(None, ge=0, description="Downside volatility")
+        
+        # Drawdown metrics
+        max_drawdown: float = Field(..., description="Maximum drawdown percentage")
+        current_drawdown: float = Field(default=0, description="Current drawdown percentage")
+        drawdown_duration: int = Field(default=0, ge=0, description="Current drawdown duration in days")
+        
+        # Win/Loss metrics
+        win_rate: float = Field(..., ge=0, le=100, description="Win rate percentage")
+        profit_factor: Optional[float] = Field(None, description="Profit factor")
+        average_win: float = Field(default=0, description="Average winning trade")
+        average_loss: float = Field(default=0, description="Average losing trade")
+        
+        # Trade metrics
+        total_trades: int = Field(default=0, ge=0, description="Total number of trades")
+        winning_trades: int = Field(default=0, ge=0, description="Number of winning trades")
+        losing_trades: int = Field(default=0, ge=0, description="Number of losing trades")
+        
+        # Portfolio metrics
+        starting_value: float = Field(..., gt=0, description="Starting portfolio value")
+        ending_value: float = Field(..., gt=0, description="Ending portfolio value")
+        peak_value: float = Field(..., gt=0, description="Peak portfolio value")
+        
+        # Benchmarking
+        benchmark_return: Optional[float] = Field(None, description="Benchmark return percentage")
+        alpha: Optional[float] = Field(None, description="Alpha vs benchmark")
+        beta: Optional[float] = Field(None, description="Beta vs benchmark")
+        
+        # Timestamps
+        period_start: datetime = Field(..., description="Performance period start")
+        period_end: datetime = Field(..., description="Performance period end")
+        calculated_at: datetime = Field(default_factory=datetime.now, description="Calculation timestamp")
+
+    class RiskMetrics(OdinBaseModel):
+        """Risk metrics model."""
+        portfolio_id: str = Field(..., description="Portfolio ID")
+        
+        # Value at Risk
+        var_95: float = Field(..., description="Value at Risk at 95% confidence")
+        var_99: float = Field(..., description="Value at Risk at 99% confidence")
+        cvar_95: float = Field(..., description="Conditional VaR at 95% confidence")
+        
+        # Risk ratios
+        risk_score: float = Field(..., ge=0, le=10, description="Overall risk score (0-10)")
+        concentration_risk: float = Field(..., ge=0, le=1, description="Concentration risk (0-1)")
+        liquidity_risk: float = Field(..., ge=0, le=1, description="Liquidity risk (0-1)")
+        
+        # Exposure metrics
+        current_exposure: float = Field(..., ge=0, le=1, description="Current market exposure")
+        max_exposure_allowed: float = Field(..., ge=0, le=1, description="Maximum allowed exposure")
+        leverage: float = Field(default=1.0, ge=1, description="Current leverage ratio")
+        
+        # Position sizing
+        largest_position_pct: float = Field(..., ge=0, le=100, description="Largest position as percentage")
+        avg_position_size: float = Field(..., ge=0, description="Average position size")
+        
+        # Drawdown risk
+        max_historical_drawdown: float = Field(..., description="Maximum historical drawdown")
+        time_to_recovery: Optional[int] = Field(None, ge=0, description="Average recovery time in days")
+        
+        # Correlation metrics
+        correlation_to_btc: float = Field(..., ge=-1, le=1, description="Correlation to Bitcoin")
+        diversification_ratio: Optional[float] = Field(None, description="Portfolio diversification ratio")
+        
+        # Stress testing
+        stress_test_results: Optional[Dict[str, float]] = Field(None, description="Stress test scenario results")
+        
+        # Risk limits compliance
+        within_risk_limits: bool = Field(..., description="Whether portfolio is within risk limits")
+        limit_breaches: List[str] = Field(default_factory=list, description="Current limit breaches")
+        
+        # Timestamps
+        calculated_at: datetime = Field(default_factory=datetime.now, description="Calculation timestamp")
+        next_calculation: Optional[datetime] = Field(None, description="Next scheduled calculation")
+
+    class Position(OdinBaseModel):
+        """Trading position model."""
+        id: str = Field(..., description="Position unique identifier")
+        portfolio_id: str = Field(..., description="Associated portfolio ID")
+        strategy_id: Optional[str] = Field(None, description="Strategy that opened this position")
+        
+        # Position details
+        symbol: str = Field(default="BTC-USD", description="Trading symbol")
+        side: PositionType = Field(..., description="Long or short position")
+        status: str = Field(default="open", description="Position status (open, closed, partial)")
+        
+        # Size and pricing
+        size: float = Field(..., gt=0, description="Position size")
+        entry_price: float = Field(..., gt=0, description="Average entry price")
+        current_price: Optional[float] = Field(None, gt=0, description="Current market price")
+        
+        # Cost basis
+        cost_basis: float = Field(..., gt=0, description="Total cost basis")
+        market_value: Optional[float] = Field(None, description="Current market value")
+        
+        # P&L tracking
+        unrealized_pnl: float = Field(default=0, description="Unrealized P&L")
+        realized_pnl: float = Field(default=0, description="Realized P&L")
+        unrealized_pnl_percent: float = Field(default=0, description="Unrealized P&L percentage")
+        
+        # Risk management
+        stop_loss: Optional[float] = Field(None, gt=0, description="Stop loss price")
+        take_profit: Optional[float] = Field(None, gt=0, description="Take profit price")
+        trailing_stop: Optional[float] = Field(None, description="Trailing stop distance")
+        
+        # Fees and costs
+        total_fees: float = Field(default=0, ge=0, description="Total fees paid")
+        commission: float = Field(default=0, ge=0, description="Commission paid")
+        
+        # Timestamps
+        opened_at: datetime = Field(default_factory=datetime.now, description="Position open time")
+        closed_at: Optional[datetime] = Field(None, description="Position close time")
+        updated_at: datetime = Field(default_factory=datetime.now, description="Last update time")
+        
+        # Duration tracking
+        duration_minutes: Optional[int] = Field(None, ge=0, description="Position duration in minutes")
+        
+        # Execution details
+        opening_orders: List[str] = Field(default_factory=list, description="Order IDs that opened this position")
+        closing_orders: List[str] = Field(default_factory=list, description="Order IDs that closed this position")
+
+    class DrawdownAlert(OdinBaseModel):
+        """Drawdown alert model."""
+        id: str = Field(..., description="Alert unique identifier")
+        portfolio_id: str = Field(..., description="Associated portfolio ID")
+        
+        # Alert details
+        alert_type: str = Field(..., description="Type of drawdown alert")
+        severity: str = Field(..., description="Alert severity (warning, critical, emergency)")
+        
+        # Drawdown information
+        current_drawdown: float = Field(..., description="Current drawdown percentage")
+        max_allowed_drawdown: float = Field(..., description="Maximum allowed drawdown")
+        peak_value: float = Field(..., gt=0, description="Portfolio peak value")
+        current_value: float = Field(..., gt=0, description="Current portfolio value")
+        
+        # Duration tracking
+        drawdown_duration: int = Field(..., ge=0, description="Drawdown duration in hours")
+        max_duration_allowed: Optional[int] = Field(None, description="Maximum allowed duration")
+        
+        # Risk metrics
+        recovery_estimate: Optional[int] = Field(None, description="Estimated recovery time in days")
+        risk_score: float = Field(..., ge=0, le=10, description="Current risk score")
+        
+        # Actions taken
+        actions_taken: List[str] = Field(default_factory=list, description="Automated actions taken")
+        manual_review_required: bool = Field(default=False, description="Whether manual review is required")
+        
+        # Status
+        status: str = Field(default="active", description="Alert status (active, resolved, dismissed)")
+        acknowledged: bool = Field(default=False, description="Whether alert has been acknowledged")
+        acknowledged_by: Optional[str] = Field(None, description="User who acknowledged the alert")
+        
+        # Timestamps
+        triggered_at: datetime = Field(default_factory=datetime.now, description="Alert trigger time")
+        resolved_at: Optional[datetime] = Field(None, description="Alert resolution time")
+        acknowledged_at: Optional[datetime] = Field(None, description="Alert acknowledgment time")
+        
+        # Additional context
+        market_conditions: Optional[Dict[str, Any]] = Field(None, description="Market conditions when triggered")
+        recommended_actions: List[str] = Field(default_factory=list, description="Recommended actions")
+        
+        # Escalation
+        escalation_level: int = Field(default=1, ge=1, le=5, description="Escalation level (1-5)")
+        escalated_to: Optional[str] = Field(None, description="Who the alert was escalated to")
+
+    class RiskLimits(OdinBaseModel):
+        """Risk management limits model."""
+        portfolio_id: str = Field(..., description="Portfolio ID")
+        
+        # Position limits
+        max_position_size: float = Field(default=0.95, ge=0, le=1, description="Maximum position size (0-1)")
+        max_leverage: float = Field(default=1.0, ge=1, description="Maximum leverage allowed")
+        
+        # Risk per trade
+        risk_per_trade: float = Field(default=0.02, ge=0, le=0.1, description="Risk per trade (0-0.1)")
+        max_daily_loss: float = Field(default=0.05, ge=0, le=0.2, description="Maximum daily loss (0-0.2)")
+        max_drawdown: float = Field(default=0.15, ge=0, le=0.5, description="Maximum drawdown (0-0.5)")
+        
+        # Exposure limits
+        max_exposure: float = Field(default=0.8, ge=0, le=1, description="Maximum portfolio exposure")
+        concentration_limit: float = Field(default=0.3, ge=0, le=1, description="Single asset concentration limit")
+        
+        # Stop loss settings
+        global_stop_loss: Optional[float] = Field(None, description="Global stop loss percentage")
+        trailing_stop: bool = Field(default=False, description="Enable trailing stop loss")
+        
+        # Time-based limits
+        max_trades_per_day: int = Field(default=50, ge=0, description="Maximum trades per day")
+        cooldown_period: int = Field(default=0, ge=0, description="Cooldown period in minutes")
+        
+        # Metadata
+        created_at: datetime = Field(default_factory=datetime.now, description="Creation time")
+        updated_at: datetime = Field(default_factory=datetime.now, description="Last update time")
+
 else:
     @dataclass
     class PortfolioSnapshot(OdinBaseModel):
@@ -377,6 +800,227 @@ else:
         def __post_init__(self):
             if self.total_value < 0:
                 raise ValueError('Total value cannot be negative')
+
+    @dataclass
+    class Portfolio(OdinBaseModel):
+        id: str
+        name: str
+        description: Optional[str] = None
+        total_value: float = 0.0
+        cash_balance: float = 0.0
+        invested_amount: float = 0.0
+        unrealized_pnl: Optional[float] = None
+        realized_pnl: Optional[float] = None
+        daily_pnl: Optional[float] = None
+        daily_pnl_percentage: Optional[float] = None
+        max_drawdown: Optional[float] = None
+        sharpe_ratio: Optional[float] = None
+        volatility: Optional[float] = None
+        allocation: Optional[Dict[str, float]] = None
+        target_allocation: Optional[Dict[str, float]] = None
+        created_at: datetime = field(default_factory=datetime.now)
+        updated_at: datetime = field(default_factory=datetime.now)
+        status: str = "active"
+        
+        def __post_init__(self):
+            if self.total_value < 0:
+                raise ValueError('Total value cannot be negative')
+            if self.cash_balance < 0:
+                raise ValueError('Cash balance cannot be negative')
+
+    @dataclass
+    class PortfolioSummary(OdinBaseModel):
+        portfolio_id: str
+        total_value: float = 0.0
+        available_cash: float = 0.0
+        invested_amount: float = 0.0
+        unrealized_pnl: float = 0.0
+        realized_pnl: float = 0.0
+        total_fees_paid: float = 0.0
+        number_of_trades: int = 0
+        win_rate: float = 0.0
+        avg_trade_size: float = 0.0
+        largest_win: float = 0.0
+        largest_loss: float = 0.0
+        created_at: datetime = field(default_factory=datetime.now)
+        updated_at: datetime = field(default_factory=datetime.now)
+        
+        def __post_init__(self):
+            if self.total_value < 0:
+                raise ValueError('Total value cannot be negative')
+            if not 0 <= self.win_rate <= 100:
+                raise ValueError('Win rate must be between 0 and 100')
+
+    @dataclass
+    class Allocation(OdinBaseModel):
+        portfolio_id: str
+        current_allocation: Dict[str, float] = field(default_factory=dict)
+        target_allocation: Dict[str, float] = field(default_factory=dict)
+        allocation_drift: Dict[str, float] = field(default_factory=dict)
+        drift_percentage: float = 0.0
+        rebalance_needed: bool = False
+        rebalance_threshold: float = 5.0
+        last_rebalance: Optional[datetime] = None
+        created_at: datetime = field(default_factory=datetime.now)
+        updated_at: datetime = field(default_factory=datetime.now)
+
+    @dataclass
+    class RiskLimits(OdinBaseModel):
+        portfolio_id: str
+        max_position_size: float = 0.95
+        max_leverage: float = 1.0
+        risk_per_trade: float = 0.02
+        max_daily_loss: float = 0.05
+        max_drawdown: float = 0.15
+        max_exposure: float = 0.8
+        concentration_limit: float = 0.3
+        global_stop_loss: Optional[float] = None
+        trailing_stop: bool = False
+        max_trades_per_day: int = 50
+        cooldown_period: int = 0
+        created_at: datetime = field(default_factory=datetime.now)
+        updated_at: datetime = field(default_factory=datetime.now)
+        
+        def __post_init__(self):
+            if not 0 <= self.max_position_size <= 1:
+                raise ValueError('Max position size must be between 0 and 1')
+            if not 0 <= self.risk_per_trade <= 0.1:
+                raise ValueError('Risk per trade must be between 0 and 0.1')
+
+    @dataclass
+    class PerformanceMetrics(OdinBaseModel):
+        portfolio_id: str
+        timeframe: str
+        total_return: float = 0.0
+        annualized_return: float = 0.0
+        daily_return: float = 0.0
+        sharpe_ratio: float = 0.0
+        sortino_ratio: Optional[float] = None
+        calmar_ratio: Optional[float] = None
+        volatility: float = 0.0
+        downside_volatility: Optional[float] = None
+        max_drawdown: float = 0.0
+        current_drawdown: float = 0.0
+        drawdown_duration: int = 0
+        win_rate: float = 0.0
+        profit_factor: Optional[float] = None
+        average_win: float = 0.0
+        average_loss: float = 0.0
+        total_trades: int = 0
+        winning_trades: int = 0
+        losing_trades: int = 0
+        starting_value: float = 10000.0
+        ending_value: float = 10000.0
+        peak_value: float = 10000.0
+        benchmark_return: Optional[float] = None
+        alpha: Optional[float] = None
+        beta: Optional[float] = None
+        period_start: datetime = field(default_factory=datetime.now)
+        period_end: datetime = field(default_factory=datetime.now)
+        calculated_at: datetime = field(default_factory=datetime.now)
+        
+        def __post_init__(self):
+            if not 0 <= self.win_rate <= 100:
+                raise ValueError('Win rate must be between 0 and 100')
+
+    @dataclass
+    class RiskMetrics(OdinBaseModel):
+        portfolio_id: str
+        var_95: float = 0.0
+        var_99: float = 0.0
+        cvar_95: float = 0.0
+        risk_score: float = 5.0
+        concentration_risk: float = 0.0
+        liquidity_risk: float = 0.0
+        current_exposure: float = 0.0
+        max_exposure_allowed: float = 0.8
+        leverage: float = 1.0
+        largest_position_pct: float = 0.0
+        avg_position_size: float = 0.0
+        max_historical_drawdown: float = 0.0
+        time_to_recovery: Optional[int] = None
+        correlation_to_btc: float = 1.0
+        diversification_ratio: Optional[float] = None
+        stress_test_results: Optional[Dict[str, float]] = None
+        within_risk_limits: bool = True
+        limit_breaches: List[str] = field(default_factory=list)
+        calculated_at: datetime = field(default_factory=datetime.now)
+        next_calculation: Optional[datetime] = None
+        
+        def __post_init__(self):
+            if not 0 <= self.risk_score <= 10:
+                raise ValueError('Risk score must be between 0 and 10')
+            if not -1 <= self.correlation_to_btc <= 1:
+                raise ValueError('Correlation must be between -1 and 1')
+
+    @dataclass
+    class Position(OdinBaseModel):
+        id: str
+        portfolio_id: str
+        strategy_id: Optional[str] = None
+        symbol: str = "BTC-USD"
+        side: PositionType = PositionType.LONG
+        status: str = "open"
+        size: float = 0.0
+        entry_price: float = 0.0
+        current_price: Optional[float] = None
+        cost_basis: float = 0.0
+        market_value: Optional[float] = None
+        unrealized_pnl: float = 0.0
+        realized_pnl: float = 0.0
+        unrealized_pnl_percent: float = 0.0
+        stop_loss: Optional[float] = None
+        take_profit: Optional[float] = None
+        trailing_stop: Optional[float] = None
+        total_fees: float = 0.0
+        commission: float = 0.0
+        opened_at: datetime = field(default_factory=datetime.now)
+        closed_at: Optional[datetime] = None
+        updated_at: datetime = field(default_factory=datetime.now)
+        duration_minutes: Optional[int] = None
+        opening_orders: List[str] = field(default_factory=list)
+        closing_orders: List[str] = field(default_factory=list)
+        
+        def __post_init__(self):
+            if self.size <= 0:
+                raise ValueError('Position size must be positive')
+            if self.entry_price <= 0:
+                raise ValueError('Entry price must be positive')
+
+    @dataclass
+    class DrawdownAlert(OdinBaseModel):
+        id: str
+        portfolio_id: str
+        alert_type: str = "drawdown_warning"
+        severity: str = "warning"
+        current_drawdown: float = 0.0
+        max_allowed_drawdown: float = 15.0
+        peak_value: float = 10000.0
+        current_value: float = 10000.0
+        drawdown_duration: int = 0
+        max_duration_allowed: Optional[int] = None
+        recovery_estimate: Optional[int] = None
+        risk_score: float = 5.0
+        actions_taken: List[str] = field(default_factory=list)
+        manual_review_required: bool = False
+        status: str = "active"
+        acknowledged: bool = False
+        acknowledged_by: Optional[str] = None
+        triggered_at: datetime = field(default_factory=datetime.now)
+        resolved_at: Optional[datetime] = None
+        acknowledged_at: Optional[datetime] = None
+        market_conditions: Optional[Dict[str, Any]] = None
+        recommended_actions: List[str] = field(default_factory=list)
+        escalation_level: int = 1
+        escalated_to: Optional[str] = None
+        
+        def __post_init__(self):
+            if not 1 <= self.escalation_level <= 5:
+                raise ValueError('Escalation level must be between 1 and 5')
+            if self.peak_value <= 0:
+                raise ValueError('Peak value must be positive')
+            if self.current_value <= 0:
+                raise ValueError('Current value must be positive')
 
 # API Response Models
 if PYDANTIC_VERSION > 0:
@@ -492,7 +1136,7 @@ else:
 
 # Utility Functions
 def create_price_data(timestamp: datetime, price: float, volume: float = None, 
-                     market_cap: float = None, source: str = "unknown") -> PriceData:
+                      market_cap: float = None, source: str = "unknown") -> PriceData:
     """Create a PriceData instance."""
     return PriceData(
         symbol="BTC-USD",
@@ -503,8 +1147,8 @@ def create_price_data(timestamp: datetime, price: float, volume: float = None,
     )
 
 def create_ohlc_data(symbol: str, timeframe: str, timestamp: datetime,
-                    open_price: float, high: float, low: float, close: float,
-                    volume: float = None) -> OHLCData:
+                     open_price: float, high: float, low: float, close: float,
+                     volume: float = None) -> OHLCData:
     """Create an OHLCData instance."""
     return OHLCData(
         symbol=symbol,
@@ -536,7 +1180,7 @@ def create_api_response(success: bool, data: Any = None, message: str = None) ->
     return APIResponse(success=success, data=data, message=message)
 
 def create_market_depth(symbol: str, bids: List[List[float]], asks: List[List[float]],
-                       timestamp: datetime = None, source: str = "unknown") -> MarketDepth:
+                        timestamp: datetime = None, source: str = "unknown") -> MarketDepth:
     """Create a MarketDepth instance."""
     return MarketDepth(
         symbol=symbol,
@@ -558,13 +1202,14 @@ __all__ = [
     'PriceData', 'HistoricalData', 'OHLCData', 'MarketDepth', 'DataStats',
     
     # Trading Models
-    'TradeExecution',
+    'TradeExecution', 'TradeOrder', 'TradeSignal', 'Position',
     
     # Strategy Models
     'StrategySignal',
     
     # Portfolio Models
-    'PortfolioSnapshot',
+    'PortfolioSnapshot', 'Portfolio', 'PortfolioSummary', 'Allocation', 'RiskLimits',
+    'PerformanceMetrics', 'RiskMetrics', 'DrawdownAlert',
     
     # API Models
     'APIResponse', 'ErrorResponse',
