@@ -110,17 +110,17 @@ def create_app() -> FastAPI:
         # FIXED: Remove duplicate strategy endpoints - let them be handled by the router
     @app.post("/api/v1/strategies/{strategy_id}/enable")
     async def enable_strategy_bypass(strategy_id: str):
-            """Enable a strategy - bypasses authentication."""
-            print(f"🟢 ENABLING STRATEGY: {strategy_id}")
-            return {
-                "success": True,
-                "message": f"Strategy {strategy_id} enabled successfully",
-                "data": {
-                    "strategy_id": strategy_id,
-                    "status": "active",
-                    "enabled_at": datetime.now().isoformat()
-                }
+        """Enable a strategy - bypasses authentication."""
+        print(f"🟢 ENABLING STRATEGY: {strategy_id}")
+        return {
+            "success": True,
+            "message": f"Strategy {strategy_id} enabled successfully",
+            "data": {
+                "strategy_id": strategy_id,
+                "status": "active",
+                "enabled_at": datetime.now().isoformat()
             }
+        }
 
     @app.post("/api/v1/strategies/{strategy_id}/disable")
     async def disable_strategy_bypass(strategy_id: str):
