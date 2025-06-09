@@ -86,7 +86,12 @@ def get_strategy_by_name(strategy_name: str):
         "rsi": rsi_strategy,
         "bb": bb_strategy,
         "bollinger_bands": bb_strategy,
-        "macd": macd_strategy
+        "macd": macd_strategy,
+
+        "ma_cross": ma_strategy,           
+        "rsi_momentum": rsi_strategy,      
+        "bollinger_bands": bb_strategy,    
+        "macd_trend": macd_strategy
     }
     
     strategy = strategies.get(strategy_name.lower())
