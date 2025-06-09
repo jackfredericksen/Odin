@@ -1,5 +1,5 @@
 /**
- * Odin Bitcoin Trading Dashboard - Chart Manager (Updated with Real Data Integration)
+ * Odin Bitcoin Trading Dashboard - Chart Manager (FIXED VERSION)
  */
 
 class ChartManager {
@@ -66,367 +66,68 @@ class ChartManager {
             strategy: false,
             allocation: false
         };
+
+        // FIXED: Add initialization state tracking
+        this.isInitialized = false;
     }
 
     /**
-     * Initialize all charts
+     * FIXED: Initialize all charts with proper error handling
      */
     init() {
         try {
+            console.log('📊 Initializing Chart Manager...');
+            
+            // FIXED: Check if Chart.js is available
+            if (typeof Chart === 'undefined') {
+                console.error('❌ Chart.js is not loaded');
+                return false;
+            }
+            
             this.initPriceChart();
             this.initStrategyChart();
             this.initAllocationChart();
             
-            console.log('Chart Manager initialized successfully');
+            this.isInitialized = true;
+            console.log('✅ Chart Manager initialized successfully');
+            return true;
         } catch (error) {
-            console.error('Error initializing charts:', error);
+            console.error('❌ Error initializing charts:', error);
+            return false;
         }
     }
 
     /**
-     * Initialize price chart
+     * FIXED: Initialize price chart with better error handling
      */
     initPriceChart() {
         const ctx = document.getElementById('price-chart');
         if (!ctx) {
-            console.warn('Price chart canvas not found');
+            console.warn('⚠️ Price chart canvas not found');
             return;
         }
-
-        this.charts.price = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Bitcoin Price',
-                    data: [],
-                    borderColor: this.colors.primary,
-                    backgroundColor: this.colors.primary + '20',
-                    borderWidth: 2,
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 0,
-                    pointHoverRadius: 6
-                }]
-            },
-            options: {
-                ...this.defaultOptions,
-                plugins: {
-                    ...this.defaultOptions.plugins,
-                    tooltip: {
-                        ...this.defaultOptions.plugins.tooltip,
-                        callbacks: {
-                            title: (context) => {
-                                return this.formatTooltipTime(context[0].label);
-                            },
-                            label: (context) => {
-                                return `Price: ${this.formatCurrency(context.parsed.y)}`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    ...this.defaultOptions.scales,
-                    y: {
-                        ...this.defaultOptions.scales.y,
-                        ticks: {
-                            ...this.defaultOptions.scales.y.ticks,
-                            callback: (value) => {
-                                return this.formatCurrency(value);
-                            }
-                        }
-                    }
-                },
-                interaction: {
-                    intersect: false,
-                    mode: 'index'
-                }
-            }
-        });
-
-        console.log('Price chart initialized');
-    }
-
-    /**
-     * Initialize strategy performance chart
-     */
-    initStrategyChart() {
-        const ctx = document.getElementById('strategy-chart');
-        if (!ctx) {
-            console.warn('Strategy chart canvas not found');
-            return;
-        }
-
-        this.charts.strategy = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Returns (%)',
-                    data: [],
-                    backgroundColor: [],
-                    borderColor: [],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                ...this.defaultOptions,
-                plugins: {
-                    ...this.defaultOptions.plugins,
-                    tooltip: {
-                        ...this.defaultOptions.plugins.tooltip,
-                        callbacks: {
-                            label: (context) => {
-                                const value = context.parsed.y;
-                                return `${context.dataset.label}: ${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    ...this.defaultOptions.scales,
-                    y: {
-                        ...this.defaultOptions.scales.y,
-                        ticks: {
-                            ...this.defaultOptions.scales.y.ticks,
-                            callback: (value) => {
-                                return value + '%';
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        console.log('Strategy chart initialized');
-    }
-
-    /**
-     * Initialize portfolio allocation chart
-     */
-    initAllocationChart() {
-        const ctx = document.getElementById('allocation-chart');
-        if (!ctx) {
-            console.warn('Allocation chart canvas not found');
-            return;
-        }
-
-        this.charts.allocation = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: [],
-                datasets: [{
-                    data: [],
-                    backgroundColor: [
-                        this.colors.primary,
-                        this.colors.success,
-                        this.colors.warning,
-                        this.colors.purple,
-                        this.colors.orange,
-                        this.colors.cyan
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#0f1419'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            color: '#a0aec0',
-                            font: {
-                                size: 11
-                            },
-                            padding: 15
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: '#1a1f2e',
-                        titleColor: '#ffffff',
-                        bodyColor: '#a0aec0',
-                        borderColor: '#2d3748',
-                        borderWidth: 1,
-                        callbacks: {
-                            label: (context) => {
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = ((context.parsed / total) * 100).toFixed(1);
-                                return `${context.label}: ${percentage}%`;
-                            }
-                        }
-                    }
-                },
-                cutout: '60%'
-            }
-        });
-
-        console.log('Allocation chart initialized');
-    }
-
-    /**
-     * Update price chart with new data
-     */
-    async updatePriceChart(hours = 24) {
-        if (this.updateFlags.price) {
-            console.log('Price chart update already in progress');
-            return;
-        }
-
-        this.updateFlags.price = true;
 
         try {
-            console.log(`Updating price chart for ${hours} hours`);
-            
-            const response = await fetch(`/api/v1/data/history/${hours}`);
-            const data = await response.json();
-            
-            if (data.success && data.data && this.charts.price) {
-                const prices = data.data;
-                
-                if (prices.length === 0) {
-                    console.warn('No price data received');
-                    return;
-                }
-
-                const labels = prices.map(p => this.formatChartTime(p.timestamp, hours));
-                const values = prices.map(p => p.price);
-
-                this.charts.price.data.labels = labels;
-                this.charts.price.data.datasets[0].data = values;
-                
-                // Update chart title based on timeframe
-                this.charts.price.options.plugins.title = {
-                    display: true,
-                    text: `Bitcoin Price - Last ${hours} Hours`,
-                    color: '#ffffff'
-                };
-
-                this.charts.price.update('none');
-                console.log(`Price chart updated with ${prices.length} data points`);
-            } else {
-                console.error('Failed to update price chart:', data.error || 'No data');
-                
-                // Show placeholder data if no real data
-                if (this.charts.price) {
-                    this.charts.price.data.labels = ['No Data'];
-                    this.charts.price.data.datasets[0].data = [0];
-                    this.charts.price.update('none');
-                }
-            }
-        } catch (error) {
-            console.error('Error updating price chart:', error);
-            
-            // Show error state in chart
+            // FIXED: Destroy existing chart if it exists
             if (this.charts.price) {
-                this.charts.price.data.labels = ['Error'];
-                this.charts.price.data.datasets[0].data = [0];
-                this.charts.price.update('none');
-            }
-        } finally {
-            this.updateFlags.price = false;
-        }
-    }
-
-    /**
-     * Update strategy performance chart
-     */
-    updateStrategyChart(strategies) {
-        if (!this.charts.strategy || this.updateFlags.strategy) {
-            return;
-        }
-
-        this.updateFlags.strategy = true;
-
-        try {
-            if (!strategies || strategies.length === 0) {
-                // Clear chart if no strategies
-                this.charts.strategy.data.labels = ['No Strategies'];
-                this.charts.strategy.data.datasets[0].data = [0];
-                this.charts.strategy.data.datasets[0].backgroundColor = [this.colors.primary + '40'];
-                this.charts.strategy.data.datasets[0].borderColor = [this.colors.primary];
-                this.charts.strategy.update('none');
-                return;
+                this.charts.price.destroy();
             }
 
-            const labels = strategies.map(s => s.name || s.id);
-            const returns = strategies.map(s => s.return || 0);
-            const colors = returns.map(r => r >= 0 ? this.colors.success : this.colors.danger);
-
-            this.charts.strategy.data.labels = labels;
-            this.charts.strategy.data.datasets[0].data = returns;
-            this.charts.strategy.data.datasets[0].backgroundColor = colors;
-            this.charts.strategy.data.datasets[0].borderColor = colors;
-            
-            this.charts.strategy.update('none');
-            console.log(`Strategy chart updated with ${strategies.length} strategies`);
-        } catch (error) {
-            console.error('Error updating strategy chart:', error);
-        } finally {
-            this.updateFlags.strategy = false;
-        }
-    }
-
-    /**
-     * Update portfolio allocation chart
-     */
-    updateAllocationChart(allocation) {
-        if (!this.charts.allocation || !allocation || this.updateFlags.allocation) {
-            return;
-        }
-
-        this.updateFlags.allocation = true;
-
-        try {
-            const labels = Object.keys(allocation);
-            const values = Object.values(allocation);
-
-            if (labels.length === 0) {
-                // Show default allocation if no data
-                this.charts.allocation.data.labels = ['No Data'];
-                this.charts.allocation.data.datasets[0].data = [100];
-                this.charts.allocation.update('none');
-                return;
-            }
-
-            this.charts.allocation.data.labels = labels;
-            this.charts.allocation.data.datasets[0].data = values;
-            this.charts.allocation.update('none');
-            
-            console.log(`Allocation chart updated with ${labels.length} allocations`);
-        } catch (error) {
-            console.error('Error updating allocation chart:', error);
-        } finally {
-            this.updateFlags.allocation = false;
-        }
-    }
-
-    /**
-     * Create performance comparison chart
-     */
-    createPerformanceChart(containerId, strategies) {
-        const ctx = document.getElementById(containerId);
-        if (!ctx) return null;
-
-        try {
-            const datasets = strategies.map((strategy, index) => ({
-                label: strategy.name,
-                data: strategy.performance_history || this.generateMockPerformanceData(30),
-                borderColor: Object.values(this.colors)[index % Object.keys(this.colors).length],
-                backgroundColor: Object.values(this.colors)[index % Object.keys(this.colors).length] + '20',
-                borderWidth: 2,
-                fill: false,
-                tension: 0.4,
-                pointRadius: 0,
-                pointHoverRadius: 4
-            }));
-
-            return new Chart(ctx, {
+            this.charts.price = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: this.generateTimeLabels(30), // 30 days
-                    datasets: datasets
+                    labels: [],
+                    datasets: [{
+                        label: 'Bitcoin Price',
+                        data: [],
+                        borderColor: this.colors.primary,
+                        backgroundColor: this.colors.primary + '20',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6
+                    }]
                 },
                 options: {
                     ...this.defaultOptions,
@@ -434,8 +135,75 @@ class ChartManager {
                         ...this.defaultOptions.plugins,
                         tooltip: {
                             ...this.defaultOptions.plugins.tooltip,
-                            mode: 'index',
-                            intersect: false,
+                            callbacks: {
+                                title: (context) => {
+                                    return this.formatTooltipTime(context[0].label);
+                                },
+                                label: (context) => {
+                                    return `Price: ${this.formatCurrency(context.parsed.y)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        ...this.defaultOptions.scales,
+                        y: {
+                            ...this.defaultOptions.scales.y,
+                            ticks: {
+                                ...this.defaultOptions.scales.y.ticks,
+                                callback: (value) => {
+                                    return this.formatCurrency(value);
+                                }
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+
+            console.log('✅ Price chart initialized');
+        } catch (error) {
+            console.error('❌ Error initializing price chart:', error);
+        }
+    }
+
+    /**
+     * FIXED: Initialize strategy performance chart with better error handling
+     */
+    initStrategyChart() {
+        const ctx = document.getElementById('strategy-chart');
+        if (!ctx) {
+            console.warn('⚠️ Strategy chart canvas not found');
+            return;
+        }
+
+        try {
+            // FIXED: Destroy existing chart if it exists
+            if (this.charts.strategy) {
+                this.charts.strategy.destroy();
+            }
+
+            this.charts.strategy = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Returns (%)',
+                        data: [],
+                        backgroundColor: [],
+                        borderColor: [],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    ...this.defaultOptions,
+                    plugins: {
+                        ...this.defaultOptions.plugins,
+                        tooltip: {
+                            ...this.defaultOptions.plugins.tooltip,
                             callbacks: {
                                 label: (context) => {
                                     const value = context.parsed.y;
@@ -455,89 +223,48 @@ class ChartManager {
                                 }
                             }
                         }
-                    },
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
                     }
                 }
             });
+
+            console.log('✅ Strategy chart initialized');
         } catch (error) {
-            console.error('Error creating performance chart:', error);
-            return null;
+            console.error('❌ Error initializing strategy chart:', error);
         }
     }
 
     /**
-     * Create volume chart
+     * FIXED: Initialize portfolio allocation chart with better error handling
      */
-    createVolumeChart(containerId, data) {
-        const ctx = document.getElementById(containerId);
-        if (!ctx) return null;
-
-        try {
-            return new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: data.map(d => this.formatChartTime(d.timestamp)),
-                    datasets: [{
-                        label: 'Volume',
-                        data: data.map(d => d.volume || 0),
-                        backgroundColor: this.colors.primary + '40',
-                        borderColor: this.colors.primary,
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    ...this.defaultOptions,
-                    plugins: {
-                        ...this.defaultOptions.plugins,
-                        tooltip: {
-                            ...this.defaultOptions.plugins.tooltip,
-                            callbacks: {
-                                label: (context) => {
-                                    return `Volume: ${this.formatNumber(context.parsed.y)} BTC`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        } catch (error) {
-            console.error('Error creating volume chart:', error);
-            return null;
+    initAllocationChart() {
+        const ctx = document.getElementById('allocation-chart');
+        if (!ctx) {
+            console.warn('⚠️ Allocation chart canvas not found');
+            return;
         }
-    }
-
-    /**
-     * Create risk metrics radar chart
-     */
-    createRiskChart(containerId, riskData) {
-        const ctx = document.getElementById(containerId);
-        if (!ctx) return null;
 
         try {
-            return new Chart(ctx, {
-                type: 'radar',
+            // FIXED: Destroy existing chart if it exists
+            if (this.charts.allocation) {
+                this.charts.allocation.destroy();
+            }
+
+            this.charts.allocation = new Chart(ctx, {
+                type: 'doughnut',
                 data: {
-                    labels: ['Volatility', 'Sharpe Ratio', 'Max Drawdown', 'Win Rate', 'Profit Factor', 'Sortino Ratio'],
+                    labels: [],
                     datasets: [{
-                        label: 'Current Portfolio',
-                        data: [
-                            Math.min(riskData.volatility || 0, 100),
-                            Math.max(Math.min((riskData.sharpe_ratio || 0) * 20, 100), 0),
-                            Math.min(Math.abs(riskData.max_drawdown || 0), 100),
-                            Math.min(riskData.win_rate || 0, 100),
-                            Math.max(Math.min((riskData.profit_factor || 0) * 50, 100), 0),
-                            Math.max(Math.min((riskData.sortino_ratio || 0) * 20, 100), 0)
+                        data: [],
+                        backgroundColor: [
+                            this.colors.primary,
+                            this.colors.success,
+                            this.colors.warning,
+                            this.colors.purple,
+                            this.colors.orange,
+                            this.colors.cyan
                         ],
-                        backgroundColor: this.colors.primary + '20',
-                        borderColor: this.colors.primary,
                         borderWidth: 2,
-                        pointBackgroundColor: this.colors.primary,
-                        pointBorderColor: '#fff',
-                        pointHoverBackgroundColor: '#fff',
-                        pointHoverBorderColor: this.colors.primary
+                        borderColor: '#0f1419'
                     }]
                 },
                 options: {
@@ -545,12 +272,13 @@ class ChartManager {
                     maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            position: 'top',
+                            position: 'bottom',
                             labels: {
                                 color: '#a0aec0',
                                 font: {
-                                    size: 12
-                                }
+                                    size: 11
+                                },
+                                padding: 15
                             }
                         },
                         tooltip: {
@@ -558,107 +286,216 @@ class ChartManager {
                             titleColor: '#ffffff',
                             bodyColor: '#a0aec0',
                             borderColor: '#2d3748',
-                            borderWidth: 1
+                            borderWidth: 1,
+                            callbacks: {
+                                label: (context) => {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
+                                    return `${context.label}: ${percentage}%`;
+                                }
+                            }
                         }
                     },
-                    scales: {
-                        r: {
-                            beginAtZero: true,
-                            max: 100,
-                            grid: {
-                                color: '#2d3748'
-                            },
-                            angleLines: {
-                                color: '#2d3748'
-                            },
-                            pointLabels: {
-                                color: '#a0aec0',
-                                font: {
-                                    size: 11
-                                }
-                            },
-                            ticks: {
-                                color: '#a0aec0',
-                                font: {
-                                    size: 10
-                                }
-                            }
-                        }
-                    }
+                    cutout: '60%'
                 }
             });
+
+            console.log('✅ Allocation chart initialized');
         } catch (error) {
-            console.error('Error creating risk chart:', error);
-            return null;
+            console.error('❌ Error initializing allocation chart:', error);
         }
     }
 
     /**
-     * Create candlestick chart for detailed analysis
+     * FIXED: Update price chart with new data and proper API integration
      */
-    createCandlestickChart(containerId, data) {
-        const ctx = document.getElementById(containerId);
-        if (!ctx) return null;
+    async updatePriceChart(hours = 24) {
+        if (this.updateFlags.price) {
+            console.log('⚠️ Price chart update already in progress');
+            return;
+        }
+
+        if (!this.charts.price) {
+            console.warn('⚠️ Price chart not initialized');
+            return;
+        }
+
+        this.updateFlags.price = true;
 
         try {
-            // Since Chart.js doesn't have native candlestick support,
-            // we'll create a line chart with high/low ranges
-            return new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.map(candle => this.formatChartTime(candle.timestamp)),
-                    datasets: [
-                        {
-                            label: 'High',
-                            data: data.map(candle => candle.high || candle.close),
-                            borderColor: this.colors.success,
-                            backgroundColor: 'transparent',
-                            borderWidth: 1,
-                            pointRadius: 0
-                        },
-                        {
-                            label: 'Close',
-                            data: data.map(candle => candle.close),
-                            borderColor: this.colors.primary,
-                            backgroundColor: this.colors.primary + '20',
-                            borderWidth: 2,
-                            fill: false,
-                            pointRadius: 0
-                        },
-                        {
-                            label: 'Low',
-                            data: data.map(candle => candle.low || candle.close),
-                            borderColor: this.colors.danger,
-                            backgroundColor: 'transparent',
-                            borderWidth: 1,
-                            pointRadius: 0
-                        }
-                    ]
-                },
-                options: {
-                    ...this.defaultOptions,
-                    scales: {
-                        ...this.defaultOptions.scales,
-                        y: {
-                            ...this.defaultOptions.scales.y,
-                            ticks: {
-                                ...this.defaultOptions.scales.y.ticks,
-                                callback: (value) => {
-                                    return this.formatCurrency(value);
-                                }
-                            }
-                        }
-                    }
+            console.log(`📊 Updating price chart for ${hours} hours`);
+            
+            const response = await fetch(`/api/v1/data/history/${hours}`);
+            const data = await response.json();
+            
+            if (data.success && data.data && Array.isArray(data.data)) {
+                const prices = data.data;
+                
+                if (prices.length === 0) {
+                    console.warn('⚠️ No price data received');
+                    this.showEmptyChart('price');
+                    return;
                 }
-            });
+
+                const labels = prices.map(p => this.formatChartTime(p.timestamp, hours));
+                const values = prices.map(p => p.price);
+
+                this.charts.price.data.labels = labels;
+                this.charts.price.data.datasets[0].data = values;
+                
+                // Update chart title based on timeframe
+                this.charts.price.options.plugins.title = {
+                    display: true,
+                    text: `Bitcoin Price - Last ${hours} Hours`,
+                    color: '#ffffff'
+                };
+
+                this.charts.price.update('none');
+                console.log(`✅ Price chart updated with ${prices.length} data points`);
+            } else {
+                console.error('❌ Failed to update price chart:', data.error || 'Invalid data format');
+                this.showEmptyChart('price');
+            }
         } catch (error) {
-            console.error('Error creating candlestick chart:', error);
-            return null;
+            console.error('❌ Error updating price chart:', error);
+            this.showErrorChart('price');
+        } finally {
+            this.updateFlags.price = false;
         }
     }
 
     /**
-     * Format time for chart labels based on timeframe
+     * FIXED: Update strategy performance chart with better data handling
+     */
+    updateStrategyChart(strategies) {
+        if (!this.charts.strategy || this.updateFlags.strategy) {
+            return;
+        }
+
+        this.updateFlags.strategy = true;
+
+        try {
+            if (!strategies || !Array.isArray(strategies) || strategies.length === 0) {
+                this.showEmptyChart('strategy');
+                return;
+            }
+
+            const labels = strategies.map(s => s.name || s.id || 'Unknown');
+            const returns = strategies.map(s => s.return || 0);
+            const colors = returns.map(r => r >= 0 ? this.colors.success : this.colors.danger);
+
+            this.charts.strategy.data.labels = labels;
+            this.charts.strategy.data.datasets[0].data = returns;
+            this.charts.strategy.data.datasets[0].backgroundColor = colors;
+            this.charts.strategy.data.datasets[0].borderColor = colors;
+            
+            this.charts.strategy.update('none');
+            console.log(`✅ Strategy chart updated with ${strategies.length} strategies`);
+        } catch (error) {
+            console.error('❌ Error updating strategy chart:', error);
+            this.showErrorChart('strategy');
+        } finally {
+            this.updateFlags.strategy = false;
+        }
+    }
+
+    /**
+     * FIXED: Update portfolio allocation chart with better data handling
+     */
+    updateAllocationChart(allocation) {
+        if (!this.charts.allocation || !allocation || this.updateFlags.allocation) {
+            return;
+        }
+
+        this.updateFlags.allocation = true;
+
+        try {
+            const labels = Object.keys(allocation);
+            const values = Object.values(allocation);
+
+            if (labels.length === 0) {
+                this.showEmptyChart('allocation');
+                return;
+            }
+
+            // FIXED: Ensure values are numbers
+            const numericValues = values.map(v => typeof v === 'number' ? v : parseFloat(v) || 0);
+
+            this.charts.allocation.data.labels = labels;
+            this.charts.allocation.data.datasets[0].data = numericValues;
+            this.charts.allocation.update('none');
+            
+            console.log(`✅ Allocation chart updated with ${labels.length} allocations`);
+        } catch (error) {
+            console.error('❌ Error updating allocation chart:', error);
+            this.showErrorChart('allocation');
+        } finally {
+            this.updateFlags.allocation = false;
+        }
+    }
+
+    /**
+     * FIXED: Show empty state for charts
+     */
+    showEmptyChart(chartType) {
+        const chart = this.charts[chartType];
+        if (!chart) return;
+
+        try {
+            switch (chartType) {
+                case 'price':
+                    chart.data.labels = ['No Data Available'];
+                    chart.data.datasets[0].data = [0];
+                    break;
+                case 'strategy':
+                    chart.data.labels = ['No Strategies'];
+                    chart.data.datasets[0].data = [0];
+                    chart.data.datasets[0].backgroundColor = [this.colors.primary + '40'];
+                    chart.data.datasets[0].borderColor = [this.colors.primary];
+                    break;
+                case 'allocation':
+                    chart.data.labels = ['No Data'];
+                    chart.data.datasets[0].data = [100];
+                    break;
+            }
+            chart.update('none');
+        } catch (error) {
+            console.error(`❌ Error showing empty chart for ${chartType}:`, error);
+        }
+    }
+
+    /**
+     * FIXED: Show error state for charts
+     */
+    showErrorChart(chartType) {
+        const chart = this.charts[chartType];
+        if (!chart) return;
+
+        try {
+            switch (chartType) {
+                case 'price':
+                    chart.data.labels = ['Error Loading Data'];
+                    chart.data.datasets[0].data = [0];
+                    break;
+                case 'strategy':
+                    chart.data.labels = ['Error'];
+                    chart.data.datasets[0].data = [0];
+                    chart.data.datasets[0].backgroundColor = [this.colors.danger + '40'];
+                    chart.data.datasets[0].borderColor = [this.colors.danger];
+                    break;
+                case 'allocation':
+                    chart.data.labels = ['Error'];
+                    chart.data.datasets[0].data = [100];
+                    break;
+            }
+            chart.update('none');
+        } catch (error) {
+            console.error(`❌ Error showing error chart for ${chartType}:`, error);
+        }
+    }
+
+    /**
+     * FIXED: Format time for chart labels based on timeframe
      */
     formatChartTime(timestamp, hours = 24) {
         try {
@@ -686,7 +523,7 @@ class ChartManager {
                 });
             }
         } catch (error) {
-            console.error('Error formatting chart time:', error);
+            console.error('❌ Error formatting chart time:', error);
             return 'Error';
         }
     }
@@ -736,36 +573,158 @@ class ChartManager {
     }
 
     /**
-     * Generate time labels for charts
+     * FIXED: Destroy all charts safely
      */
-    generateTimeLabels(days) {
-        const labels = [];
-        const now = new Date();
-        
-        for (let i = days; i >= 0; i--) {
-            const date = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
-            labels.push(date.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric'
-            }));
-        }
-        
-        return labels;
+    destroy() {
+        Object.keys(this.charts).forEach(chartKey => {
+            if (this.charts[chartKey]) {
+                try {
+                    this.charts[chartKey].destroy();
+                    console.log(`✅ Chart ${chartKey} destroyed`);
+                } catch (error) {
+                    console.error(`❌ Error destroying chart ${chartKey}:`, error);
+                }
+            }
+        });
+        this.charts = {};
+        this.isInitialized = false;
+        console.log('✅ All charts destroyed');
     }
 
     /**
-     * Generate mock performance data for testing
+     * FIXED: Resize all charts safely
      */
-    generateMockPerformanceData(days) {
-        const data = [];
-        let value = 0;
-        
-        for (let i = 0; i < days; i++) {
-            value += (Math.random() - 0.5) * 2; // Random walk
-            data.push(value);
+    resize() {
+        Object.values(this.charts).forEach(chart => {
+            if (chart) {
+                try {
+                    chart.resize();
+                } catch (error) {
+                    console.error('❌ Error resizing chart:', error);
+                }
+            }
+        });
+    }
+
+    /**
+     * FIXED: Refresh all charts
+     */
+    async refreshAllCharts() {
+        try {
+            console.log('🔄 Refreshing all charts...');
+            
+            // Refresh price chart
+            await this.updatePriceChart();
+            
+            // Refresh other charts by requesting fresh data from dashboard
+            const dashboard = window.Dashboard;
+            if (dashboard && dashboard.state.isInitialized) {
+                await dashboard.loadStrategies();
+                await dashboard.loadPortfolio();
+            }
+            
+            console.log('✅ All charts refreshed');
+        } catch (error) {
+            console.error('❌ Error refreshing charts:', error);
         }
+    }
+
+    /**
+     * FIXED: Check if all required charts are loaded
+     */
+    areChartsLoaded() {
+        const requiredCharts = ['price', 'strategy', 'allocation'];
+        return requiredCharts.every(chartKey => this.charts[chartKey] !== undefined);
+    }
+
+    /**
+     * Set chart loading state
+     */
+    setChartLoading(chartKey, isLoading = true) {
+        const canvas = document.getElementById(chartKey + '-chart');
         
-        return data;
+        if (canvas) {
+            const container = canvas.parentElement;
+            if (isLoading) {
+                container.classList.add('loading');
+            } else {
+                container.classList.remove('loading');
+            }
+        }
+    }
+
+    /**
+     * FIXED: Health check for chart manager
+     */
+    healthCheck() {
+        const health = {
+            isInitialized: this.isInitialized,
+            chartsLoaded: Object.keys(this.charts).length,
+            requiredCharts: this.areChartsLoaded(),
+            updateFlags: this.updateFlags,
+            errors: []
+        };
+
+        // Check for chart errors
+        const requiredCharts = ['price', 'strategy', 'allocation'];
+        requiredCharts.forEach(chartKey => {
+            const chart = this.charts[chartKey];
+            if (!chart) {
+                health.errors.push(`Chart ${chartKey} not initialized`);
+            }
+        });
+
+        // Check if Chart.js is available
+        if (typeof Chart === 'undefined') {
+            health.errors.push('Chart.js library not loaded');
+        }
+
+        return health;
+    }
+
+    /**
+     * Export chart as image
+     */
+    exportChart(chartKey, filename = 'chart.png') {
+        const chart = this.charts[chartKey];
+        if (chart) {
+            try {
+                const url = chart.toBase64Image();
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = url;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log(`✅ Chart ${chartKey} exported as ${filename}`);
+            } catch (error) {
+                console.error(`❌ Error exporting chart ${chartKey}:`, error);
+            }
+        }
+    }
+
+    /**
+     * Get chart statistics
+     */
+    getChartStats() {
+        const stats = {};
+        
+        Object.keys(this.charts).forEach(chartKey => {
+            const chart = this.charts[chartKey];
+            if (chart && chart.data) {
+                stats[chartKey] = {
+                    type: chart.config.type,
+                    datasets: chart.data.datasets.length,
+                    dataPoints: chart.data.datasets.reduce((total, dataset) => {
+                        return total + (dataset.data ? dataset.data.length : 0);
+                    }, 0),
+                    labels: chart.data.labels ? chart.data.labels.length : 0
+                };
+            }
+        });
+        
+        return stats;
     }
 
     /**
@@ -797,114 +756,6 @@ class ChartManager {
     }
 
     /**
-     * Destroy all charts
-     */
-    destroy() {
-        Object.keys(this.charts).forEach(chartKey => {
-            if (this.charts[chartKey]) {
-                try {
-                    this.charts[chartKey].destroy();
-                } catch (error) {
-                    console.error(`Error destroying chart ${chartKey}:`, error);
-                }
-            }
-        });
-        this.charts = {};
-        console.log('All charts destroyed');
-    }
-
-    /**
-     * Resize all charts
-     */
-    resize() {
-        Object.values(this.charts).forEach(chart => {
-            if (chart) {
-                try {
-                    chart.resize();
-                } catch (error) {
-                    console.error('Error resizing chart:', error);
-                }
-            }
-        });
-    }
-
-    /**
-     * Export chart as image
-     */
-    exportChart(chartKey, filename = 'chart.png') {
-        const chart = this.charts[chartKey];
-        if (chart) {
-            try {
-                const url = chart.toBase64Image();
-                const link = document.createElement('a');
-                link.download = filename;
-                link.href = url;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                
-                console.log(`Chart ${chartKey} exported as ${filename}`);
-            } catch (error) {
-                console.error(`Error exporting chart ${chartKey}:`, error);
-            }
-        }
-    }
-
-    /**
-     * Get chart statistics
-     */
-    getChartStats() {
-        const stats = {};
-        
-        Object.keys(this.charts).forEach(chartKey => {
-            const chart = this.charts[chartKey];
-            if (chart && chart.data) {
-                stats[chartKey] = {
-                    type: chart.config.type,
-                    datasets: chart.data.datasets.length,
-                    dataPoints: chart.data.datasets.reduce((total, dataset) => {
-                        return total + (dataset.data ? dataset.data.length : 0);
-                    }, 0),
-                    labels: chart.data.labels ? chart.data.labels.length : 0
-                };
-            }
-        });
-        
-        return stats;
-    }
-
-    /**
-     * Check if all required charts are loaded
-     */
-    areChartsLoaded() {
-        const requiredCharts = ['price', 'strategy', 'allocation'];
-        return requiredCharts.every(chartKey => this.charts[chartKey] !== undefined);
-    }
-
-    /**
-     * Refresh all charts
-     */
-    async refreshAllCharts() {
-        try {
-            console.log('Refreshing all charts...');
-            
-            // Refresh price chart
-            await this.updatePriceChart();
-            
-            // Refresh other charts by fetching fresh data
-            const dashboard = window.Dashboard;
-            if (dashboard) {
-                await dashboard.loadStrategies();
-                await dashboard.loadPortfolio();
-            }
-            
-            console.log('All charts refreshed');
-        } catch (error) {
-            console.error('Error refreshing charts:', error);
-        }
-    }
-
-    /**
      * Add chart animation on data update
      */
     animateChart(chartKey, animationType = 'bounce') {
@@ -913,59 +764,34 @@ class ChartManager {
             chart.update(animationType);
         }
     }
-
-    /**
-     * Set chart loading state
-     */
-    setChartLoading(chartKey, isLoading = true) {
-        const chart = this.charts[chartKey];
-        const canvas = document.getElementById(chartKey + '-chart');
-        
-        if (canvas) {
-            const container = canvas.parentElement;
-            if (isLoading) {
-                container.classList.add('loading');
-            } else {
-                container.classList.remove('loading');
-            }
-        }
-    }
-
-    /**
-     * Health check for chart manager
-     */
-    healthCheck() {
-        const health = {
-            chartsLoaded: Object.keys(this.charts).length,
-            requiredCharts: this.areChartsLoaded(),
-            updateFlags: this.updateFlags,
-            errors: []
-        };
-
-        // Check for chart errors
-        Object.keys(this.charts).forEach(chartKey => {
-            const chart = this.charts[chartKey];
-            if (!chart) {
-                health.errors.push(`Chart ${chartKey} not initialized`);
-            }
-        });
-
-        return health;
-    }
 }
 
-// Create global instance
+// FIXED: Create global instance with proper initialization
 window.ChartManager = new ChartManager();
 
-// Handle window resize
+// FIXED: Handle window resize properly
 window.addEventListener('resize', () => {
-    if (window.ChartManager) {
+    if (window.ChartManager && window.ChartManager.isInitialized) {
         window.ChartManager.resize();
     }
+});
+
+// FIXED: Initialize ChartManager when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    // Wait a bit for Chart.js to load
+    setTimeout(() => {
+        if (window.ChartManager) {
+            const success = window.ChartManager.init();
+            if (success) {
+                console.log('✅ ChartManager ready for use');
+            } else {
+                console.error('❌ ChartManager failed to initialize');
+            }
+        }
+    }, 1000);
 });
 
 // Export for module usage
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = ChartManager;
 }
-
