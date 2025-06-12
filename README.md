@@ -83,7 +83,9 @@ python -m odin.main
 ## 🏗️ Complete Project Structure
 
 ```
-odin-bitcoin-bot/
+Odin/
+├── odin_cli.py
+├── cli_launcher.sh
 ├── README.md                           # This documentation
 ├── requirements.txt                    # Python dependencies
 ├── requirements-dev.txt                # Development dependencies  
@@ -118,7 +120,7 @@ odin-bitcoin-bot/
 │   │       │   ├── backtesting.py      # Backtesting endpoints
 │   │       │   ├── comparison.py       # Strategy comparison
 │   │       │   ├── optimization.py     # Parameter optimization
-│   │       │   └── signals.py          # Signal management
+│   │       │   ├── signals.py          # Signal management
 │   │       │
 │   │       ├── trading/                # Legacy trading endpoints
 │   │       │   ├── execution.py        # Live trade execution
@@ -157,6 +159,7 @@ odin-bitcoin-bot/
 │   │   ├── bollinger_bands.py          # Bollinger Bands volatility strategy
 │   │   ├── macd.py                     # MACD trend momentum strategy
 │   │   ├── ai_adaptive.py              # AI-enhanced adaptive strategy
+│   │   ├── swing_trader.py
 │   │   └── ai_enhanced/                # AI strategy modules
 │   │
 │   ├── ai/                             # AI enhancement features
