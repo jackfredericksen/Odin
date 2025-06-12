@@ -14,6 +14,9 @@ import numpy as np
 import pandas as pd
 from dataclasses import dataclass
 
+# Import signal types from core models - single source of truth
+from ..core.models import SignalType
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,17 +29,15 @@ class StrategyType(Enum):
     ARBITRAGE = "arbitrage"
 
 
-class StrategySignal(Enum):
-    """Trading signal types."""
-    BUY = "buy"
-    SELL = "sell"
-    HOLD = "hold"
+# Use SignalType from core.models as the canonical signal enum
+# Create alias for backward compatibility
+StrategySignal = SignalType
 
 
 @dataclass
 class Signal:
     """Trading signal with metadata."""
-    signal: StrategySignal
+    signal: SignalType  # Use SignalType from core.models
     confidence: float  # 0-1 confidence score
     timestamp: datetime
     price: float
@@ -239,7 +240,7 @@ class Strategy(ABC):
             current_price = current_data['close'].iloc[-1]
             
             # Execute trades based on signal
-            if signal.signal == StrategySignal.BUY and position == 0:
+            if signal.signal == SignalType.BUY and position == 0:
                 # Buy signal and no current position
                 position_size = self.calculate_position_size(signal, cash)
                 btc_bought = position_size / current_price
@@ -256,7 +257,7 @@ class Strategy(ABC):
                     'confidence': signal.confidence
                 })
                 
-            elif signal.signal == StrategySignal.SELL and position > 0:
+            elif signal.signal == SignalType.SELL and position > 0:
                 # Sell signal and have position
                 sell_value = position * current_price
                 cash += sell_value

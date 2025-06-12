@@ -17,15 +17,23 @@ Usage:
     rsi_strategy = RSIStrategy(period=14, oversold=30, overbought=70)
 """
 
-from .base import Strategy, StrategySignal, StrategyType
+# Import from core models for single source of truth
+from ..core.models import SignalType
+
+# Import strategy components
+from .base import Strategy, StrategyType
 from .moving_average import MovingAverageStrategy
 from .rsi import RSIStrategy
 from .bollinger_bands import BollingerBandsStrategy
 from .macd import MACDStrategy
 
+# Create alias for backward compatibility
+StrategySignal = SignalType
+
 __all__ = [
     "Strategy",
-    "StrategySignal", 
+    "SignalType", 
+    "StrategySignal",  # Backward compatibility alias
     "StrategyType",
     "MovingAverageStrategy",
     "RSIStrategy",

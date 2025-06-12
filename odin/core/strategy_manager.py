@@ -16,7 +16,7 @@ import numpy as np
 from statistics import mean, stdev
 
 from .database import Database
-from .models import StrategySignal, PriceData
+from .models import SignalType, PriceData  # Import from core models - single source of truth
 from .exceptions import StrategyException, StrategyConfigurationException
 
 # Import strategies
@@ -56,7 +56,7 @@ class StrategyManager:
         
         # Performance tracking
         self.performance_cache: Dict[str, Dict[str, Any]] = {}
-        self.signal_history: Dict[str, List[StrategySignal]] = {}
+        self.signal_history: Dict[str, List[Any]] = {}  # Will store signal data as dicts
         
         # Initialize strategies
         asyncio.create_task(self._initialize_strategies())
@@ -156,7 +156,7 @@ class StrategyManager:
             logger.error(f"Error getting all strategies: {e}")
             raise StrategyException(f"Failed to get strategies: {str(e)}")
     
-    async def generate_signals(self, price_data: List[PriceData]) -> Dict[str, StrategySignal]:
+    async def generate_signals(self, price_data: List[PriceData]) -> Dict[str, Any]:
         """
         Generate signals from all active strategies.
         
@@ -185,7 +185,7 @@ class StrategyManager:
                 # Generate signal
                 signal = strategy_instance.generate_signal(df)
                 
-                if signal and signal.signal != strategy_instance.StrategySignal.HOLD:
+                if signal and signal.signal != SignalType.HOLD:
                     signals[strategy_id] = signal
                     strategy_info["last_signal"] = signal
                     self.signal_history[strategy_id].append(signal)
@@ -326,7 +326,7 @@ class StrategyManager:
             logger.error(f"Error getting recent signals for {strategy_id}: {e}")
             return []
     
-    async def _save_signal_to_database(self, strategy_id: str, signal: StrategySignal):
+    async def _save_signal_to_database(self, strategy_id: str, signal: Any):
         """Save signal to database."""
         try:
             self.database.add_signal(

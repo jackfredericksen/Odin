@@ -15,7 +15,9 @@ from typing import Dict, Any, Tuple
 import pandas as pd
 import numpy as np
 
-from .base import Strategy, StrategySignal, StrategyType, Signal
+# Import from core models for single source of truth
+from ..core.models import SignalType
+from .base import Strategy, StrategyType, Signal
 
 
 class MovingAverageStrategy(Strategy):
@@ -112,7 +114,7 @@ class MovingAverageStrategy(Strategy):
         """
         if len(data) < max(self.short_window, self.long_window):
             return Signal(
-                signal=StrategySignal.HOLD,
+                signal=SignalType.HOLD,
                 confidence=0.0,
                 timestamp=datetime.now(),
                 price=data['close'].iloc[-1] if not data.empty else 0.0,
@@ -134,19 +136,19 @@ class MovingAverageStrategy(Strategy):
         timestamp = current_row.name if hasattr(current_row.name, 'to_pydatetime') else datetime.now()
         
         # Check for crossover
-        signal_type = StrategySignal.HOLD
+        signal_type = SignalType.HOLD
         reasoning = "No crossover detected"
         
         # Golden Cross (buy signal)
         if (ma_short_previous <= ma_long_previous and 
             ma_short_current > ma_long_current):
-            signal_type = StrategySignal.BUY
+            signal_type = SignalType.BUY
             reasoning = f"Golden Cross: Short MA ({ma_short_current:.2f}) crossed above Long MA ({ma_long_current:.2f})"
             
         # Death Cross (sell signal)
         elif (ma_short_previous >= ma_long_previous and 
               ma_short_current < ma_long_current):
-            signal_type = StrategySignal.SELL
+            signal_type = SignalType.SELL
             reasoning = f"Death Cross: Short MA ({ma_short_current:.2f}) crossed below Long MA ({ma_long_current:.2f})"
         
         # Calculate confidence score
@@ -183,7 +185,7 @@ class MovingAverageStrategy(Strategy):
         
         return signal
 
-    def _calculate_confidence(self, row: pd.Series, signal_type: StrategySignal) -> float:
+    def _calculate_confidence(self, row: pd.Series, signal_type: SignalType) -> float:
         """
         Calculate signal confidence based on various factors.
         
@@ -194,7 +196,7 @@ class MovingAverageStrategy(Strategy):
         Returns:
             Confidence score between 0 and 1
         """
-        if signal_type == StrategySignal.HOLD:
+        if signal_type == SignalType.HOLD:
             return 0.0
         
         confidence_factors = []
@@ -205,7 +207,7 @@ class MovingAverageStrategy(Strategy):
         confidence_factors.append(trend_confidence)
         
         # 2. Price momentum (price direction relative to MAs)
-        if signal_type == StrategySignal.BUY:
+        if signal_type == SignalType.BUY:
             price_momentum = max(0, row.get('price_vs_ma_short', 0)) / 5.0  # Normalize
         else:
             price_momentum = max(0, -row.get('price_vs_ma_short', 0)) / 5.0

@@ -15,7 +15,9 @@ from typing import Dict, Any, Tuple
 import pandas as pd
 import numpy as np
 
-from .base import Strategy, StrategySignal, StrategyType, Signal
+# Import from core models for single source of truth
+from ..core.models import SignalType
+from .base import Strategy, StrategyType, Signal
 
 
 class RSIStrategy(Strategy):
@@ -150,7 +152,7 @@ class RSIStrategy(Strategy):
         """
         if len(data) < self.period + 1:
             return Signal(
-                signal=StrategySignal.HOLD,
+                signal=SignalType.HOLD,
                 confidence=0.0,
                 timestamp=datetime.now(),
                 price=data['close'].iloc[-1] if not data.empty else 0.0,
@@ -177,35 +179,35 @@ class RSIStrategy(Strategy):
             current_state = "neutral"
         
         # Generate signals based on state transitions
-        signal_type = StrategySignal.HOLD
+        signal_type = SignalType.HOLD
         reasoning = f"RSI at {current_rsi:.1f} - holding in {current_state} territory"
         
         # Buy signal: RSI moving up from oversold
         if (self.previous_rsi_state == "oversold" and 
             current_state == "neutral" and 
             current_rsi > previous_rsi):
-            signal_type = StrategySignal.BUY
+            signal_type = SignalType.BUY
             reasoning = f"RSI reversal from oversold: {current_rsi:.1f} (was {previous_rsi:.1f})"
             
         # Sell signal: RSI moving down from overbought
         elif (self.previous_rsi_state == "overbought" and 
               current_state == "neutral" and 
               current_rsi < previous_rsi):
-            signal_type = StrategySignal.SELL
+            signal_type = SignalType.SELL
             reasoning = f"RSI reversal from overbought: {current_rsi:.1f} (was {previous_rsi:.1f})"
         
         # Additional buy signal: Strong oversold bounce
         elif (current_rsi <= self.oversold - 5 and 
               current_rsi > previous_rsi and
               current_row.get('rsi_change', 0) > 2):
-            signal_type = StrategySignal.BUY
+            signal_type = SignalType.BUY
             reasoning = f"Strong RSI bounce from extreme oversold: {current_rsi:.1f}"
             
         # Additional sell signal: Strong overbought rejection
         elif (current_rsi >= self.overbought + 5 and 
               current_rsi < previous_rsi and
               current_row.get('rsi_change', 0) < -2):
-            signal_type = StrategySignal.SELL
+            signal_type = SignalType.SELL
             reasoning = f"Strong RSI rejection from extreme overbought: {current_rsi:.1f}"
         
         # Update state tracking
@@ -247,7 +249,7 @@ class RSIStrategy(Strategy):
         
         return signal
 
-    def _calculate_confidence(self, row: pd.Series, signal_type: StrategySignal, 
+    def _calculate_confidence(self, row: pd.Series, signal_type: SignalType, 
                             current_rsi: float) -> float:
         """
         Calculate signal confidence based on various factors.
@@ -260,13 +262,13 @@ class RSIStrategy(Strategy):
         Returns:
             Confidence score between 0 and 1
         """
-        if signal_type == StrategySignal.HOLD:
+        if signal_type == SignalType.HOLD:
             return 0.0
         
         confidence_factors = []
         
         # 1. RSI extreme levels (more extreme = higher confidence)
-        if signal_type == StrategySignal.BUY:
+        if signal_type == SignalType.BUY:
             rsi_extreme = max(0, self.oversold - current_rsi) / self.oversold
         else:  # SELL
             rsi_extreme = max(0, current_rsi - self.overbought) / (100 - self.overbought)
@@ -286,7 +288,7 @@ class RSIStrategy(Strategy):
         
         # 4. Price position in range
         price_position = row.get('price_position', 0.5)
-        if signal_type == StrategySignal.BUY:
+        if signal_type == SignalType.BUY:
             # Want price near bottom of range for buy signal
             position_confidence = 1.0 - price_position
         else:
@@ -298,10 +300,10 @@ class RSIStrategy(Strategy):
         price_momentum = row.get('price_momentum', 0)
         rsi_momentum = row.get('rsi_change', 0)
         
-        if signal_type == StrategySignal.BUY and price_momentum < 0 and rsi_momentum > 0:
+        if signal_type == SignalType.BUY and price_momentum < 0 and rsi_momentum > 0:
             # Bullish divergence
             divergence_confidence = 0.8
-        elif signal_type == StrategySignal.SELL and price_momentum > 0 and rsi_momentum < 0:
+        elif signal_type == SignalType.SELL and price_momentum > 0 and rsi_momentum < 0:
             # Bearish divergence
             divergence_confidence = 0.8
         else:
