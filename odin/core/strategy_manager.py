@@ -1,8 +1,8 @@
 """
-Odin Strategy Manager - Centralized Strategy Management
+Enhanced Strategy Manager with AI-Driven Strategy Orchestration
 
-Manages all trading strategies, signals, and performance tracking.
-Provides a unified interface for strategy operations and real-time monitoring.
+Implements intelligent strategy selection using ML-based market regime detection
+and real-time strategy performance scoring for optimal trading decisions.
 
 File: odin/core/strategy_manager.py
 """
@@ -16,206 +16,565 @@ import numpy as np
 from statistics import mean, stdev
 
 from .database import Database
-from .models import SignalType, PriceData  # Import from core models - single source of truth
+from .models import StrategySignal, PriceData
 from .exceptions import StrategyException, StrategyConfigurationException
+from ..ai.strategy_selection.ai_strategy_selector import AIStrategySelector
+from ..ai.regime_detection.regime_detector import RegimeDetector
+from ..ai.strategy_selection.strategy_scorer import StrategyScorer
 
-# Import strategies
+# Import all available strategies
 from ..strategies import (
     MovingAverageStrategy, 
     RSIStrategy, 
     BollingerBandsStrategy, 
-    MACDStrategy
+    MACDStrategy,
+    SwingTradingStrategy
 )
 
 logger = logging.getLogger(__name__)
 
 
-class StrategyManager:
+class EnhancedStrategyManager:
     """
-    Centralized strategy management system.
+    AI-Driven Strategy Orchestration System
     
-    Handles strategy lifecycle, signal generation, performance tracking,
-    and real-time monitoring of all trading strategies.
+    Manages a pool of trading strategies and uses ML to dynamically select
+    the optimal strategy based on real-time market conditions and performance.
     """
     
     def __init__(self, database: Database):
         """
-        Initialize strategy manager.
+        Initialize enhanced strategy manager with AI components.
         
         Args:
             database: Database instance for data persistence
         """
         self.database = database
-        self.strategies: Dict[str, Any] = {}
+        
+        # Strategy pool - all available strategies
+        self.strategy_pool: Dict[str, Any] = {}
         self.strategy_classes = {
             "moving_average": MovingAverageStrategy,
             "rsi": RSIStrategy,
             "bollinger_bands": BollingerBandsStrategy,
-            "macd": MACDStrategy
+            "macd": MACDStrategy,
+            "swing_trading": SwingTradingStrategy
         }
         
+        # AI Components
+        self.regime_detector = RegimeDetector()
+        self.strategy_scorer = StrategyScorer(database)
+        self.ai_selector = AIStrategySelector(
+            regime_detector=self.regime_detector,
+            strategy_scorer=self.strategy_scorer
+        )
+        
+        # Current active strategy
+        self.active_strategy_id: Optional[str] = None
+        self.active_strategy_confidence: float = 0.0
+        self.last_evaluation: datetime = datetime.now(timezone.utc)
+        self.evaluation_interval: int = 300  # 5 minutes
+        
         # Performance tracking
-        self.performance_cache: Dict[str, Dict[str, Any]] = {}
-        self.signal_history: Dict[str, List[Any]] = {}  # Will store signal data as dicts
+        self.strategy_scores: Dict[str, float] = {}
+        self.strategy_performance: Dict[str, Dict[str, Any]] = {}
+        self.market_regime: Dict[str, Any] = {}
         
-        # Initialize strategies
-        asyncio.create_task(self._initialize_strategies())
+        # AI Configuration
+        self.config = {
+            "min_confidence_threshold": 0.65,
+            "strategy_switch_threshold": 0.15,  # Switch if new strategy scores 15% higher
+            "evaluation_frequency": 300,  # seconds
+            "performance_lookback": 24,  # hours
+            "regime_confidence_threshold": 0.7
+        }
         
-        logger.info("Strategy Manager initialized")
+        # Initialize system
+        asyncio.create_task(self._initialize_system())
+        
+        logger.info("Enhanced Strategy Manager with AI orchestration initialized")
     
-    async def _initialize_strategies(self):
-        """Initialize all strategies from database."""
+    async def _initialize_system(self):
+        """Initialize the entire AI strategy system."""
         try:
-            strategies_data = self.database.get_strategies()
+            # Initialize all strategies in the pool
+            await self._initialize_strategy_pool()
             
-            for strategy_data in strategies_data:
-                await self._create_strategy_instance(strategy_data)
-                
-            logger.info(f"Initialized {len(self.strategies)} strategies")
+            # Load AI models
+            await self._initialize_ai_components()
+            
+            # Select initial strategy
+            await self._perform_initial_strategy_selection()
+            
+            # Start continuous evaluation loop
+            asyncio.create_task(self._continuous_evaluation_loop())
+            
+            logger.info(f"System initialized with {len(self.strategy_pool)} strategies")
             
         except Exception as e:
-            logger.error(f"Error initializing strategies: {e}")
+            logger.error(f"Error initializing AI strategy system: {e}")
     
-    async def _create_strategy_instance(self, strategy_data: Dict[str, Any]):
-        """Create strategy instance from database data."""
+    async def _initialize_strategy_pool(self):
+        """Initialize all available strategies in the pool."""
         try:
-            strategy_id = strategy_data["id"]
-            strategy_type = strategy_data["type"]
-            parameters = strategy_data.get("parameters", {})
-            
-            if strategy_type not in self.strategy_classes:
-                logger.warning(f"Unknown strategy type: {strategy_type}")
-                return
-            
-            # Create strategy instance
-            strategy_class = self.strategy_classes[strategy_type]
-            strategy_instance = strategy_class(**parameters)
-            
-            # Store strategy with metadata
-            self.strategies[strategy_id] = {
-                "instance": strategy_instance,
-                "metadata": strategy_data,
-                "last_signal": None,
-                "performance": None,
-                "enabled": strategy_data.get("active", False)
+            # Create instances of all strategies with default parameters
+            strategy_configs = {
+                "moving_average": {
+                    "name": "Moving Average Crossover",
+                    "params": {"fast_period": 21, "slow_period": 50}
+                },
+                "rsi": {
+                    "name": "RSI Momentum",
+                    "params": {"rsi_period": 14, "oversold": 30, "overbought": 70}
+                },
+                "bollinger_bands": {
+                    "name": "Bollinger Bands",
+                    "params": {"period": 20, "std_dev": 2.0}
+                },
+                "macd": {
+                    "name": "MACD Convergence",
+                    "params": {"fast": 12, "slow": 26, "signal": 9}
+                },
+                "swing_trading": {
+                    "name": "Advanced Swing Trading",
+                    "params": {
+                        "primary_timeframe": "4H",
+                        "rsi_period": 14,
+                        "rsi_oversold": 35,
+                        "rsi_overbought": 65,
+                        "ma_fast": 21,
+                        "ma_slow": 50,
+                        "min_risk_reward": 2.0
+                    }
+                }
             }
             
-            # Initialize signal history
-            self.signal_history[strategy_id] = []
-            
-            logger.debug(f"Created strategy instance: {strategy_id}")
+            for strategy_type, config in strategy_configs.items():
+                try:
+                    strategy_class = self.strategy_classes[strategy_type]
+                    strategy_instance = strategy_class(**config["params"])
+                    
+                    strategy_id = f"{strategy_type}_{int(datetime.now().timestamp())}"
+                    
+                    self.strategy_pool[strategy_id] = {
+                        "instance": strategy_instance,
+                        "type": strategy_type,
+                        "name": config["name"],
+                        "parameters": config["params"],
+                        "created_at": datetime.now(timezone.utc),
+                        "last_used": None,
+                        "total_signals": 0,
+                        "successful_signals": 0
+                    }
+                    
+                    # Initialize performance tracking
+                    self.strategy_performance[strategy_id] = {
+                        "total_return": 0.0,
+                        "win_rate": 0.0,
+                        "sharpe_ratio": 0.0,
+                        "max_drawdown": 0.0,
+                        "recent_performance": []
+                    }
+                    
+                    logger.debug(f"Initialized strategy: {strategy_id}")
+                    
+                except Exception as e:
+                    logger.error(f"Error initializing {strategy_type}: {e}")
+                    continue
             
         except Exception as e:
-            logger.error(f"Error creating strategy {strategy_data.get('id')}: {e}")
+            logger.error(f"Error initializing strategy pool: {e}")
     
-    async def get_all_strategies(self) -> List[Dict[str, Any]]:
-        """
-        Get all strategies with current status and performance.
-        
-        Returns:
-            List of strategy data with performance metrics
-        """
+    async def _initialize_ai_components(self):
+        """Initialize AI components for strategy selection."""
         try:
-            strategies_list = []
+            # Initialize regime detector with historical data
+            historical_data = self.database.get_recent_prices(limit=1000)
+            if historical_data:
+                await self.regime_detector.initialize(historical_data)
             
-            for strategy_id, strategy_info in self.strategies.items():
-                # Get performance metrics
-                performance = await self._calculate_strategy_performance(strategy_id)
-                
-                # Get recent signals
-                recent_signals = await self._get_recent_signals(strategy_id, limit=10)
-                
-                # Format strategy data
-                strategy_data = {
-                    "id": strategy_id,
-                    "name": strategy_info["metadata"]["name"],
-                    "type": strategy_info["metadata"]["type"],
-                    "description": strategy_info["metadata"].get("description", ""),
-                    "active": strategy_info["enabled"],
-                    "parameters": strategy_info["metadata"].get("parameters", {}),
-                    
-                    # Performance metrics
-                    "return": performance.get("total_return", 0.0),
-                    "total_trades": performance.get("total_trades", 0),
-                    "win_rate": performance.get("win_rate", 0.0),
-                    "sharpe_ratio": performance.get("sharpe_ratio", 0.0),
-                    "max_drawdown": performance.get("max_drawdown", 0.0),
-                    "volatility": performance.get("volatility", 0.0),
-                    
-                    # Recent activity
-                    "last_signal": strategy_info["last_signal"],
-                    "recent_signals": len(recent_signals),
-                    "performance_history": performance.get("performance_history", [])
-                }
-                
-                strategies_list.append(strategy_data)
+            # Initialize strategy scorer
+            await self.strategy_scorer.initialize()
             
-            return strategies_list
+            logger.info("AI components initialized successfully")
             
         except Exception as e:
-            logger.error(f"Error getting all strategies: {e}")
-            raise StrategyException(f"Failed to get strategies: {str(e)}")
+            logger.error(f"Error initializing AI components: {e}")
     
-    async def generate_signals(self, price_data: List[PriceData]) -> Dict[str, Any]:
+    async def _perform_initial_strategy_selection(self):
+        """Perform initial strategy selection."""
+        try:
+            # Get recent market data
+            recent_data = self.database.get_recent_prices(limit=100)
+            if not recent_data:
+                # Default to swing trading if no data
+                self.active_strategy_id = list(self.strategy_pool.keys())[0]
+                self.active_strategy_confidence = 0.5
+                return
+            
+            # Convert to required format
+            price_data = self._convert_to_price_data(recent_data)
+            
+            # Use AI to select best strategy
+            selection_result = await self.ai_selector.select_optimal_strategy(
+                price_data, list(self.strategy_pool.keys())
+            )
+            
+            self.active_strategy_id = selection_result["strategy_id"]
+            self.active_strategy_confidence = selection_result["confidence"]
+            self.market_regime = selection_result["market_regime"]
+            
+            # Update strategy usage
+            if self.active_strategy_id:
+                self.strategy_pool[self.active_strategy_id]["last_used"] = datetime.now(timezone.utc)
+            
+            logger.info(f"Initial strategy selected: {self.active_strategy_id} "
+                       f"(confidence: {self.active_strategy_confidence:.3f})")
+            
+        except Exception as e:
+            logger.error(f"Error in initial strategy selection: {e}")
+            # Fallback to first available strategy
+            if self.strategy_pool:
+                self.active_strategy_id = list(self.strategy_pool.keys())[0]
+                self.active_strategy_confidence = 0.5
+    
+    async def _continuous_evaluation_loop(self):
+        """Continuous strategy evaluation and selection loop."""
+        while True:
+            try:
+                await asyncio.sleep(self.config["evaluation_frequency"])
+                
+                # Perform strategy evaluation
+                await self._evaluate_and_potentially_switch_strategy()
+                
+                # Update performance metrics
+                await self._update_strategy_performance()
+                
+                # Update market regime
+                await self._update_market_regime()
+                
+                self.last_evaluation = datetime.now(timezone.utc)
+                
+            except Exception as e:
+                logger.error(f"Error in continuous evaluation loop: {e}")
+                await asyncio.sleep(60)  # Wait a minute before retrying
+    
+    async def _evaluate_and_potentially_switch_strategy(self):
+        """Evaluate all strategies and switch if a better one is found."""
+        try:
+            # Get recent market data
+            recent_data = self.database.get_recent_prices(limit=100)
+            if not recent_data:
+                return
+            
+            price_data = self._convert_to_price_data(recent_data)
+            
+            # Get AI recommendation
+            selection_result = await self.ai_selector.select_optimal_strategy(
+                price_data, list(self.strategy_pool.keys())
+            )
+            
+            recommended_strategy = selection_result["strategy_id"]
+            recommended_confidence = selection_result["confidence"]
+            
+            # Check if we should switch strategies
+            should_switch = self._should_switch_strategy(
+                recommended_strategy, recommended_confidence
+            )
+            
+            if should_switch:
+                await self._switch_strategy(recommended_strategy, recommended_confidence)
+                
+                logger.info(f"Strategy switched to: {recommended_strategy} "
+                           f"(confidence: {recommended_confidence:.3f})")
+            
+            # Update current scores regardless
+            self.strategy_scores = selection_result["all_scores"]
+            
+        except Exception as e:
+            logger.error(f"Error evaluating strategies: {e}")
+    
+    def _should_switch_strategy(self, recommended_strategy: str, recommended_confidence: float) -> bool:
+        """Determine if we should switch to a different strategy."""
+        # Don't switch if confidence is too low
+        if recommended_confidence < self.config["min_confidence_threshold"]:
+            return False
+        
+        # Don't switch if it's the same strategy
+        if recommended_strategy == self.active_strategy_id:
+            return False
+        
+        # Switch if new strategy has significantly higher confidence
+        confidence_improvement = recommended_confidence - self.active_strategy_confidence
+        return confidence_improvement >= self.config["strategy_switch_threshold"]
+    
+    async def _switch_strategy(self, new_strategy_id: str, confidence: float):
+        """Switch to a new active strategy."""
+        old_strategy = self.active_strategy_id
+        
+        self.active_strategy_id = new_strategy_id
+        self.active_strategy_confidence = confidence
+        
+        # Update usage tracking
+        self.strategy_pool[new_strategy_id]["last_used"] = datetime.now(timezone.utc)
+        
+        # Log the switch
+        logger.info(f"Strategy switched: {old_strategy} -> {new_strategy_id}")
+    
+    async def generate_trading_signal(self, price_data: List[PriceData]) -> Optional[StrategySignal]:
         """
-        Generate signals from all active strategies.
+        Generate trading signal using the currently active strategy.
         
         Args:
             price_data: Recent price data for signal generation
             
         Returns:
-            Dictionary mapping strategy_id to generated signal
+            Trading signal from active strategy or None
         """
-        signals = {}
+        if not self.active_strategy_id or not price_data:
+            return None
         
-        if not price_data:
-            logger.warning("No price data provided for signal generation")
-            return signals
+        try:
+            # Get active strategy instance
+            active_strategy = self.strategy_pool[self.active_strategy_id]["instance"]
+            
+            # Convert price data to DataFrame
+            df = self._price_data_to_dataframe(price_data)
+            
+            # Generate signal
+            signal = active_strategy.generate_signal(df)
+            
+            if signal:
+                # Update strategy usage stats
+                self.strategy_pool[self.active_strategy_id]["total_signals"] += 1
+                
+                # Add metadata about AI selection
+                if hasattr(signal, 'indicators'):
+                    signal.indicators.update({
+                        'ai_selected_strategy': self.active_strategy_id,
+                        'strategy_confidence': self.active_strategy_confidence,
+                        'market_regime': self.market_regime.get('current_regime', 'unknown'),
+                        'regime_confidence': self.market_regime.get('confidence', 0.0)
+                    })
+                
+                logger.info(f"Signal generated by {self.active_strategy_id}: {signal.signal.value}")
+            
+            return signal
+            
+        except Exception as e:
+            logger.error(f"Error generating signal with active strategy: {e}")
+            return None
+    
+    async def get_system_status(self) -> Dict[str, Any]:
+        """Get comprehensive system status for display."""
+        try:
+            # Update recent performance
+            await self._update_strategy_performance()
+            
+            # Prepare strategy pool status
+            strategy_status = []
+            for strategy_id, strategy_info in self.strategy_pool.items():
+                performance = self.strategy_performance.get(strategy_id, {})
+                score = self.strategy_scores.get(strategy_id, 0.0)
+                
+                strategy_status.append({
+                    "id": strategy_id,
+                    "name": strategy_info["name"],
+                    "type": strategy_info["type"],
+                    "score": round(score, 3),
+                    "is_active": strategy_id == self.active_strategy_id,
+                    "last_used": strategy_info["last_used"],
+                    "performance": {
+                        "return_24h": round(performance.get("total_return", 0.0), 2),
+                        "win_rate": round(performance.get("win_rate", 0.0), 1),
+                        "sharpe_ratio": round(performance.get("sharpe_ratio", 0.0), 2)
+                    },
+                    "total_signals": strategy_info["total_signals"],
+                    "successful_signals": strategy_info["successful_signals"]
+                })
+            
+            # Sort by score (highest first)
+            strategy_status.sort(key=lambda x: x["score"], reverse=True)
+            
+            return {
+                "active_strategy": {
+                    "id": self.active_strategy_id,
+                    "name": self.strategy_pool[self.active_strategy_id]["name"] if self.active_strategy_id else "None",
+                    "confidence": round(self.active_strategy_confidence, 3),
+                    "type": self.strategy_pool[self.active_strategy_id]["type"] if self.active_strategy_id else "None"
+                },
+                "market_regime": {
+                    "current": self.market_regime.get("current_regime", "unknown"),
+                    "confidence": round(self.market_regime.get("confidence", 0.0), 3),
+                    "trend": self.market_regime.get("trend", "neutral"),
+                    "volatility": self.market_regime.get("volatility", "medium")
+                },
+                "strategy_pool": strategy_status,
+                "system_stats": {
+                    "total_strategies": len(self.strategy_pool),
+                    "last_evaluation": self.last_evaluation,
+                    "next_evaluation": self.last_evaluation + timedelta(seconds=self.config["evaluation_frequency"]),
+                    "evaluation_interval": self.config["evaluation_frequency"],
+                    "ai_enabled": True
+                },
+                "configuration": self.config
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting system status: {e}")
+            return {
+                "error": str(e),
+                "active_strategy": {"id": None, "name": "Error", "confidence": 0.0},
+                "strategy_pool": [],
+                "system_stats": {"total_strategies": 0, "ai_enabled": False}
+            }
+    
+    async def get_ai_insights(self) -> Dict[str, Any]:
+        """Get AI insights and reasoning for current selections."""
+        try:
+            insights = []
+            
+            # Market regime insights
+            regime = self.market_regime.get("current_regime", "unknown")
+            regime_confidence = self.market_regime.get("confidence", 0.0)
+            
+            if regime_confidence > 0.7:
+                insights.append(f"High confidence {regime} market detected - strategy selection optimized")
+            elif regime_confidence > 0.5:
+                insights.append(f"Moderate confidence {regime} market - monitoring for changes")
+            else:
+                insights.append("Uncertain market conditions - using conservative strategy selection")
+            
+            # Strategy performance insights
+            if self.strategy_scores:
+                best_strategy = max(self.strategy_scores.items(), key=lambda x: x[1])
+                worst_strategy = min(self.strategy_scores.items(), key=lambda x: x[1])
+                
+                if best_strategy[1] > 0.8:
+                    insights.append(f"Strong strategy signals detected - {best_strategy[0]} highly favored")
+                
+                score_spread = best_strategy[1] - worst_strategy[1]
+                if score_spread < 0.2:
+                    insights.append("Strategy scores are close - market conditions may be transitioning")
+            
+            # Active strategy insights
+            if self.active_strategy_confidence > 0.8:
+                insights.append("High confidence in current strategy selection")
+            elif self.active_strategy_confidence < 0.6:
+                insights.append("Lower confidence - system may switch strategies soon")
+            
+            # Performance insights
+            active_strategy_id = self.active_strategy_id
+            if active_strategy_id and active_strategy_id in self.strategy_performance:
+                perf = self.strategy_performance[active_strategy_id]
+                if perf.get("total_return", 0) > 0:
+                    insights.append("Current strategy showing positive returns")
+                elif perf.get("total_return", 0) < -2:
+                    insights.append("Current strategy underperforming - evaluation increased")
+            
+            return {
+                "insights": insights,
+                "reasoning": {
+                    "regime_analysis": self.market_regime,
+                    "strategy_scores": self.strategy_scores,
+                    "selection_confidence": self.active_strategy_confidence
+                },
+                "recommendations": await self._generate_recommendations()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating AI insights: {e}")
+            return {"insights": ["Error generating insights"], "reasoning": {}, "recommendations": []}
+    
+    async def _generate_recommendations(self) -> List[str]:
+        """Generate actionable recommendations based on current state."""
+        recommendations = []
         
-        # Convert price data to DataFrame
-        df = self._price_data_to_dataframe(price_data)
+        try:
+            # Check if strategy switching is frequent
+            recent_switches = await self._count_recent_strategy_switches()
+            if recent_switches > 3:
+                recommendations.append("Consider increasing switch threshold - frequent strategy changes detected")
+            
+            # Check overall performance
+            avg_performance = np.mean([
+                perf.get("total_return", 0) 
+                for perf in self.strategy_performance.values()
+            ])
+            
+            if avg_performance < -1:
+                recommendations.append("Overall strategy performance declining - consider parameter optimization")
+            elif avg_performance > 2:
+                recommendations.append("Strong performance across strategies - current market conditions favorable")
+            
+            # Market regime recommendations
+            regime_conf = self.market_regime.get("confidence", 0)
+            if regime_conf < 0.5:
+                recommendations.append("Low regime confidence - consider more conservative position sizing")
+            
+        except Exception as e:
+            logger.error(f"Error generating recommendations: {e}")
         
-        for strategy_id, strategy_info in self.strategies.items():
-            if not strategy_info["enabled"]:
-                continue
-                
-            try:
-                strategy_instance = strategy_info["instance"]
-                
-                # Generate signal
-                signal = strategy_instance.generate_signal(df)
-                
-                if signal and signal.signal != SignalType.HOLD:
-                    signals[strategy_id] = signal
-                    strategy_info["last_signal"] = signal
-                    self.signal_history[strategy_id].append(signal)
-                    
-                    # Save signal to database
-                    await self._save_signal_to_database(strategy_id, signal)
-                    
-                    logger.info(f"Generated signal for {strategy_id}: {signal.signal.value}")
-                
-            except Exception as e:
-                logger.error(f"Error generating signal for {strategy_id}: {e}")
-                continue
+        return recommendations
+    
+    async def _count_recent_strategy_switches(self, hours: int = 24) -> int:
+        """Count strategy switches in recent hours."""
+        # This would be implemented by tracking switches in database
+        # For now, return a placeholder
+        return 0
+    
+    def _convert_to_price_data(self, db_records: List[Dict]) -> List[PriceData]:
+        """Convert database records to PriceData objects."""
+        price_data = []
+        for record in reversed(db_records):  # Ensure chronological order
+            price_data.append(PriceData(
+                timestamp=datetime.fromisoformat(record["timestamp"]),
+                price=float(record["price"]),
+                volume=float(record.get("volume", 1000))
+            ))
+        return price_data
+    
+    def _price_data_to_dataframe(self, price_data: List[PriceData]) -> pd.DataFrame:
+        """Convert price data to DataFrame for strategy analysis."""
+        data = []
+        for price_point in price_data:
+            data.append({
+                'timestamp': price_point.timestamp,
+                'open': price_point.price,
+                'high': price_point.price,
+                'low': price_point.price,
+                'close': price_point.price,
+                'volume': price_point.volume or 1000.0
+            })
         
-        return signals
+        df = pd.DataFrame(data)
+        if not df.empty:
+            df.set_index('timestamp', inplace=True)
+        return df
+    
+    async def _update_strategy_performance(self):
+        """Update performance metrics for all strategies."""
+        try:
+            for strategy_id in self.strategy_pool:
+                performance = await self._calculate_strategy_performance(strategy_id)
+                self.strategy_performance[strategy_id] = performance
+                
+        except Exception as e:
+            logger.error(f"Error updating strategy performance: {e}")
     
     async def _calculate_strategy_performance(self, strategy_id: str) -> Dict[str, Any]:
-        """Calculate performance metrics for a strategy."""
+        """Calculate performance metrics for a specific strategy."""
         try:
-            # Get trades for this strategy
-            trades = self.database.get_recent_trades(limit=1000, strategy_id=strategy_id)
+            # Get recent trades for this strategy
+            trades = self.database.get_recent_trades(limit=100, strategy_id=strategy_id)
             
             if not trades:
                 return {
                     "total_return": 0.0,
-                    "total_trades": 0,
                     "win_rate": 0.0,
                     "sharpe_ratio": 0.0,
                     "max_drawdown": 0.0,
-                    "volatility": 0.0,
-                    "performance_history": []
+                    "recent_performance": []
                 }
             
             # Calculate basic metrics
@@ -225,12 +584,11 @@ class StrategyManager:
             
             # Calculate returns
             total_pnl = sum(trade.get("pnl", 0) for trade in trades)
-            trade_returns = [trade.get("pnl", 0) / 1000 for trade in trades]  # Normalize by $1000
+            trade_returns = [trade.get("pnl", 0) / 1000 for trade in trades]  # Normalize
             
-            # Calculate total return percentage
             total_return = (total_pnl / (total_trades * 1000) * 100) if total_trades > 0 else 0
             
-            # Calculate Sharpe ratio (simplified)
+            # Calculate Sharpe ratio
             if len(trade_returns) > 1:
                 avg_return = mean(trade_returns)
                 return_std = stdev(trade_returns)
@@ -238,368 +596,106 @@ class StrategyManager:
             else:
                 sharpe_ratio = 0
             
-            # Calculate volatility
-            volatility = stdev(trade_returns) * 100 if len(trade_returns) > 1 else 0
-            
-            # Calculate max drawdown (simplified)
-            cumulative_returns = []
-            cumulative = 0
-            for ret in trade_returns:
-                cumulative += ret
-                cumulative_returns.append(cumulative)
-            
-            if cumulative_returns:
-                peak = cumulative_returns[0]
-                max_drawdown = 0
-                for value in cumulative_returns:
-                    if value > peak:
-                        peak = value
-                    drawdown = (peak - value) / peak if peak != 0 else 0
-                    max_drawdown = max(max_drawdown, drawdown)
-                max_drawdown = max_drawdown * 100
+            # Calculate max drawdown
+            cumulative_returns = np.cumsum(trade_returns)
+            if len(cumulative_returns) > 0:
+                peak = np.maximum.accumulate(cumulative_returns)
+                drawdown = (peak - cumulative_returns) / peak
+                max_drawdown = np.max(drawdown) * 100 if len(drawdown) > 0 else 0
             else:
                 max_drawdown = 0
             
-            # Generate performance history (daily returns over last 30 days)
-            performance_history = self._generate_performance_history(trade_returns, days=30)
-            
             return {
                 "total_return": round(total_return, 2),
-                "total_trades": total_trades,
                 "win_rate": round(win_rate, 1),
                 "sharpe_ratio": round(sharpe_ratio, 2),
                 "max_drawdown": round(max_drawdown, 2),
-                "volatility": round(volatility, 2),
-                "performance_history": performance_history
+                "recent_performance": trade_returns[-10:]  # Last 10 trades
             }
             
         except Exception as e:
             logger.error(f"Error calculating performance for {strategy_id}: {e}")
             return {
                 "total_return": 0.0,
-                "total_trades": 0,
                 "win_rate": 0.0,
                 "sharpe_ratio": 0.0,
                 "max_drawdown": 0.0,
-                "volatility": 0.0,
-                "performance_history": []
+                "recent_performance": []
             }
     
-    def _generate_performance_history(self, trade_returns: List[float], days: int = 30) -> List[Dict[str, Any]]:
-        """Generate performance history for charting."""
-        history = []
-        current_time = datetime.now(timezone.utc)
-        
-        # If we have trade returns, distribute them over the time period
-        if trade_returns:
-            avg_daily_return = sum(trade_returns) / days if days > 0 else 0
-            cumulative_return = 0
-            
-            for i in range(days):
-                timestamp = current_time - timedelta(days=days-i)
+    async def _update_market_regime(self):
+        """Update current market regime analysis."""
+        try:
+            # Get recent price data
+            recent_data = self.database.get_recent_prices(limit=200)
+            if recent_data:
+                price_data = self._convert_to_price_data(recent_data)
+                regime_result = await self.regime_detector.detect_regime(price_data)
+                self.market_regime = regime_result
                 
-                # Add some realistic variation
-                daily_return = avg_daily_return + np.random.normal(0, avg_daily_return * 0.3)
-                cumulative_return += daily_return
-                
-                history.append({
-                    "timestamp": timestamp.timestamp(),
-                    "value": cumulative_return * 100  # Convert to percentage
-                })
-        else:
-            # Generate flat line at 0 if no trades
-            for i in range(days):
-                timestamp = current_time - timedelta(days=days-i)
-                history.append({
-                    "timestamp": timestamp.timestamp(),
-                    "value": 0.0
-                })
-        
-        return history
-    
-    async def _get_recent_signals(self, strategy_id: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get recent signals for a strategy."""
-        try:
-            signals = self.database.get_recent_signals(strategy_id=strategy_id, limit=limit)
-            return signals
         except Exception as e:
-            logger.error(f"Error getting recent signals for {strategy_id}: {e}")
-            return []
+            logger.error(f"Error updating market regime: {e}")
     
-    async def _save_signal_to_database(self, strategy_id: str, signal: Any):
-        """Save signal to database."""
+    async def force_strategy_switch(self, strategy_id: str) -> bool:
+        """Manually force a strategy switch (for testing/override)."""
         try:
-            self.database.add_signal(
-                strategy_id=strategy_id,
-                timestamp=signal.timestamp,
-                signal_type=signal.signal.value,
-                confidence=signal.confidence,
-                price=signal.price,
-                indicators=signal.indicators,
-                reasoning=signal.reasoning
-            )
-        except Exception as e:
-            logger.error(f"Error saving signal for {strategy_id}: {e}")
-    
-    def _price_data_to_dataframe(self, price_data: List[PriceData]) -> pd.DataFrame:
-        """Convert price data to DataFrame for strategy analysis."""
-        data = []
-        for price_point in price_data:
-            data.append({
-                'timestamp': price_point.timestamp,
-                'open': price_point.price,  # Simplified - using price as OHLC
-                'high': price_point.price,
-                'low': price_point.price,
-                'close': price_point.price,
-                'volume': price_point.volume or 1000.0
-            })
-        
-        df = pd.DataFrame(data)
-        df.set_index('timestamp', inplace=True)
-        return df
-    
-    async def enable_strategy(self, strategy_id: str) -> bool:
-        """Enable a strategy."""
-        try:
-            if strategy_id in self.strategies:
-                self.strategies[strategy_id]["enabled"] = True
-                success = self.database.update_strategy_status(strategy_id, True)
-                if success:
-                    logger.info(f"Enabled strategy: {strategy_id}")
-                return success
+            if strategy_id in self.strategy_pool:
+                await self._switch_strategy(strategy_id, 0.9)  # High confidence for manual
+                logger.info(f"Manually switched to strategy: {strategy_id}")
+                return True
             return False
         except Exception as e:
-            logger.error(f"Error enabling strategy {strategy_id}: {e}")
+            logger.error(f"Error forcing strategy switch: {e}")
             return False
     
-    async def disable_strategy(self, strategy_id: str) -> bool:
-        """Disable a strategy."""
+    async def update_ai_configuration(self, config_updates: Dict[str, Any]) -> bool:
+        """Update AI system configuration."""
         try:
-            if strategy_id in self.strategies:
-                self.strategies[strategy_id]["enabled"] = False
-                success = self.database.update_strategy_status(strategy_id, False)
-                if success:
-                    logger.info(f"Disabled strategy: {strategy_id}")
-                return success
+            for key, value in config_updates.items():
+                if key in self.config:
+                    self.config[key] = value
+                    logger.info(f"Updated AI config: {key} = {value}")
+            return True
+        except Exception as e:
+            logger.error(f"Error updating AI configuration: {e}")
             return False
-        except Exception as e:
-            logger.error(f"Error disabling strategy {strategy_id}: {e}")
-            return False
-    
-    async def get_strategy_details(self, strategy_id: str) -> Optional[Dict[str, Any]]:
-        """Get detailed information about a specific strategy."""
-        try:
-            if strategy_id not in self.strategies:
-                return None
-            
-            strategy_info = self.strategies[strategy_id]
-            performance = await self._calculate_strategy_performance(strategy_id)
-            recent_signals = await self._get_recent_signals(strategy_id, limit=20)
-            
-            return {
-                "id": strategy_id,
-                "name": strategy_info["metadata"]["name"],
-                "type": strategy_info["metadata"]["type"],
-                "description": strategy_info["metadata"].get("description", ""),
-                "active": strategy_info["enabled"],
-                "parameters": strategy_info["metadata"].get("parameters", {}),
-                "performance": performance,
-                "recent_signals": recent_signals,
-                "last_signal": strategy_info["last_signal"],
-                "strategy_info": strategy_info["instance"].get_strategy_info() if hasattr(strategy_info["instance"], 'get_strategy_info') else {}
-            }
-        except Exception as e:
-            logger.error(f"Error getting strategy details for {strategy_id}: {e}")
-            return None
-    
-    async def update_strategy_parameters(self, strategy_id: str, parameters: Dict[str, Any]) -> bool:
-        """Update strategy parameters."""
-        try:
-            if strategy_id not in self.strategies:
-                return False
-            
-            strategy_info = self.strategies[strategy_id]
-            strategy_instance = strategy_info["instance"]
-            
-            # Update strategy instance parameters
-            strategy_instance.update_parameters(parameters)
-            
-            # Update database
-            strategy_info["metadata"]["parameters"] = parameters
-            success = self.database.add_strategy(
-                strategy_id=strategy_id,
-                name=strategy_info["metadata"]["name"],
-                strategy_type=strategy_info["metadata"]["type"],
-                description=strategy_info["metadata"].get("description"),
-                parameters=parameters,
-                active=strategy_info["enabled"]
-            )
-            
-            if success:
-                logger.info(f"Updated parameters for strategy {strategy_id}")
-            
-            return success
-        except Exception as e:
-            logger.error(f"Error updating parameters for {strategy_id}: {e}")
-            return False
-    
-    async def backtest_strategy(self, strategy_id: str, hours: int = 168) -> Dict[str, Any]:
-        """Run backtest for a strategy."""
-        try:
-            if strategy_id not in self.strategies:
-                raise StrategyException(f"Strategy {strategy_id} not found")
-            
-            strategy_instance = self.strategies[strategy_id]["instance"]
-            
-            # Get historical data for backtesting
-            historical_data = self.database.get_recent_prices(limit=hours * 2)
-            if not historical_data:
-                raise StrategyException("Insufficient historical data for backtesting")
-            
-            # Convert to DataFrame
-            price_data = [
-                PriceData(
-                    timestamp=datetime.fromisoformat(record["timestamp"]),
-                    price=float(record["price"]),
-                    volume=float(record.get("volume", 1000))
-                )
-                for record in reversed(historical_data)
-            ]
-            
-            df = self._price_data_to_dataframe(price_data)
-            
-            # Run backtest
-            if hasattr(strategy_instance, 'backtest'):
-                backtest_result = strategy_instance.backtest(df)
-                return {
-                    "success": True,
-                    "strategy_id": strategy_id,
-                    "backtest_result": backtest_result.__dict__ if hasattr(backtest_result, '__dict__') else str(backtest_result)
-                }
-            else:
-                raise StrategyException(f"Strategy {strategy_id} does not support backtesting")
-                
-        except Exception as e:
-            logger.error(f"Error backtesting strategy {strategy_id}: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    async def optimize_strategy(self, strategy_id: str) -> Dict[str, Any]:
-        """Optimize strategy parameters."""
-        try:
-            if strategy_id not in self.strategies:
-                raise StrategyException(f"Strategy {strategy_id} not found")
-            
-            strategy_instance = self.strategies[strategy_id]["instance"]
-            
-            # Get historical data for optimization
-            historical_data = self.database.get_recent_prices(limit=1000)
-            if not historical_data:
-                raise StrategyException("Insufficient historical data for optimization")
-            
-            # Convert to DataFrame
-            price_data = [
-                PriceData(
-                    timestamp=datetime.fromisoformat(record["timestamp"]),
-                    price=float(record["price"]),
-                    volume=float(record.get("volume", 1000))
-                )
-                for record in reversed(historical_data)
-            ]
-            
-            df = self._price_data_to_dataframe(price_data)
-            
-            # Run optimization
-            if hasattr(strategy_instance, 'optimize_parameters'):
-                optimization_result = strategy_instance.optimize_parameters(df)
-                
-                # Update strategy with optimized parameters
-                if optimization_result.get('best_parameters'):
-                    await self.update_strategy_parameters(strategy_id, optimization_result['best_parameters'])
-                
-                return {
-                    "success": True,
-                    "strategy_id": strategy_id,
-                    "optimization_result": optimization_result
-                }
-            else:
-                raise StrategyException(f"Strategy {strategy_id} does not support optimization")
-                
-        except Exception as e:
-            logger.error(f"Error optimizing strategy {strategy_id}: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    async def get_strategy_signals_history(self, strategy_id: str, hours: int = 24) -> List[Dict[str, Any]]:
-        """Get historical signals for a strategy."""
-        try:
-            signals = self.database.get_recent_signals(strategy_id=strategy_id, limit=hours * 4)  # Assume max 4 signals per hour
-            
-            # Filter by time range
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-            filtered_signals = []
-            
-            for signal in signals:
-                signal_time = datetime.fromisoformat(signal["timestamp"])
-                if signal_time >= cutoff_time:
-                    filtered_signals.append({
-                        "timestamp": signal["timestamp"],
-                        "signal_type": signal["signal_type"],
-                        "confidence": float(signal["confidence"]),
-                        "price": float(signal["price"]),
-                        "reasoning": signal.get("reasoning", ""),
-                        "executed": bool(signal.get("executed", False))
-                    })
-            
-            return filtered_signals
-        except Exception as e:
-            logger.error(f"Error getting signal history for {strategy_id}: {e}")
-            return []
-    
-    def get_active_strategies(self) -> List[str]:
-        """Get list of active strategy IDs."""
-        return [
-            strategy_id 
-            for strategy_id, strategy_info in self.strategies.items() 
-            if strategy_info["enabled"]
-        ]
-    
-    def get_strategy_count(self) -> Dict[str, int]:
-        """Get strategy count statistics."""
-        total = len(self.strategies)
-        active = len(self.get_active_strategies())
-        inactive = total - active
-        
-        return {
-            "total": total,
-            "active": active,
-            "inactive": inactive
-        }
     
     async def health_check(self) -> Dict[str, Any]:
-        """Strategy manager health check."""
+        """Comprehensive system health check."""
         try:
-            strategy_counts = self.get_strategy_count()
-            
-            # Check signal generation health
-            recent_signals = 0
-            for strategy_id in self.strategies:
-                signals = await self._get_recent_signals(strategy_id, limit=10)
-                recent_signals += len(signals)
-            
-            return {
+            health_status = {
                 "status": "healthy",
-                "strategy_count": strategy_counts,
-                "recent_signals": recent_signals,
-                "signal_history_size": sum(len(history) for history in self.signal_history.values()),
-                "performance_cache_size": len(self.performance_cache)
+                "timestamp": datetime.now(timezone.utc),
+                "components": {
+                    "strategy_pool": len(self.strategy_pool) > 0,
+                    "active_strategy": self.active_strategy_id is not None,
+                    "regime_detector": await self.regime_detector.health_check(),
+                    "strategy_scorer": await self.strategy_scorer.health_check(),
+                    "ai_selector": True
+                },
+                "metrics": {
+                    "total_strategies": len(self.strategy_pool),
+                    "active_strategy_confidence": self.active_strategy_confidence,
+                    "last_evaluation": self.last_evaluation,
+                    "evaluation_interval": self.config["evaluation_frequency"]
+                }
             }
+            
+            # Check for any unhealthy components
+            unhealthy_components = [
+                comp for comp, status in health_status["components"].items() 
+                if not status
+            ]
+            
+            if unhealthy_components:
+                health_status["status"] = "warning"
+                health_status["issues"] = unhealthy_components
+            
+            return health_status
+            
         except Exception as e:
             return {
                 "status": "error",
-                "error": str(e)
+                "error": str(e),
+                "timestamp": datetime.now(timezone.utc)
             }
