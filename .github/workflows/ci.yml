@@ -1,4 +1,4 @@
-name: Odin CI (No TA-Lib)
+name: Odin CI
 
 on:
   push:
