@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, Mock, patch
 class TestDatabaseIntegration:
     """Test database integration with other components."""
     
-    
+    @pytest.mark.asyncio
     async def test_database_data_collector_integration(self):
         """Test database and data collector working together."""
         try:
@@ -70,7 +70,7 @@ class TestDatabaseIntegration:
 class TestAPIIntegration:
     """Test API integration with core components."""
     
-    
+    @pytest.mark.asyncio
     async def test_api_data_endpoints(self):
         """Test API endpoints with mocked data."""
         try:
@@ -126,7 +126,7 @@ class TestAPIIntegration:
 class TestStrategyIntegration:
     """Test strategy integration with data and portfolio management."""
     
-    
+    @pytest.mark.asyncio
     async def test_strategy_data_pipeline(self):
         """Test strategy execution with data pipeline."""
         try:
@@ -168,7 +168,7 @@ class TestStrategyIntegration:
 class TestDataCollectionWorkflow:
     """Test end-to-end data collection workflow."""
     
-    
+    @pytest.mark.asyncio
     async def test_data_collection_pipeline(self):
         """Test complete data collection and storage pipeline."""
         try:
@@ -232,7 +232,7 @@ class TestDataCollectionWorkflow:
 class TestTradingWorkflow:
     """Test trading workflow integration."""
     
-    
+    @pytest.mark.asyncio
     async def test_mock_trading_workflow(self):
         """Test mock trading workflow with strategies."""
         try:
@@ -292,13 +292,22 @@ class TestConfigurationIntegration:
             # Test configuration loading
             settings = Settings()
             
-            # Verify configuration values
+            # Verify configuration values (flexible checking)
             if hasattr(settings, 'debug'):
                 assert settings.debug is True
             if hasattr(settings, 'database_url'):
                 assert 'test.db' in settings.database_url
+            
+            # Check log_level flexibly since it might not be defined
             if hasattr(settings, 'log_level'):
+                # If log_level is defined, it should be DEBUG
                 assert settings.log_level == 'DEBUG'
+            elif hasattr(settings, 'LOG_LEVEL'):
+                # Check if it's stored as uppercase
+                assert settings.LOG_LEVEL == 'DEBUG'
+            else:
+                # If log_level isn't defined in Settings class, that's OK
+                print("⚠️  log_level not defined in Settings class - this is expected")
             
             print("✅ Configuration integration test passed")
             
@@ -316,7 +325,7 @@ class TestConfigurationIntegration:
 class TestErrorHandling:
     """Test error handling across components."""
     
-    
+    @pytest.mark.asyncio
     async def test_data_collection_error_handling(self):
         """Test error handling in data collection."""
         try:
@@ -348,7 +357,7 @@ class TestErrorHandling:
 class TestPerformanceIntegration:
     """Test performance aspects of integration."""
     
-    
+    @pytest.mark.asyncio
     async def test_concurrent_operations(self):
         """Test concurrent operations don't interfere."""
         import asyncio

@@ -43,6 +43,8 @@ if PYDANTIC_AVAILABLE:
         exchange_api_key: Optional[str] = Field(None, env="EXCHANGE_API_KEY")
         exchange_secret_key: Optional[str] = Field(None, env="EXCHANGE_SECRET_KEY")
         exchange_sandbox: bool = Field(True, env="EXCHANGE_SANDBOX")
+        
+        log_level: str = Field("INFO", env="LOG_LEVEL")
 
         # Security
         jwt_secret_key: str = Field("jwt-secret-change-this", env="JWT_SECRET_KEY")
@@ -52,6 +54,7 @@ if PYDANTIC_AVAILABLE:
         class Config:
             env_file = ".env"
             case_sensitive = False
+            extra = "allow"
 
 else:
     # Fallback simple settings without Pydantic
