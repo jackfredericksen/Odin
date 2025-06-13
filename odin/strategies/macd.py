@@ -15,7 +15,7 @@ from typing import Dict, Any, Tuple
 import pandas as pd
 import numpy as np
 
-from .base import Strategy, StrategySignal, StrategyType, Signal
+from .base import Strategy, SignalType, StrategyType, Signal
 
 
 class MACDStrategy(Strategy):
@@ -139,7 +139,7 @@ class MACDStrategy(Strategy):
         min_data_points = max(self.slow_period, self.signal_period) + 1
         if len(data) < min_data_points:
             return Signal(
-                signal=StrategySignal.HOLD,
+                signal=SignalType.HOLD,
                 confidence=0.0,
                 timestamp=datetime.now(),
                 price=data['close'].iloc[-1] if not data.empty else 0.0,
@@ -216,7 +216,7 @@ class MACDStrategy(Strategy):
 
     def _analyze_macd_signals(self, current_row: pd.Series, previous_row: pd.Series,
                              current_macd_above_signal: bool, 
-                             current_macd_above_zero: bool) -> Tuple[StrategySignal, str]:
+                             current_macd_above_zero: bool) -> Tuple[SignalType, str]:
         """Analyze MACD for trading signals."""
         
         current_macd = current_row['macd']
@@ -229,11 +229,11 @@ class MACDStrategy(Strategy):
             self.previous_macd_above_signal != current_macd_above_signal):
             
             if current_macd_above_signal:
-                return (StrategySignal.BUY,
+                return (SignalType.BUY,
                        f"Bullish MACD crossover: MACD ({current_macd:.6f}) "
                        f"crossed above signal ({current_signal:.6f})")
             else:
-                return (StrategySignal.SELL,
+                return (SignalType.SELL,
                        f"Bearish MACD crossover: MACD ({current_macd:.6f}) "
                        f"crossed below signal ({current_signal:.6f})")
         
@@ -244,11 +244,11 @@ class MACDStrategy(Strategy):
             volume_ratio = current_row.get('volume_ratio', 1.0)
             if volume_ratio > 1.2:  # Require volume confirmation for zero line crosses
                 if current_macd_above_zero:
-                    return (StrategySignal.BUY,
+                    return (SignalType.BUY,
                            f"Bullish zero line cross: MACD ({current_macd:.6f}) "
                            f"crossed above zero with volume")
                 else:
-                    return (StrategySignal.SELL,
+                    return (SignalType.SELL,
                            f"Bearish zero line cross: MACD ({current_macd:.6f}) "
                            f"crossed below zero with volume")
         
@@ -259,26 +259,26 @@ class MACDStrategy(Strategy):
         if abs(histogram_slope) > 0.001:  # Significant histogram change
             if (current_histogram > 0 and histogram_slope > 0 and 
                 macd_momentum > 0 and current_macd_above_signal):
-                return (StrategySignal.BUY,
+                return (SignalType.BUY,
                        f"Strong bullish momentum: histogram rising ({histogram_slope:.6f})")
             
             elif (current_histogram < 0 and histogram_slope < 0 and 
                   macd_momentum < 0 and not current_macd_above_signal):
-                return (StrategySignal.SELL,
+                return (SignalType.SELL,
                        f"Strong bearish momentum: histogram falling ({histogram_slope:.6f})")
         
         # 4. Divergence signals
         price_momentum = current_row.get('price_momentum', 0)
         if self._detect_divergence(current_row, price_momentum, macd_momentum):
             if macd_momentum > 0 and price_momentum < 0:
-                return (StrategySignal.BUY,
+                return (SignalType.BUY,
                        f"Bullish divergence detected: price falling, MACD rising")
             elif macd_momentum < 0 and price_momentum > 0:
-                return (StrategySignal.SELL,
+                return (SignalType.SELL,
                        f"Bearish divergence detected: price rising, MACD falling")
         
         # No clear signal
-        return (StrategySignal.HOLD,
+        return (SignalType.HOLD,
                f"No clear MACD signal - MACD: {current_macd:.6f}, "
                f"Signal: {current_signal:.6f}, Histogram: {current_histogram:.6f}")
 
@@ -292,7 +292,7 @@ class MACDStrategy(Strategy):
                 abs(macd_momentum) > divergence_threshold and
                 (price_momentum * macd_momentum) < 0)  # Opposite signs
 
-    def _calculate_confidence(self, row: pd.Series, signal_type: StrategySignal) -> float:
+    def _calculate_confidence(self, row: pd.Series, signal_type: SignalType) -> float:
         """
         Calculate signal confidence based on various factors.
         
@@ -303,7 +303,7 @@ class MACDStrategy(Strategy):
         Returns:
             Confidence score between 0 and 1
         """
-        if signal_type == StrategySignal.HOLD:
+        if signal_type == SignalType.HOLD:
             return 0.0
         
         confidence_factors = []
@@ -322,7 +322,7 @@ class MACDStrategy(Strategy):
         macd_slope = row.get('macd_slope', 0)
         macd_momentum = row.get('macd_momentum', 0)
         
-        if signal_type == StrategySignal.BUY:
+        if signal_type == SignalType.BUY:
             momentum_alignment = 1.0 if (macd_slope > 0 and macd_momentum > 0) else 0.3
         else:
             momentum_alignment = 1.0 if (macd_slope < 0 and macd_momentum < 0) else 0.3
@@ -335,7 +335,7 @@ class MACDStrategy(Strategy):
         
         # 5. Zero line position
         macd = row.get('macd', 0)
-        if signal_type == StrategySignal.BUY:
+        if signal_type == SignalType.BUY:
             zero_confidence = 0.8 if macd > 0 else 0.4
         else:
             zero_confidence = 0.8 if macd < 0 else 0.4

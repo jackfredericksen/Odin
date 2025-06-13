@@ -15,8 +15,8 @@ from datetime import datetime
 from typing import Dict, Any, Tuple
 import pandas as pd
 import numpy as np
-
-from .base import Strategy, StrategySignal, StrategyType, Signal
+from ..core.models import SignalType
+from .base import Strategy, SignalType, StrategyType, Signal
 
 
 class BollingerBandsStrategy(Strategy):
@@ -138,7 +138,7 @@ class BollingerBandsStrategy(Strategy):
         """
         if len(data) < self.period:
             return Signal(
-                signal=StrategySignal.HOLD,
+                signal=SignalType.HOLD,
                 confidence=0.0,
                 timestamp=datetime.now(),
                 price=data['close'].iloc[-1] if not data.empty else 0.0,
@@ -204,7 +204,7 @@ class BollingerBandsStrategy(Strategy):
         return signal
 
     def _generate_breakout_signal(self, current_row: pd.Series, 
-                                previous_row: pd.Series) -> Tuple[StrategySignal, str]:
+                                previous_row: pd.Series) -> Tuple[SignalType, str]:
         """Generate breakout-based signals."""
         current_price = current_row['close']
         previous_price = previous_row['close']
@@ -217,7 +217,7 @@ class BollingerBandsStrategy(Strategy):
         if (current_price > bb_upper and 
             previous_row['close'] <= previous_row['bb_upper'] and
             volume_ratio > 1.2):
-            return (StrategySignal.BUY, 
+            return (SignalType.BUY, 
                    f"Bullish breakout above upper band at {current_price:.2f} "
                    f"(band: {bb_upper:.2f}) with volume")
         
@@ -225,7 +225,7 @@ class BollingerBandsStrategy(Strategy):
         elif (current_price < bb_lower and 
               previous_row['close'] >= previous_row['bb_lower'] and
               volume_ratio > 1.2):
-            return (StrategySignal.SELL,
+            return (SignalType.SELL,
                    f"Bearish breakdown below lower band at {current_price:.2f} "
                    f"(band: {bb_lower:.2f}) with volume")
         
@@ -233,18 +233,18 @@ class BollingerBandsStrategy(Strategy):
         elif bb_squeeze and volume_ratio > 1.5:
             bb_trend = current_row.get('bb_trend', 0)
             if bb_trend > 0:
-                return (StrategySignal.BUY,
+                return (SignalType.BUY,
                        f"Squeeze breakout preparation - uptrend with volume")
             elif bb_trend < 0:
-                return (StrategySignal.SELL,
+                return (SignalType.SELL,
                        f"Squeeze breakout preparation - downtrend with volume")
         
-        return (StrategySignal.HOLD, 
+        return (SignalType.HOLD, 
                f"No breakout signal - price at {current_price:.2f}, "
                f"bands: {bb_lower:.2f}-{bb_upper:.2f}")
 
     def _generate_mean_reversion_signal(self, current_row: pd.Series, 
-                                      previous_row: pd.Series) -> Tuple[StrategySignal, str]:
+                                      previous_row: pd.Series) -> Tuple[SignalType, str]:
         """Generate mean reversion signals."""
         current_price = current_row['close']
         percent_b = current_row['percent_b']
@@ -253,27 +253,27 @@ class BollingerBandsStrategy(Strategy):
         
         # Buy signal: Price near lower band (oversold)
         if percent_b <= 0.1 and current_price < bb_middle:
-            return (StrategySignal.BUY,
+            return (SignalType.BUY,
                    f"Oversold bounce from lower band - %B: {percent_b:.3f}")
         
         # Sell signal: Price near upper band (overbought)
         elif percent_b >= 0.9 and current_price > bb_middle:
-            return (StrategySignal.SELL,
+            return (SignalType.SELL,
                    f"Overbought rejection from upper band - %B: {percent_b:.3f}")
         
         # Enhanced signals with trend confirmation
         elif 0.1 < percent_b <= 0.3 and bb_trend > 0:
-            return (StrategySignal.BUY,
+            return (SignalType.BUY,
                    f"Buy the dip in uptrend - %B: {percent_b:.3f}")
         
         elif 0.7 <= percent_b < 0.9 and bb_trend < 0:
-            return (StrategySignal.SELL,
+            return (SignalType.SELL,
                    f"Sell the rally in downtrend - %B: {percent_b:.3f}")
         
-        return (StrategySignal.HOLD,
+        return (SignalType.HOLD,
                f"Neutral position - %B: {percent_b:.3f}, trend: {bb_trend}")
 
-    def _calculate_confidence(self, row: pd.Series, signal_type: StrategySignal) -> float:
+    def _calculate_confidence(self, row: pd.Series, signal_type: SignalType) -> float:
         """
         Calculate signal confidence based on various factors.
         
@@ -284,14 +284,14 @@ class BollingerBandsStrategy(Strategy):
         Returns:
             Confidence score between 0 and 1
         """
-        if signal_type == StrategySignal.HOLD:
+        if signal_type == SignalType.HOLD:
             return 0.0
         
         confidence_factors = []
         
         # 1. Band position extremity
         percent_b = row.get('percent_b', 0.5)
-        if signal_type == StrategySignal.BUY:
+        if signal_type == SignalType.BUY:
             position_confidence = max(0, 1.0 - percent_b * 2)  # Lower %B = higher confidence
         else:
             position_confidence = max(0, (percent_b - 0.5) * 2)  # Higher %B = higher confidence
@@ -309,8 +309,8 @@ class BollingerBandsStrategy(Strategy):
         
         # 4. Trend alignment
         bb_trend = row.get('bb_trend', 0)
-        if (signal_type == StrategySignal.BUY and bb_trend >= 0) or \
-           (signal_type == StrategySignal.SELL and bb_trend <= 0):
+        if (signal_type == SignalType.BUY and bb_trend >= 0) or \
+           (signal_type == SignalType.SELL and bb_trend <= 0):
             trend_confidence = 0.8
         else:
             trend_confidence = 0.3
