@@ -10,8 +10,4 @@ This module provides adaptive strategy selection and management:
 
 from .adaptive_manager import AdaptiveStrategyManager, RegimeType, StrategyConfig
 
-__all__ = [
-    "AdaptiveStrategyManager",
-    "RegimeType", 
-    "StrategyConfig"
-]
+__all__ = ["AdaptiveStrategyManager", "RegimeType", "StrategyConfig"]

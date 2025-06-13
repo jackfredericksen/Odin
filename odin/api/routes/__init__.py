@@ -37,8 +37,8 @@ except ImportError as e:
 
 __all__ = [
     "data_router",
-    "strategies_router", 
+    "strategies_router",
     "trading_router",
     "portfolio_router",
-    "websocket_router"
+    "websocket_router",
 ]

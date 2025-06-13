@@ -3,7 +3,8 @@ Strategy routes module
 """
 
 from fastapi import APIRouter
-from . import analysis, backtesting, comparison, optimization, signals, management
+
+from . import analysis, backtesting, comparison, management, optimization, signals
 
 router = APIRouter()
 

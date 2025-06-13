@@ -4,7 +4,8 @@ Market routes module
 """
 
 from fastapi import APIRouter
-from . import regime, alerts, depth, fees
+
+from . import alerts, depth, fees, regime
 
 router = APIRouter()
 

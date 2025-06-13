@@ -13,4 +13,3 @@ This package contains the core business logic for the Odin trading system:
 Author: Odin Development Team
 License: MIT
 """
-

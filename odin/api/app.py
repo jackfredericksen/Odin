@@ -1,29 +1,32 @@
 """
 Odin Bitcoin Trading Bot - FastAPI Application (Enhanced Dashboard Compatibility)
 """
-from odin.core.database import get_database, init_sample_data
-from odin.core.models import APIResponse, serialize_for_dashboard
-from fastapi import FastAPI, Request
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.encoders import jsonable_encoder
-from pathlib import Path
+
+import logging
 import random
 import time
-import logging
+from pathlib import Path
+
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 # Import config properly
 from odin.config import get_settings
+from odin.core.database import get_database, init_sample_data
+from odin.core.models import APIResponse, serialize_for_dashboard
 
 logger = logging.getLogger(__name__)
 
+
 def create_app() -> FastAPI:
     """Create and configure FastAPI application with enhanced dashboard compatibility."""
-    
+
     settings = get_settings()
-    
+
     # Create FastAPI instance
     app = FastAPI(
         title="Odin Bitcoin Trading Bot",
@@ -32,7 +35,7 @@ def create_app() -> FastAPI:
         docs_url="/docs" if settings.debug else None,
         redoc_url="/redoc" if settings.debug else None,
     )
-    
+
     # Add CORS middleware with enhanced configuration
     app.add_middleware(
         CORSMiddleware,
@@ -40,48 +43,47 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$"
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$",
     )
-    
+
     # Custom middleware for dashboard-compatible responses
     @app.middleware("http")
     async def dashboard_compatibility_middleware(request: Request, call_next):
         """Ensure all responses are dashboard-compatible."""
         try:
             response = await call_next(request)
-            
+
             # Add dashboard-friendly headers for API routes
             if request.url.path.startswith("/api/"):
-                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Cache-Control"] = (
+                    "no-cache, no-store, must-revalidate"
+                )
                 response.headers["Pragma"] = "no-cache"
                 response.headers["Expires"] = "0"
                 response.headers["X-Odin-API"] = "v1"
-            
+
             return response
         except Exception as e:
             logger.error(f"Middleware error: {e}")
             # Return dashboard-friendly error response
             error_response = APIResponse(
-                success=False,
-                message="Internal server error",
-                data=None
+                success=False, message="Internal server error", data=None
             )
             return JSONResponse(
-                status_code=500,
-                content=serialize_for_dashboard(error_response)
+                status_code=500, content=serialize_for_dashboard(error_response)
             )
-    
+
     # Mount static files
     static_path = Path(__file__).parent.parent.parent / "web" / "static"
     if static_path.exists():
         app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
-    
+
     # Setup templates
     template_path = Path(__file__).parent.parent.parent / "web" / "templates"
     templates = None
     if template_path.exists():
         templates = Jinja2Templates(directory=str(template_path))
-    
+
     # Enhanced health check endpoints with dashboard compatibility
     @app.get("/api/v1/health")
     async def health_check():
@@ -97,19 +99,20 @@ def create_app() -> FastAPI:
                 "components": {
                     "database": "ready",
                     "api": "healthy",
-                    "trading_engine": "initialized"
-                }
-            }
+                    "trading_engine": "initialized",
+                },
+            },
         )
         return serialize_for_dashboard(response)
-    
+
     @app.get("/api/v1/health/detailed")
     async def detailed_health():
         """Detailed health check for dashboard monitoring."""
         try:
             import psutil
+
             memory = psutil.virtual_memory()
-            
+
             response = APIResponse(
                 success=True,
                 message="System healthy",
@@ -119,28 +122,26 @@ def create_app() -> FastAPI:
                     "system": {
                         "memory_percent": round(memory.percent, 2),
                         "cpu_percent": round(psutil.cpu_percent(interval=0.1), 2),
-                        "disk_usage": round(psutil.disk_usage('/').percent, 2)
+                        "disk_usage": round(psutil.disk_usage("/").percent, 2),
                     },
                     "components": {
                         "database": "ready",
                         "trading_engine": "initialized",
                         "data_collector": "active",
-                        "portfolio_manager": "ready"
+                        "portfolio_manager": "ready",
                     },
                     "performance": {
                         "avg_response_time_ms": random.uniform(50, 150),
                         "requests_per_minute": random.randint(10, 100),
-                        "error_rate_percent": random.uniform(0, 2)
-                    }
-                }
+                        "error_rate_percent": random.uniform(0, 2),
+                    },
+                },
             )
             return serialize_for_dashboard(response)
         except Exception as e:
             logger.error(f"Health check error: {e}")
             response = APIResponse(
-                success=False,
-                message="Health check failed",
-                data={"error": str(e)}
+                success=False, message="Health check failed", data={"error": str(e)}
             )
             return serialize_for_dashboard(response)
 
@@ -149,21 +150,29 @@ def create_app() -> FastAPI:
         """WebSocket health check for dashboard connection monitoring."""
         try:
             # Check if WebSocket routes are properly registered
-            websocket_routes = [route for route in app.routes if hasattr(route, 'path') and route.path.startswith('/ws')]
-            
+            websocket_routes = [
+                route
+                for route in app.routes
+                if hasattr(route, "path") and route.path.startswith("/ws")
+            ]
+
             response = APIResponse(
                 success=True,
                 message="WebSocket endpoints ready",
                 data={
                     "websocket_routes": len(websocket_routes),
-                    "available_endpoints": [route.path for route in websocket_routes if hasattr(route, 'path')],
+                    "available_endpoints": [
+                        route.path
+                        for route in websocket_routes
+                        if hasattr(route, "path")
+                    ],
                     "status": "WebSocket endpoints are ready",
                     "connection_info": {
                         "max_connections": 100,
                         "current_connections": random.randint(0, 10),
-                        "message_rate_per_second": random.randint(1, 5)
-                    }
-                }
+                        "message_rate_per_second": random.randint(1, 5),
+                    },
+                },
             )
             return serialize_for_dashboard(response)
         except Exception as e:
@@ -171,10 +180,10 @@ def create_app() -> FastAPI:
             response = APIResponse(
                 success=False,
                 message="WebSocket health check failed",
-                data={"error": str(e)}
+                data={"error": str(e)},
             )
             return serialize_for_dashboard(response)
-        
+
     # Enhanced Bitcoin data endpoints with dashboard optimization
     @app.get("/api/v1/data/current")
     async def get_bitcoin_data():
@@ -183,7 +192,7 @@ def create_app() -> FastAPI:
             base_price = 45000
             current_price = base_price + random.uniform(-2000, 2000)
             change_24h = random.uniform(-5, 5)
-            
+
             response = APIResponse(
                 success=True,
                 message="Bitcoin data retrieved successfully",
@@ -200,58 +209,60 @@ def create_app() -> FastAPI:
                     "last_updated": time.time(),
                     "source": "aggregated",
                     "symbol": "BTC-USD",
-                    "currency": "USD"
-                }
+                    "currency": "USD",
+                },
             )
             return serialize_for_dashboard(response)
         except Exception as e:
             logger.error(f"Bitcoin data error: {e}")
             response = APIResponse(
-                success=False,
-                message="Failed to fetch Bitcoin data",
-                data=None
+                success=False, message="Failed to fetch Bitcoin data", data=None
             )
             return serialize_for_dashboard(response)
-    
+
     @app.get("/api/v1/data/history/{hours}")
     async def get_historical_data(hours: int):
         """Get historical Bitcoin data optimized for dashboard charts."""
         try:
             # Validate input
             hours = max(1, min(hours, 8760))  # 1 hour to 1 year
-            
+
             data = []
             base_price = 45000
             current_time = time.time()
-            
+
             # Generate more realistic price movement
             price_trend = random.uniform(-0.5, 0.5)  # Overall trend
-            
-            for i in range(min(hours, 100)):  # Limit to 100 points for dashboard performance
+
+            for i in range(
+                min(hours, 100)
+            ):  # Limit to 100 points for dashboard performance
                 timestamp = current_time - (i * 3600)  # Hourly data
-                
+
                 # Create realistic price movement with trend and volatility
                 volatility = random.uniform(-100, 100)
                 trend_component = price_trend * i
                 price = base_price + trend_component + volatility
-                
+
                 volume = random.uniform(100, 1000)
                 high = price + random.uniform(0, 50)
                 low = price - random.uniform(0, 50)
-                
-                data.append({
-                    "timestamp": timestamp,
-                    "price": round(price, 2),
-                    "volume": round(volume, 2),
-                    "high": round(high, 2),
-                    "low": round(low, 2),
-                    "open": round(price + random.uniform(-10, 10), 2),
-                    "close": round(price, 2)
-                })
-            
+
+                data.append(
+                    {
+                        "timestamp": timestamp,
+                        "price": round(price, 2),
+                        "volume": round(volume, 2),
+                        "high": round(high, 2),
+                        "low": round(low, 2),
+                        "open": round(price + random.uniform(-10, 10), 2),
+                        "close": round(price, 2),
+                    }
+                )
+
             # Sort chronologically for dashboard charts
             data.reverse()
-            
+
             response = APIResponse(
                 success=True,
                 message=f"Retrieved {len(data)} hours of historical data",
@@ -264,21 +275,21 @@ def create_app() -> FastAPI:
                     "price_range": {
                         "min": min([d["price"] for d in data]) if data else 0,
                         "max": max([d["price"] for d in data]) if data else 0,
-                        "avg": sum([d["price"] for d in data]) / len(data) if data else 0
-                    }
-                }
+                        "avg": (
+                            sum([d["price"] for d in data]) / len(data) if data else 0
+                        ),
+                    },
+                },
             )
             return serialize_for_dashboard(response)
-            
+
         except Exception as e:
             logger.error(f"Historical data error: {e}")
             response = APIResponse(
-                success=False,
-                message="Failed to fetch historical data",
-                data=None
+                success=False, message="Failed to fetch historical data", data=None
             )
             return serialize_for_dashboard(response)
-    
+
     # Enhanced portfolio endpoints with dashboard optimization
     @app.get("/api/v1/portfolio")
     async def get_portfolio():
@@ -287,11 +298,11 @@ def create_app() -> FastAPI:
             total_value = 10000 + random.uniform(-500, 500)
             change_24h = round(random.uniform(-3, 3), 2)
             pnl_24h = round(total_value * (change_24h / 100), 2)
-            
+
             btc_balance = 0.25
             btc_value = btc_balance * 45000
             cash_balance = total_value - btc_value
-            
+
             response = APIResponse(
                 success=True,
                 message="Portfolio data retrieved successfully",
@@ -312,37 +323,37 @@ def create_app() -> FastAPI:
                             "entry_price": 44500,
                             "current_price": 45000,
                             "pnl": round(btc_balance * 500, 2),
-                            "pnl_percent": 1.12
+                            "pnl_percent": 1.12,
                         }
                     ],
                     "allocation": {
                         "Bitcoin": round((btc_value / total_value) * 100, 1),
-                        "USD": round((cash_balance / total_value) * 100, 1)
+                        "USD": round((cash_balance / total_value) * 100, 1),
                     },
                     "performance": {
-                        "total_return_percent": round(((total_value - 10000) / 10000) * 100, 2),
+                        "total_return_percent": round(
+                            ((total_value - 10000) / 10000) * 100, 2
+                        ),
                         "sharpe_ratio": round(random.uniform(0.8, 2.2), 2),
                         "max_drawdown": round(random.uniform(-15, -2), 2),
-                        "volatility": round(random.uniform(10, 25), 2)
+                        "volatility": round(random.uniform(10, 25), 2),
                     },
                     "risk_metrics": {
                         "risk_score": round(random.uniform(3, 7), 1),
                         "exposure_percent": round((btc_value / total_value) * 100, 1),
-                        "leverage": 1.0
-                    }
-                }
+                        "leverage": 1.0,
+                    },
+                },
             )
             return serialize_for_dashboard(response)
-            
+
         except Exception as e:
             logger.error(f"Portfolio error: {e}")
             response = APIResponse(
-                success=False,
-                message="Failed to fetch portfolio data",
-                data=None
+                success=False, message="Failed to fetch portfolio data", data=None
             )
             return serialize_for_dashboard(response)
-    
+
     # Enhanced strategy endpoints with dashboard optimization
     @app.get("/api/v1/strategies/list")
     async def get_strategies():
@@ -367,16 +378,16 @@ def create_app() -> FastAPI:
                         "type": "buy",
                         "timestamp": time.time() - 3600,
                         "confidence": 0.78,
-                        "price": 45120
+                        "price": 45120,
                     },
-                    "parameters": {
-                        "short_window": 5,
-                        "long_window": 20
-                    },
+                    "parameters": {"short_window": 5, "long_window": 20},
                     "performance_history": [
-                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-5, 15)}
+                        {
+                            "timestamp": time.time() - (i * 86400),
+                            "value": random.uniform(-5, 15),
+                        }
                         for i in range(30)
-                    ]
+                    ],
                 },
                 {
                     "id": "rsi_momentum",
@@ -396,17 +407,16 @@ def create_app() -> FastAPI:
                         "type": "hold",
                         "timestamp": time.time() - 7200,
                         "confidence": 0.45,
-                        "price": 44980
+                        "price": 44980,
                     },
-                    "parameters": {
-                        "period": 14,
-                        "oversold": 30,
-                        "overbought": 70
-                    },
+                    "parameters": {"period": 14, "oversold": 30, "overbought": 70},
                     "performance_history": [
-                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-10, 5)}
+                        {
+                            "timestamp": time.time() - (i * 86400),
+                            "value": random.uniform(-10, 5),
+                        }
                         for i in range(30)
-                    ]
+                    ],
                 },
                 {
                     "id": "bollinger_bands",
@@ -426,16 +436,16 @@ def create_app() -> FastAPI:
                         "type": "sell",
                         "timestamp": time.time() - 1800,
                         "confidence": 0.82,
-                        "price": 45080
+                        "price": 45080,
                     },
-                    "parameters": {
-                        "period": 20,
-                        "std_deviation": 2.0
-                    },
+                    "parameters": {"period": 20, "std_deviation": 2.0},
                     "performance_history": [
-                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-3, 12)}
+                        {
+                            "timestamp": time.time() - (i * 86400),
+                            "value": random.uniform(-3, 12),
+                        }
                         for i in range(30)
-                    ]
+                    ],
                 },
                 {
                     "id": "macd_trend",
@@ -455,25 +465,32 @@ def create_app() -> FastAPI:
                         "type": "hold",
                         "timestamp": time.time() - 5400,
                         "confidence": 0.62,
-                        "price": 45050
+                        "price": 45050,
                     },
                     "parameters": {
                         "fast_period": 12,
                         "slow_period": 26,
-                        "signal_period": 9
+                        "signal_period": 9,
                     },
                     "performance_history": [
-                        {"timestamp": time.time() - (i * 86400), "value": random.uniform(-7, 10)}
+                        {
+                            "timestamp": time.time() - (i * 86400),
+                            "value": random.uniform(-7, 10),
+                        }
                         for i in range(30)
-                    ]
-                }
+                    ],
+                },
             ]
-            
+
             # Calculate summary statistics
             active_strategies = [s for s in strategies if s["active"]]
             total_active = len(active_strategies)
-            avg_return = sum([s["return"] for s in active_strategies]) / total_active if total_active > 0 else 0
-            
+            avg_return = (
+                sum([s["return"] for s in active_strategies]) / total_active
+                if total_active > 0
+                else 0
+            )
+
             response = APIResponse(
                 success=True,
                 message=f"Retrieved {len(strategies)} strategies",
@@ -484,63 +501,79 @@ def create_app() -> FastAPI:
                         "active_strategies": total_active,
                         "inactive_strategies": len(strategies) - total_active,
                         "average_return": round(avg_return, 2),
-                        "best_performing": max(strategies, key=lambda x: x["return"])["name"] if strategies else None,
-                        "total_trades_today": sum([random.randint(0, 5) for _ in strategies]),
-                        "signals_last_hour": random.randint(0, 3)
-                    }
-                }
+                        "best_performing": (
+                            max(strategies, key=lambda x: x["return"])["name"]
+                            if strategies
+                            else None
+                        ),
+                        "total_trades_today": sum(
+                            [random.randint(0, 5) for _ in strategies]
+                        ),
+                        "signals_last_hour": random.randint(0, 3),
+                    },
+                },
             )
             return serialize_for_dashboard(response)
-            
+
         except Exception as e:
             logger.error(f"Strategies error: {e}")
             response = APIResponse(
-                success=False,
-                message="Failed to fetch strategies",
-                data=None
+                success=False, message="Failed to fetch strategies", data=None
             )
             return serialize_for_dashboard(response)
-    
+
     # Enhanced trading endpoints with dashboard optimization
     @app.get("/api/v1/trading/history")
     async def get_trading_history(limit: int = 10):
         """Get trading history optimized for dashboard display."""
         try:
             limit = max(1, min(limit, 50))  # Limit for dashboard performance
-            
+
             orders = []
             strategies = ["ma_cross", "rsi_momentum", "bollinger_bands", "macd_trend"]
             statuses = ["filled", "pending", "cancelled"]
-            
+
             for i in range(limit):
                 side = random.choice(["buy", "sell"])
                 amount = round(random.uniform(0.001, 0.1), 6)
                 price = 45000 + random.uniform(-2000, 2000)
                 pnl = round(random.uniform(-50, 100), 2)
                 status = random.choice(statuses)
-                
-                orders.append({
-                    "id": f"order_{int(time.time())}_{i}",
-                    "timestamp": time.time() - (i * 3600) - random.randint(0, 3600),
-                    "strategy": random.choice(strategies),
-                    "symbol": "BTC-USD",
-                    "side": side,
-                    "order_type": "market",
-                    "amount": amount,
-                    "price": round(price, 2),
-                    "filled_amount": amount if status == "filled" else round(amount * random.uniform(0, 1), 6),
-                    "status": status,
-                    "pnl": pnl if status == "filled" else 0,
-                    "pnl_percent": round((pnl / (amount * price)) * 100, 2) if status == "filled" else 0,
-                    "fees": round(amount * price * 0.001, 2),
-                    "execution_time_ms": random.randint(50, 500) if status == "filled" else None
-                })
-            
+
+                orders.append(
+                    {
+                        "id": f"order_{int(time.time())}_{i}",
+                        "timestamp": time.time() - (i * 3600) - random.randint(0, 3600),
+                        "strategy": random.choice(strategies),
+                        "symbol": "BTC-USD",
+                        "side": side,
+                        "order_type": "market",
+                        "amount": amount,
+                        "price": round(price, 2),
+                        "filled_amount": (
+                            amount
+                            if status == "filled"
+                            else round(amount * random.uniform(0, 1), 6)
+                        ),
+                        "status": status,
+                        "pnl": pnl if status == "filled" else 0,
+                        "pnl_percent": (
+                            round((pnl / (amount * price)) * 100, 2)
+                            if status == "filled"
+                            else 0
+                        ),
+                        "fees": round(amount * price * 0.001, 2),
+                        "execution_time_ms": (
+                            random.randint(50, 500) if status == "filled" else None
+                        ),
+                    }
+                )
+
             # Calculate summary statistics
             filled_orders = [o for o in orders if o["status"] == "filled"]
             total_pnl = sum([o["pnl"] for o in filled_orders])
             winning_trades = len([o for o in filled_orders if o["pnl"] > 0])
-            
+
             response = APIResponse(
                 success=True,
                 message=f"Retrieved {len(orders)} trading records",
@@ -549,26 +582,46 @@ def create_app() -> FastAPI:
                     "summary": {
                         "total_orders": len(orders),
                         "filled_orders": len(filled_orders),
-                        "pending_orders": len([o for o in orders if o["status"] == "pending"]),
-                        "cancelled_orders": len([o for o in orders if o["status"] == "cancelled"]),
+                        "pending_orders": len(
+                            [o for o in orders if o["status"] == "pending"]
+                        ),
+                        "cancelled_orders": len(
+                            [o for o in orders if o["status"] == "cancelled"]
+                        ),
                         "total_pnl": round(total_pnl, 2),
                         "winning_trades": winning_trades,
-                        "win_rate": round((winning_trades / len(filled_orders)) * 100, 1) if filled_orders else 0,
-                        "average_execution_time_ms": round(sum([o["execution_time_ms"] for o in filled_orders if o["execution_time_ms"]]) / len(filled_orders), 1) if filled_orders else 0
-                    }
-                }
+                        "win_rate": (
+                            round((winning_trades / len(filled_orders)) * 100, 1)
+                            if filled_orders
+                            else 0
+                        ),
+                        "average_execution_time_ms": (
+                            round(
+                                sum(
+                                    [
+                                        o["execution_time_ms"]
+                                        for o in filled_orders
+                                        if o["execution_time_ms"]
+                                    ]
+                                )
+                                / len(filled_orders),
+                                1,
+                            )
+                            if filled_orders
+                            else 0
+                        ),
+                    },
+                },
             )
             return serialize_for_dashboard(response)
-            
+
         except Exception as e:
             logger.error(f"Trading history error: {e}")
             response = APIResponse(
-                success=False,
-                message="Failed to fetch trading history",
-                data=None
+                success=False, message="Failed to fetch trading history", data=None
             )
             return serialize_for_dashboard(response)
-    
+
     @app.get("/api/v1/trading/status")
     async def get_trading_status():
         """Get auto-trading status optimized for dashboard monitoring."""
@@ -589,27 +642,25 @@ def create_app() -> FastAPI:
                         "start_time": time.time() - 28800,  # 8 hours ago
                         "duration_hours": 8,
                         "trades_per_hour": 1.9,
-                        "success_rate": 73.3
+                        "success_rate": 73.3,
                     },
                     "risk_status": {
                         "within_limits": True,
                         "daily_loss_limit_used": 15.2,
                         "position_size_limit_used": 68.4,
-                        "max_drawdown_current": -3.2
-                    }
-                }
+                        "max_drawdown_current": -3.2,
+                    },
+                },
             )
             return serialize_for_dashboard(response)
-            
+
         except Exception as e:
             logger.error(f"Trading status error: {e}")
             response = APIResponse(
-                success=False,
-                message="Failed to fetch trading status",
-                data=None
+                success=False, message="Failed to fetch trading status", data=None
             )
             return serialize_for_dashboard(response)
-    
+
     @app.get("/api/v1/database/init")
     async def init_database():
         """Initialize database with sample data."""
@@ -625,69 +676,81 @@ def create_app() -> FastAPI:
                     "initialization_success": success,
                     "database_stats": stats,
                     "sample_data_created": True,
-                    "ready_for_dashboard": True
-                }
+                    "ready_for_dashboard": True,
+                },
             )
             return serialize_for_dashboard(response)
-            
+
         except Exception as e:
             logger.error(f"Database initialization error: {e}")
             response = APIResponse(
                 success=False,
                 message="Failed to initialize database",
-                data={"error": str(e)}
+                data={"error": str(e)},
             )
             return serialize_for_dashboard(response)
-    
+
     # Include API routes with enhanced error handling
     try:
         from odin.api.routes.data import router as data_router
+
         app.include_router(data_router, prefix="/api/v1/data", tags=["data"])
         logger.info("Successfully imported data routes")
     except ImportError as e:
         logger.warning(f"Could not import data routes: {e}")
-    
+
     try:
         from odin.api.routes.strategies import router as strategies_router
-        app.include_router(strategies_router, prefix="/api/v1/strategies", tags=["strategies"])
+
+        app.include_router(
+            strategies_router, prefix="/api/v1/strategies", tags=["strategies"]
+        )
         logger.info("Successfully imported strategy routes")
     except ImportError as e:
         logger.warning(f"Could not import strategy routes: {e}")
-    
+
     try:
         from odin.api.routes.trading import router as trading_router
+
         app.include_router(trading_router, prefix="/api/v1/trading", tags=["trading"])
         logger.info("Successfully imported trading routes")
     except ImportError as e:
         logger.warning(f"Could not import trading routes: {e}")
-    
+
     try:
         from odin.api.routes.portfolio import router as portfolio_router
-        app.include_router(portfolio_router, prefix="/api/v1/portfolio", tags=["portfolio"])
+
+        app.include_router(
+            portfolio_router, prefix="/api/v1/portfolio", tags=["portfolio"]
+        )
         logger.info("Successfully imported portfolio routes")
     except ImportError as e:
         logger.warning(f"Could not import portfolio routes: {e}")
-    
+
     try:
         from odin.api.routes.websockets import router as websocket_router
+
         app.include_router(websocket_router, prefix="", tags=["websockets"])
         logger.info("Successfully imported websocket routes")
     except ImportError as e:
         logger.warning(f"Could not import websocket routes: {e}")
-    
+
     # Root endpoint - serve dashboard with enhanced compatibility
     @app.get("/", response_class=HTMLResponse)
     async def root(request: Request):
         """Serve the main dashboard with enhanced compatibility."""
         try:
             if templates and template_path.exists():
-                return templates.TemplateResponse("dashboard.html", {
-                    "request": request,
-                    "version": "2.0.0",
-                    "api_base_url": "/api/v1",
-                    "websocket_url": f"ws://{request.url.netloc}/ws",
-                    "debug_mode": settings.debug
-                })
+                return templates.TemplateResponse(
+                    "dashboard.html",
+                    {
+                        "request": request,
+                        "version": "2.0.0",
+                        "api_base_url": "/api/v1",
+                        "websocket_url": f"ws://{request.url.netloc}/ws",
+                        "debug_mode": settings.debug,
+                    },
+                )
             else:
                 # Fallback API info for dashboard development
                 dashboard_info = APIResponse(
@@ -705,26 +768,28 @@ def create_app() -> FastAPI:
                             "portfolio": "/api/v1/portfolio",
                             "strategies": "/api/v1/strategies/list",
                             "trading_history": "/api/v1/trading/history",
-                            "trading_status": "/api/v1/trading/status"
+                            "trading_status": "/api/v1/trading/status",
                         },
                         "websocket": {
                             "available": True,
                             "endpoint": "/ws",
-                            "supported_events": ["price_update", "portfolio_update", "strategy_signal", "trade_execution"]
-                        }
-                    }
+                            "supported_events": [
+                                "price_update",
+                                "portfolio_update",
+                                "strategy_signal",
+                                "trade_execution",
+                            ],
+                        },
+                    },
                 )
                 return JSONResponse(content=serialize_for_dashboard(dashboard_info))
         except Exception as e:
             logger.error(f"Root endpoint error: {e}")
             error_response = APIResponse(
-                success=False,
-                message="Dashboard unavailable",
-                data={"error": str(e)}
+                success=False, message="Dashboard unavailable", data={"error": str(e)}
             )
             return JSONResponse(
-                status_code=500,
-                content=serialize_for_dashboard(error_response)
+                status_code=500, content=serialize_for_dashboard(error_response)
             )
-    
+
     return app

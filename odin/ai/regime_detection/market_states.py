@@ -3,30 +3,35 @@ Market State Definitions for Regime Detection
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 from enum import Enum
+from typing import Dict, List, Optional
+
 
 class MarketRegime(Enum):
     """Enumeration of market regimes"""
+
     BULL_TRENDING = "bull_trending"
-    BEAR_TRENDING = "bear_trending"  
+    BEAR_TRENDING = "bear_trending"
     SIDEWAYS = "sideways"
     HIGH_VOLATILITY = "high_volatility"
     CRISIS = "crisis"
     UNKNOWN = "unknown"
 
+
 @dataclass
 class RegimeCharacteristics:
     """Characteristics that define a market regime"""
+
     regime: MarketRegime
     description: str
     typical_duration_days: int
     volatility_range: tuple  # (min, max)
-    momentum_range: tuple    # (min, max) 
+    momentum_range: tuple  # (min, max)
     volume_characteristics: str
     typical_indicators: List[str]
     trading_approach: str
     risk_level: str
+
 
 # Define regime characteristics
 REGIME_DEFINITIONS = {
@@ -39,14 +44,13 @@ REGIME_DEFINITIONS = {
         volume_characteristics="Increasing volume on advances",
         typical_indicators=[
             "Price > MA(20) > MA(50)",
-            "RSI > 50 trending higher", 
+            "RSI > 50 trending higher",
             "MACD > Signal line",
-            "Bollinger Bands expanding upward"
+            "Bollinger Bands expanding upward",
         ],
         trading_approach="Trend following, momentum strategies",
-        risk_level="Medium-High"
+        risk_level="Medium-High",
     ),
-    
     MarketRegime.BEAR_TRENDING: RegimeCharacteristics(
         regime=MarketRegime.BEAR_TRENDING,
         description="Sustained downward pressure with selling momentum",
@@ -57,13 +61,12 @@ REGIME_DEFINITIONS = {
         typical_indicators=[
             "Price < MA(20) < MA(50)",
             "RSI < 50 trending lower",
-            "MACD < Signal line", 
-            "Bollinger Bands expanding downward"
+            "MACD < Signal line",
+            "Bollinger Bands expanding downward",
         ],
         trading_approach="Short selling, defensive positioning",
-        risk_level="High"
+        risk_level="High",
     ),
-    
     MarketRegime.SIDEWAYS: RegimeCharacteristics(
         regime=MarketRegime.SIDEWAYS,
         description="Range-bound trading with no clear directional bias",
@@ -75,12 +78,11 @@ REGIME_DEFINITIONS = {
             "Price oscillating around MA(20)",
             "RSI between 40-60",
             "MACD near zero line",
-            "Bollinger Bands contracting"
+            "Bollinger Bands contracting",
         ],
         trading_approach="Mean reversion, range trading",
-        risk_level="Medium"
+        risk_level="Medium",
     ),
-    
     MarketRegime.HIGH_VOLATILITY: RegimeCharacteristics(
         regime=MarketRegime.HIGH_VOLATILITY,
         description="Elevated price swings with uncertain direction",
@@ -92,12 +94,11 @@ REGIME_DEFINITIONS = {
             "Wide Bollinger Bands",
             "RSI making extreme swings",
             "MACD highly volatile",
-            "Price gaps and large candles"
+            "Price gaps and large candles",
         ],
         trading_approach="Volatility strategies, smaller positions",
-        risk_level="Very High"
+        risk_level="Very High",
     ),
-    
     MarketRegime.CRISIS: RegimeCharacteristics(
         regime=MarketRegime.CRISIS,
         description="Extreme market stress with potential for large losses",
@@ -109,16 +110,18 @@ REGIME_DEFINITIONS = {
             "Extreme price movements (>5% daily)",
             "RSI < 30 or > 70 sustained",
             "Volume spikes > 3x average",
-            "News-driven price action"
+            "News-driven price action",
         ],
         trading_approach="Risk-off, capital preservation",
-        risk_level="Extreme"
-    )
+        risk_level="Extreme",
+    ),
 }
+
 
 def get_regime_characteristics(regime: MarketRegime) -> Optional[RegimeCharacteristics]:
     """Get characteristics for a specific regime"""
     return REGIME_DEFINITIONS.get(regime)
+
 
 def get_all_regime_info() -> Dict[str, Dict]:
     """Get information about all regimes"""
@@ -128,7 +131,7 @@ def get_all_regime_info() -> Dict[str, Dict]:
             "typical_duration": chars.typical_duration_days,
             "risk_level": chars.risk_level,
             "trading_approach": chars.trading_approach,
-            "indicators": chars.typical_indicators
+            "indicators": chars.typical_indicators,
         }
         for regime, chars in REGIME_DEFINITIONS.items()
     }

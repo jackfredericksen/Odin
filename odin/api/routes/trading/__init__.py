@@ -4,7 +4,8 @@ Trading routes module
 """
 
 from fastapi import APIRouter
-from . import execution, orders, positions, automation
+
+from . import automation, execution, orders, positions
 
 router = APIRouter()
 

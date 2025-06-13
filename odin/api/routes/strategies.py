@@ -2,11 +2,12 @@
 Strategy management endpoints (CLEAN VERSION)
 """
 
-from fastapi import APIRouter, HTTPException, status
-from typing import Dict, Any, List
-from datetime import datetime, timedelta
 import random
 import time
+from datetime import datetime, timedelta
+from typing import Any, Dict, List
+
+from fastapi import APIRouter, HTTPException, status
 
 router = APIRouter()
 
@@ -29,9 +30,12 @@ async def list_strategies():
                 "max_drawdown": -8.2,
                 "volatility": 15.3,
                 "performance_history": [
-                    {"timestamp": time.time() - (i * 86400), "value": random.uniform(-5, 15)}
+                    {
+                        "timestamp": time.time() - (i * 86400),
+                        "value": random.uniform(-5, 15),
+                    }
                     for i in range(30)
-                ]
+                ],
             },
             {
                 "id": "rsi_momentum",
@@ -45,9 +49,12 @@ async def list_strategies():
                 "max_drawdown": -12.5,
                 "volatility": 18.7,
                 "performance_history": [
-                    {"timestamp": time.time() - (i * 86400), "value": random.uniform(-10, 5)}
+                    {
+                        "timestamp": time.time() - (i * 86400),
+                        "value": random.uniform(-10, 5),
+                    }
                     for i in range(30)
-                ]
+                ],
             },
             {
                 "id": "bollinger_bands",
@@ -61,9 +68,12 @@ async def list_strategies():
                 "max_drawdown": -6.8,
                 "volatility": 12.1,
                 "performance_history": [
-                    {"timestamp": time.time() - (i * 86400), "value": random.uniform(-3, 12)}
+                    {
+                        "timestamp": time.time() - (i * 86400),
+                        "value": random.uniform(-3, 12),
+                    }
                     for i in range(30)
-                ]
+                ],
             },
             {
                 "id": "macd_trend",
@@ -77,11 +87,14 @@ async def list_strategies():
                 "max_drawdown": -9.4,
                 "volatility": 16.8,
                 "performance_history": [
-                    {"timestamp": time.time() - (i * 86400), "value": random.uniform(-7, 10)}
+                    {
+                        "timestamp": time.time() - (i * 86400),
+                        "value": random.uniform(-7, 10),
+                    }
                     for i in range(30)
-                ]
-            }
-        ]
+                ],
+            },
+        ],
     }
 
 
@@ -92,33 +105,31 @@ async def get_strategy_chart(strategy_id: str, hours: int):
     data_points = []
     current_time = time.time()
     base_price = 45000
-    
+
     for i in range(min(hours, 100)):
         timestamp = current_time - (i * 3600)
         price = base_price + random.uniform(-2000, 2000)
-        
-        data_points.append({
-            "timestamp": timestamp,
-            "price": round(price, 2),
-            "sma_short": round(price + random.uniform(-100, 100), 2),
-            "sma_long": round(price + random.uniform(-200, 200), 2),
-            "rsi": round(random.uniform(20, 80), 1),
-            "volume": round(random.uniform(100, 1000), 2),
-            "signal": random.choice(["buy", "sell", "hold"])
-        })
-    
+
+        data_points.append(
+            {
+                "timestamp": timestamp,
+                "price": round(price, 2),
+                "sma_short": round(price + random.uniform(-100, 100), 2),
+                "sma_long": round(price + random.uniform(-200, 200), 2),
+                "rsi": round(random.uniform(20, 80), 1),
+                "volume": round(random.uniform(100, 1000), 2),
+                "signal": random.choice(["buy", "sell", "hold"]),
+            }
+        )
+
     return {
         "success": True,
         "data": {
             "strategy_id": strategy_id,
             "timeframe_hours": hours,
             "chart_data": list(reversed(data_points)),
-            "indicators": {
-                "sma_short": 5,
-                "sma_long": 20,
-                "rsi_period": 14
-            }
-        }
+            "indicators": {"sma_short": 5, "sma_long": 20, "rsi_period": 14},
+        },
     }
 
 
@@ -146,11 +157,11 @@ async def backtest_strategy(strategy_id: str, hours: int):
                     "type": random.choice(["buy", "sell"]),
                     "price": round(45000 + random.uniform(-2000, 2000), 2),
                     "amount": round(random.uniform(0.01, 0.1), 4),
-                    "pnl": round(random.uniform(-100, 200), 2)
+                    "pnl": round(random.uniform(-100, 200), 2),
                 }
                 for _ in range(10)
-            ]
-        }
+            ],
+        },
     }
 
 
@@ -165,16 +176,16 @@ async def optimize_strategy(strategy_id: str):
             "best_parameters": {
                 "short_window": random.randint(3, 10),
                 "long_window": random.randint(15, 30),
-                "rsi_period": random.randint(10, 20)
+                "rsi_period": random.randint(10, 20),
             },
             "best_performance": {
                 "sharpe_ratio": round(random.uniform(1.5, 2.5), 2),
                 "total_return": round(random.uniform(10, 25), 2),
-                "max_drawdown": round(random.uniform(-8, -3), 2)
+                "max_drawdown": round(random.uniform(-8, -3), 2),
             },
             "optimization_time": "45 seconds",
-            "iterations": random.randint(50, 200)
-        }
+            "iterations": random.randint(50, 200),
+        },
     }
 
 
@@ -187,8 +198,8 @@ async def enable_strategy(strategy_id: str):
         "data": {
             "strategy_id": strategy_id,
             "status": "active",
-            "enabled_at": datetime.now().isoformat()
-        }
+            "enabled_at": datetime.now().isoformat(),
+        },
     }
 
 
@@ -201,6 +212,6 @@ async def disable_strategy(strategy_id: str):
         "data": {
             "strategy_id": strategy_id,
             "status": "inactive",
-            "disabled_at": datetime.now().isoformat()
-        }
+            "disabled_at": datetime.now().isoformat(),
+        },
     }

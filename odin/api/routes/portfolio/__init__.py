@@ -4,7 +4,8 @@ Portfolio routes module
 """
 
 from fastapi import APIRouter
-from . import status, performance, rebalancing, risk
+
+from . import performance, rebalancing, risk, status
 
 router = APIRouter()
 
