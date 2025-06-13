@@ -1,53 +1,60 @@
-### pyproject.toml
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "odin-trading-bot"
 version = "2.0.0"
-description = "Advanced cryptocurrency trading bot with real-time data collection and multiple strategies"
-authors = [{name = "Jack Fredericksen", email = "jack.a.fredericksen@gmail.com"}]
+description = "Professional Bitcoin Trading Bot with Live Trading & API"
 readme = "README.md"
+requires-python = ">=3.8"
 license = {text = "MIT"}
-requires-python = ">=3.11"
+authors = [
+    {name = "Jack Fredericksen", email = "jack@example.com"},
+]
+keywords = ["bitcoin", "trading", "bot", "cryptocurrency", "api"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Financial and Insurance Industry",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
 ]
+
 dependencies = [
-    "fastapi>=0.104.0",
+    "fastapi>=0.104.1",
     "uvicorn[standard]>=0.24.0",
-    "pandas>=2.1.0",
-    "numpy>=1.24.0",
-    "requests>=2.31.0",
+    "pandas>=2.1.3",
+    "numpy>=1.25.2",
+    "sqlalchemy>=2.0.23",
+    "httpx>=0.25.2",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
-    "sqlalchemy>=2.0.0",
-    "alembic>=1.13.0",
-    "structlog>=23.2.0",
-    "python-multipart>=0.0.6",
-    "jinja2>=3.1.0",
-    "aiofiles>=23.2.0",
-    "httpx>=0.25.0",
-    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.0",
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
     "pytest-cov>=4.1.0",
-    "pytest-asyncio>=0.21.0",
-    "black>=23.9.0",
+    "pytest-mock>=3.12.0",
+    "black>=23.11.0",
     "isort>=5.12.0",
     "flake8>=6.1.0",
-    "mypy>=1.6.0",
-    "pre-commit>=3.5.0",
-    "httpx>=0.25.0",
+    "mypy>=1.7.1",
+]
+
+test = [
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "httpx>=0.25.2",
 ]
 
 [project.urls]
@@ -55,16 +62,80 @@ Homepage = "https://github.com/jackfredericksen/Odin"
 Repository = "https://github.com/jackfredericksen/Odin"
 Issues = "https://github.com/jackfredericksen/Odin/issues"
 
-[project.scripts]
-odin = "odin.main:main"
+[tool.pytest.ini_options]
+# Pytest configuration
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["odin*"]
+# Asyncio configuration
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+
+# Markers
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "api: marks tests as API tests", 
+    "unit: marks tests as unit tests",
+    "database: marks tests as database tests",
+    "strategy: marks tests as strategy tests",
+    "external: marks tests that require external services",
+    "asyncio: marks tests as async tests",
+]
+
+# Test options
+addopts = [
+    "-v",
+    "--tb=short", 
+    "--strict-markers",
+    "--disable-warnings",
+    "--color=yes",
+]
+
+# Minimum version requirements
+minversion = "7.0"
+
+# Logging configuration
+log_cli = false
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s: %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+
+# Filter warnings
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::UserWarning:.*urllib3.*",
+]
+
+[tool.coverage.run]
+source = ["odin"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*", 
+    "*/migrations/*",
+    "*/.venv/*",
+    "*/venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__", 
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+show_missing = true
+skip_covered = false
 
 [tool.black]
 line-length = 88
-target-version = ['py311']
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -85,9 +156,11 @@ profile = "black"
 multi_line_output = 3
 line_length = 88
 known_first_party = ["odin"]
+known_third_party = ["fastapi", "pandas", "numpy", "sqlalchemy", "pydantic"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.8"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -100,43 +173,8 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
-disallow_untyped_defs = false
-
-[tool.pytest.ini_options]
-minversion = "7.0"
-addopts = "-ra -q --strict-markers --strict-config"
-testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
-]
-
-[tool.coverage.run]
-source = ["odin"]
-omit = [
-    "*/tests/*",
-    "*/test_*",
-    "*/__pycache__/*",
-    "*/migrations/*",
-]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    "if settings.DEBUG",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if 0:",
-    "if __name__ == .__main__.:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod",
-]
+ignore_errors = true
