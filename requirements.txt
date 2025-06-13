@@ -79,7 +79,8 @@ tenacity==8.2.3  # Retry logic
 ratelimit==2.2.1  # Rate limiting
 
 # Financial/Technical Analysis (Optional)
-TA-Lib==0.4.28  # Advanced technical analysis (requires compilation)
+pandas-ta>=0.3.14b
+  # Advanced technical analysis (requires compilation)
 quantlib==1.32  # Quantitative finance library (optional)
 
 # API Documentation
