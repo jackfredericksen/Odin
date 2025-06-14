@@ -9,6 +9,7 @@ File: odin/ai/regime_detection/regime_detector.py
 
 import logging
 import os
+import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -19,7 +20,30 @@ from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 
-from ...core.models import PriceData
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, "../../../"))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Import with fallback handling
+try:
+    from odin.core.models import PriceData
+except ImportError:
+    try:
+        # Alternative import path
+        from core.models import PriceData
+    except ImportError:
+        # Create a minimal PriceData class if import fails
+        from dataclasses import dataclass
+        from datetime import datetime
+        from typing import Optional
+
+        @dataclass
+        class PriceData:
+            timestamp: datetime
+            price: float
+            volume: Optional[float] = None
+
 
 logger = logging.getLogger(__name__)
 
@@ -880,7 +904,9 @@ class RegimeDetector:
                         "trend": (
                             "bullish"
                             if "bullish" in regime
-                            else "bearish" if "bearish" in regime else "neutral"
+                            else "bearish"
+                            if "bearish" in regime
+                            else "neutral"
                         ),
                     }
                 )

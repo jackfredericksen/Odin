@@ -420,7 +420,9 @@ class AIStrategySelector:
                         "confidence": (
                             "High"
                             if score > 0.7
-                            else "Medium" if score > 0.5 else "Low"
+                            else "Medium"
+                            if score > 0.5
+                            else "Low"
                         ),
                         "analysis": analysis,
                         "recommended": i == 0,

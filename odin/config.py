@@ -43,7 +43,7 @@ if PYDANTIC_AVAILABLE:
         exchange_api_key: Optional[str] = Field(None, env="EXCHANGE_API_KEY")
         exchange_secret_key: Optional[str] = Field(None, env="EXCHANGE_SECRET_KEY")
         exchange_sandbox: bool = Field(True, env="EXCHANGE_SANDBOX")
-        
+
         log_level: str = Field("INFO", env="LOG_LEVEL")
 
         # Security

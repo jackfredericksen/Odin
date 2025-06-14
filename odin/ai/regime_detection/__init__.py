@@ -25,13 +25,13 @@ except ImportError as e:
 __all__ = []
 
 if RegimeDetector is not None:
-    __all__.append('RegimeDetector')
+    __all__.append("RegimeDetector")
 if MarketState is not None:
-    __all__.append('MarketState')
+    __all__.append("MarketState")
 if RegimeVisualizer is not None:
-    __all__.append('RegimeVisualizer')
+    __all__.append("RegimeVisualizer")
 
 # Compatibility alias
 MarketRegimeDetector = RegimeDetector  # Alias for backward compatibility
 if RegimeDetector is not None:
-    __all__.append('MarketRegimeDetector')
+    __all__.append("MarketRegimeDetector")

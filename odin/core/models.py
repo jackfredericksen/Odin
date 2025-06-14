@@ -835,25 +835,27 @@ def validate_trade(trade: Trade) -> bool:
 
     return True
 
+
 def serialize_for_dashboard(data: Any) -> Dict[str, Any]:
     """Serialize data for dashboard display."""
     if data is None:
         return None
-    
+
     # Handle Pydantic models
-    if hasattr(data, 'to_dict'):
+    if hasattr(data, "to_dict"):
         return data.to_dict()
-    elif hasattr(data, 'model_dump'):
+    elif hasattr(data, "model_dump"):
         return data.model_dump()
-    elif hasattr(data, 'dict'):
+    elif hasattr(data, "dict"):
         return data.dict()
-    
+
     # Handle datetime objects
     if isinstance(data, datetime):
         return data.isoformat()
-    
+
     # Handle basic types
     return data if isinstance(data, (str, int, float, bool)) else str(data)
+
 
 # Export all models for easy importing
 __all__ = [

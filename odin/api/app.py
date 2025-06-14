@@ -55,9 +55,9 @@ def create_app() -> FastAPI:
 
             # Add dashboard-friendly headers for API routes
             if request.url.path.startswith("/api/"):
-                response.headers["Cache-Control"] = (
-                    "no-cache, no-store, must-revalidate"
-                )
+                response.headers[
+                    "Cache-Control"
+                ] = "no-cache, no-store, must-revalidate"
                 response.headers["Pragma"] = "no-cache"
                 response.headers["Expires"] = "0"
                 response.headers["X-Odin-API"] = "v1"

@@ -49,14 +49,18 @@ async def get_market_regime(
             (market_data[i].price / market_data[i + 1].price - 1)
             for i in range(min(30, len(market_data) - 1))
         ]
-        volatility = (sum([r**2 for r in returns]) / len(returns)) ** 0.5 * (365**0.5)
+        volatility = (sum([r**2 for r in returns]) / len(returns)) ** 0.5 * (
+            365**0.5
+        )
 
         # Trend strength
         trend_strength = abs(current_price - sma_50) / sma_50
         trend_direction = (
             "up"
             if current_price > sma_20 > sma_50
-            else "down" if current_price < sma_20 < sma_50 else "sideways"
+            else "down"
+            if current_price < sma_20 < sma_50
+            else "sideways"
         )
 
         # Market regime classification
@@ -196,7 +200,9 @@ async def get_market_conditions(rate_limiter=Depends(get_strategy_rate_limiter))
             "volume_trend": (
                 "high"
                 if current_data.volume_24h > avg_volume * 1.5
-                else "low" if current_data.volume_24h < avg_volume * 0.5 else "normal"
+                else "low"
+                if current_data.volume_24h < avg_volume * 0.5
+                else "normal"
             ),
         }
 

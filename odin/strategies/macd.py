@@ -249,7 +249,6 @@ class MACDStrategy(Strategy):
             self.previous_macd_above_signal is not None
             and self.previous_macd_above_signal != current_macd_above_signal
         ):
-
             if current_macd_above_signal:
                 return (
                     SignalType.BUY,
@@ -268,7 +267,6 @@ class MACDStrategy(Strategy):
             self.previous_macd_above_zero is not None
             and self.previous_macd_above_zero != current_macd_above_zero
         ):
-
             volume_ratio = current_row.get("volume_ratio", 1.0)
             if volume_ratio > 1.2:  # Require volume confirmation for zero line crosses
                 if current_macd_above_zero:

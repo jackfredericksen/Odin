@@ -652,7 +652,9 @@ def analyze_order_flow_patterns(recent_data: List, hours: int) -> Dict[str, Any]
         "flow_direction": (
             "bullish"
             if price_momentum > 0 and volume_momentum > 0
-            else "bearish" if price_momentum < 0 and volume_momentum > 0 else "neutral"
+            else "bearish"
+            if price_momentum < 0 and volume_momentum > 0
+            else "neutral"
         ),
         "flow_strength": abs(price_momentum) + abs(volume_momentum),
     }
@@ -708,7 +710,9 @@ def classify_order_flow(recent_data: List) -> Dict[str, Any]:
         "classification": (
             "institutional"
             if institutional_score > 0.3
-            else "mixed" if institutional_score > 0.1 else "retail"
+            else "mixed"
+            if institutional_score > 0.1
+            else "retail"
         ),
         "large_order_frequency": large_volume_count / len(volumes),
     }
