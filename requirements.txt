@@ -60,6 +60,23 @@ python-binance==1.0.19  # Alternative Binance client
 marshmallow==3.20.1
 cerberus==1.3.5
 
+# Hidden Markov Models (for regime detection)
+hmmlearn
+
+# Matrix Operations (for ML)
+scikit-optimize==0.9.0  # For hyperparameter optimization
+
+# Time Series Analysis
+statsmodels==0.14.0
+
+# Data Visualization (for debugging)
+matplotlib==3.8.2
+seaborn==0.13.0
+plotly==5.17.0
+
+# Enhanced Async Support
+asyncio-mqtt==0.16.1  # If using real-time data feeds
+
 # Date/Time Utilities
 python-dateutil==2.8.2
 pytz==2023.3

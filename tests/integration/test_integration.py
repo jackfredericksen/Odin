@@ -127,7 +127,7 @@ class TestStrategyIntegration:
     """Test strategy integration with data and portfolio management."""
     
     @pytest.mark.asyncio
-    async def test_strategy_data_pipeline(self):
+    def test_strategy_data_pipeline(self):
         """Test strategy execution with data pipeline."""
         try:
             from odin.strategies.moving_average import MovingAverageStrategy
@@ -153,9 +153,9 @@ class TestStrategyIntegration:
                 'volume': np.random.randint(1000000, 10000000, 50)
             }, index=dates)
             
-            # Test strategy execution
-            indicators = await strategy.calculate_indicators(data)
-            signals = await strategy.generate_signals(data)
+            # Test strategy execution (removed await since methods are not async)
+            indicators = strategy.calculate_indicators(data)
+            signals = strategy.generate_signals(data)
             
             # Verify results
             assert 'ma_short' in indicators.columns
