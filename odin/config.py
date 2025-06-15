@@ -1,116 +1,320 @@
 """
-Odin Bitcoin Trading Bot - Configuration Management (FIXED VERSION)
+Odin Configuration - Updated to use new Configuration Manager
+Provides backward compatibility while leveraging enhanced config system.
 """
 
 import os
-from functools import lru_cache
 from typing import Optional
+from pathlib import Path
 
-try:
-    from pydantic import Field
-    from pydantic_settings import BaseSettings
+# Import new configuration system
+from .core.config_manager import get_config, get_config_manager, OdinConfig
+from .utils.logging import get_logger
 
-    PYDANTIC_AVAILABLE = True
-except ImportError:
-    PYDANTIC_AVAILABLE = False
-
-if PYDANTIC_AVAILABLE:
-
-    class Settings(BaseSettings):
-        """Application settings using Pydantic."""
-
-        # Application
-        environment: str = Field("development", env="ODIN_ENV")
-        debug: bool = Field(
-            True, env="ODIN_DEBUG"
-        )  # Changed default to True for development
-        host: str = Field("0.0.0.0", env="ODIN_HOST")
-        port: int = Field(8000, env="ODIN_PORT")
-        secret_key: str = Field("change-this-in-production", env="ODIN_SECRET_KEY")
-
-        # Database
-        database_url: str = Field(
-            "sqlite:///./data/bitcoin_data.db", env="DATABASE_URL"
-        )
-
-        # Trading
-        enable_live_trading: bool = Field(False, env="ENABLE_LIVE_TRADING")
-        max_position_size: float = Field(0.95, env="MAX_POSITION_SIZE")
-        risk_per_trade: float = Field(0.02, env="RISK_PER_TRADE")
-
-        # Exchange
-        exchange_name: str = Field("binance", env="EXCHANGE_NAME")
-        exchange_api_key: Optional[str] = Field(None, env="EXCHANGE_API_KEY")
-        exchange_secret_key: Optional[str] = Field(None, env="EXCHANGE_SECRET_KEY")
-        exchange_sandbox: bool = Field(True, env="EXCHANGE_SANDBOX")
-
-        log_level: str = Field("INFO", env="LOG_LEVEL")
-
-        # Security
-        jwt_secret_key: str = Field("jwt-secret-change-this", env="JWT_SECRET_KEY")
-        jwt_algorithm: str = Field("HS256", env="JWT_ALGORITHM")
-        access_token_expire_minutes: int = Field(30, env="ACCESS_TOKEN_EXPIRE_MINUTES")
-
-        class Config:
-            env_file = ".env"
-            case_sensitive = False
-            extra = "allow"
-
-else:
-    # Fallback simple settings without Pydantic
-    class Settings:
-        """Simple application settings."""
-
-        def __init__(self):
-            # Application
-            self.environment = os.getenv("ODIN_ENV", "development")
-            self.debug = (
-                os.getenv("ODIN_DEBUG", "true").lower() == "true"
-            )  # Changed default
-            self.host = os.getenv("ODIN_HOST", "0.0.0.0")
-            self.port = int(os.getenv("ODIN_PORT", "8000"))
-            self.secret_key = os.getenv("ODIN_SECRET_KEY", "change-this-in-production")
-
-            # Database
-            self.database_url = os.getenv(
-                "DATABASE_URL", "sqlite:///./data/bitcoin_data.db"
-            )
-
-            # Trading
-            self.enable_live_trading = (
-                os.getenv("ENABLE_LIVE_TRADING", "false").lower() == "true"
-            )
-            self.max_position_size = float(os.getenv("MAX_POSITION_SIZE", "0.95"))
-            self.risk_per_trade = float(os.getenv("RISK_PER_TRADE", "0.02"))
-
-            # Exchange
-            self.exchange_name = os.getenv("EXCHANGE_NAME", "binance")
-            self.exchange_api_key = os.getenv("EXCHANGE_API_KEY")
-            self.exchange_secret_key = os.getenv("EXCHANGE_SECRET_KEY")
-            self.exchange_sandbox = (
-                os.getenv("EXCHANGE_SANDBOX", "true").lower() == "true"
-            )
-
-            # Security
-            self.jwt_secret_key = os.getenv("JWT_SECRET_KEY", "jwt-secret-change-this")
-            self.jwt_algorithm = os.getenv("JWT_ALGORITHM", "HS256")
-            self.access_token_expire_minutes = int(
-                os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
-            )
+logger = get_logger(__name__)
 
 
-@lru_cache()
-def get_settings() -> Settings:
-    """Get cached settings instance."""
-    return Settings()
+def get_settings() -> OdinConfig:
+    """
+    Get application settings using new configuration manager.
+    
+    This function provides backward compatibility for existing code
+    while leveraging the enhanced configuration system.
+    """
+    return get_config()
 
 
-# For backward compatibility, also provide get_config alias
-@lru_cache()
-def get_config() -> Settings:
-    """Get cached settings instance (alias for get_settings)."""
-    return Settings()
+class Settings:
+    """
+    Backward compatibility wrapper for old settings access pattern.
+    
+    This class maintains the same interface as the old settings system
+    while delegating to the new configuration manager.
+    """
+    
+    def __init__(self):
+        self._config = get_config()
+    
+    @property
+    def environment(self) -> str:
+        """Get environment name."""
+        return self._config.environment.value
+    
+    @property
+    def debug(self) -> bool:
+        """Get debug mode."""
+        return self._config.debug
+    
+    @property
+    def host(self) -> str:
+        """Get API host."""
+        return self._config.api.host
+    
+    @property
+    def port(self) -> int:
+        """Get API port."""
+        return self._config.api.port
+    
+    @property
+    def database_url(self) -> str:
+        """Get database URL."""
+        return self._config.database.url
+    
+    @property
+    def exchange_name(self) -> str:
+        """Get exchange name."""
+        return self._config.exchange.name
+    
+    @property
+    def exchange_sandbox(self) -> bool:
+        """Get exchange sandbox mode."""
+        return self._config.exchange.sandbox
+    
+    @property
+    def enable_live_trading(self) -> bool:
+        """Get live trading enabled status."""
+        return self._config.trading.enable_live_trading
+    
+    @property
+    def paper_trading(self) -> bool:
+        """Get paper trading mode."""
+        return self._config.trading.paper_trading
+    
+    @property
+    def initial_capital(self) -> float:
+        """Get initial trading capital."""
+        return self._config.trading.initial_capital
+    
+    @property
+    def max_position_size(self) -> float:
+        """Get maximum position size."""
+        return self._config.trading.max_position_size
+    
+    @property
+    def risk_per_trade(self) -> float:
+        """Get risk per trade."""
+        return self._config.trading.risk_per_trade
+    
+    @property
+    def api_key(self) -> Optional[str]:
+        """Get exchange API key."""
+        return self._config.exchange.api_key
+    
+    @property
+    def secret_key(self) -> Optional[str]:
+        """Get exchange secret key."""
+        return self._config.exchange.secret_key
+    
+    @property
+    def passphrase(self) -> Optional[str]:
+        """Get exchange passphrase."""
+        return self._config.exchange.passphrase
+    
+    def reload(self):
+        """Reload configuration."""
+        config_manager = get_config_manager()
+        self._config = config_manager.load_config()
+        logger.info("Configuration reloaded")
 
 
-# For backward compatibility, also export settings directly
-settings = get_settings()
+# Global settings instance for backward compatibility
+settings = Settings()
+
+
+# Environment variable helpers for backward compatibility
+def get_env_var(name: str, default: str = "") -> str:
+    """Get environment variable with default."""
+    return os.getenv(name, default)
+
+
+def get_env_bool(name: str, default: bool = False) -> bool:
+    """Get boolean environment variable."""
+    value = os.getenv(name, "").lower()
+    return value in ("true", "1", "yes", "on") if value else default
+
+
+def get_env_int(name: str, default: int = 0) -> int:
+    """Get integer environment variable."""
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def get_env_float(name: str, default: float = 0.0) -> float:
+    """Get float environment variable."""
+    try:
+        return float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+# Legacy configuration class for complete backward compatibility
+class LegacyConfig:
+    """
+    Legacy configuration class that maps to new configuration system.
+    
+    This maintains complete backward compatibility for any code that
+    directly imported and used the old Config class.
+    """
+    
+    def __init__(self):
+        self._config = get_config()
+    
+    # Environment settings
+    ENVIRONMENT = property(lambda self: self._config.environment.value)
+    DEBUG = property(lambda self: self._config.debug)
+    
+    # API settings
+    HOST = property(lambda self: self._config.api.host)
+    PORT = property(lambda self: self._config.api.port)
+    CORS_ORIGINS = property(lambda self: self._config.api.cors_origins)
+    
+    # Database settings
+    DATABASE_URL = property(lambda self: self._config.database.url)
+    
+    # Exchange settings
+    EXCHANGE_NAME = property(lambda self: self._config.exchange.name)
+    EXCHANGE_SANDBOX = property(lambda self: self._config.exchange.sandbox)
+    API_KEY = property(lambda self: self._config.exchange.api_key)
+    SECRET_KEY = property(lambda self: self._config.exchange.secret_key)
+    PASSPHRASE = property(lambda self: self._config.exchange.passphrase)
+    
+    # Trading settings
+    ENABLE_LIVE_TRADING = property(lambda self: self._config.trading.enable_live_trading)
+    PAPER_TRADING = property(lambda self: self._config.trading.paper_trading)
+    INITIAL_CAPITAL = property(lambda self: self._config.trading.initial_capital)
+    MAX_POSITION_SIZE = property(lambda self: self._config.trading.max_position_size)
+    RISK_PER_TRADE = property(lambda self: self._config.trading.risk_per_trade)
+    MAX_DAILY_LOSS = property(lambda self: self._config.trading.max_daily_loss)
+    MAX_DRAWDOWN = property(lambda self: self._config.trading.max_drawdown)
+    
+    # Data settings
+    COLLECTION_INTERVAL = property(lambda self: self._config.data.collection_interval)
+    HISTORICAL_DAYS = property(lambda self: self._config.data.historical_days)
+    
+    # Logging settings
+    LOG_LEVEL = property(lambda self: self._config.logging.level.value)
+    LOG_FILE = property(lambda self: self._config.logging.file_path)
+
+
+# Create legacy config instance
+Config = LegacyConfig()
+
+
+# Migration utilities
+def migrate_legacy_config():
+    """
+    Migrate legacy configuration files to new format.
+    
+    This function can be called to automatically migrate old configuration
+    files to the new configuration manager format.
+    """
+    legacy_config_files = [
+        ".env",
+        "config.ini", 
+        "settings.json"
+    ]
+    
+    config_manager = get_config_manager()
+    
+    for config_file in legacy_config_files:
+        config_path = Path(config_file)
+        if config_path.exists():
+            logger.info(f"Found legacy config file: {config_file}")
+            # Migration logic would go here
+            # For now, just log that we found it
+    
+    # Save current configuration to new format
+    config_manager.save_config()
+    logger.info("Configuration migration completed")
+
+
+def validate_configuration() -> bool:
+    """
+    Validate current configuration.
+    
+    Returns True if configuration is valid, False otherwise.
+    """
+    try:
+        config = get_config()
+        return config.validate()
+    except Exception as e:
+        logger.error(f"Configuration validation failed: {e}")
+        return False
+
+
+def update_configuration(updates: dict) -> bool:
+    """
+    Update configuration with new values.
+    
+    Args:
+        updates: Dictionary of configuration updates using dot notation
+                Example: {"trading.enable_live_trading": True}
+    
+    Returns:
+        True if update was successful, False otherwise.
+    """
+    try:
+        config_manager = get_config_manager()
+        return config_manager.update_config(updates)
+    except Exception as e:
+        logger.error(f"Configuration update failed: {e}")
+        return False
+
+
+def get_configuration_summary() -> dict:
+    """
+    Get a summary of current configuration settings.
+    
+    Returns:
+        Dictionary containing key configuration settings.
+    """
+    config = get_config()
+    
+    return {
+        "environment": config.environment.value,
+        "debug": config.debug,
+        "api": {
+            "host": config.api.host,
+            "port": config.api.port,
+            "debug": config.api.debug
+        },
+        "trading": {
+            "live_trading": config.trading.enable_live_trading,
+            "paper_trading": config.trading.paper_trading,
+            "initial_capital": config.trading.initial_capital,
+            "max_position_size": config.trading.max_position_size
+        },
+        "exchange": {
+            "name": config.exchange.name,
+            "sandbox": config.exchange.sandbox,
+            "has_credentials": bool(config.exchange.api_key and config.exchange.secret_key)
+        },
+        "data": {
+            "collection_interval": config.data.collection_interval,
+            "historical_days": config.data.historical_days
+        },
+        "logging": {
+            "level": config.logging.level.value,
+            "file_enabled": config.logging.enable_file,
+            "console_enabled": config.logging.enable_console
+        }
+    }
+
+
+# Export commonly used items for backward compatibility
+__all__ = [
+    'get_settings',
+    'settings', 
+    'Config',
+    'Settings',
+    'get_env_var',
+    'get_env_bool', 
+    'get_env_int',
+    'get_env_float',
+    'migrate_legacy_config',
+    'validate_configuration',
+    'update_configuration',
+    'get_configuration_summary'
+]

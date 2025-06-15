@@ -1,6 +1,31 @@
-"""Utility modules for Odin trading bot."""
+"""
+Odin Utils Package - Updated for new logging system
+"""
 
-from odin.utils.logging import get_logger, setup_logging
-from odin.utils.validators import validate_symbol, validate_timeframe
+# Import new logging system with backward compatibility
+from odin.utils.logging import (
+    get_logger, 
+    configure_logging, 
+    LogContext, 
+    set_correlation_id,
+    get_correlation_id
+)
 
-__all__ = ["setup_logging", "get_logger", "validate_symbol", "validate_timeframe"]
+# Backward compatibility alias
+setup_logging = configure_logging
+
+# Import validators if they exist
+try:
+    from odin.utils.validators import *
+except ImportError:
+    # Validators don't exist yet, that's okay
+    pass
+
+__all__ = [
+    'get_logger',
+    'configure_logging', 
+    'setup_logging',  # Backward compatibility
+    'LogContext',
+    'set_correlation_id',
+    'get_correlation_id'
+]
