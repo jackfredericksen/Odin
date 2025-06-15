@@ -381,9 +381,44 @@ class EnhancedBitcoinDataCollector:
             # Add derived features for ML
             df = self._add_ml_features(df)
 
-            # Clean data for ML (remove NaN, infinite values)
+            # Clean data for ML (replace NaN and infinite values safely)
             df = df.replace([np.inf, -np.inf], np.nan)
-            df = df.dropna()
+
+            # Instead of dropping all NaN, fill them intelligently
+            original_len = len(df)
+
+            # Fill NaN values with reasonable defaults
+            numeric_columns = df.select_dtypes(include=[np.number]).columns
+
+            for col in numeric_columns:
+                if col in ['close', 'open', 'high', 'low']:
+                    # For price columns, forward fill then backward fill
+                    df[col] = df[col].ffill().bfill()
+                elif 'rsi' in col:
+                    # RSI defaults to 50 (neutral)
+                    df[col] = df[col].fillna(50)
+                elif 'ma_' in col or 'bollinger' in col:
+                    # Moving averages default to current price
+                    df[col] = df[col].fillna(df['close'])
+                elif 'volume' in col:
+                    # Volume defaults to median volume
+                    df[col] = df[col].fillna(df[col].median())
+                elif 'volatility' in col:
+                    # Volatility defaults to 0.02 (2%)
+                    df[col] = df[col].fillna(0.02)
+                elif 'momentum' in col or 'change' in col:
+                    # Momentum/change defaults to 0
+                    df[col] = df[col].fillna(0)
+                else:
+                    # Other numeric columns default to 0
+                    df[col] = df[col].fillna(0)
+
+            # Only drop rows if they're still missing critical price data
+            df = df.dropna(subset=['close', 'timestamp'] if 'timestamp' in df.columns else ['close'])
+
+            cleaned_len = len(df)
+            if cleaned_len < original_len * 0.5:  # Lost more than half the data
+                print(f"Warning: Lost {original_len - cleaned_len} records during cleaning")
 
             return df
 

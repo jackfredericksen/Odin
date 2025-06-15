@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 
-class MarketRegime(Enum):
+class MarketState(Enum):
     """Enumeration of market regimes"""
 
     BULL_TRENDING = "bull_trending"
@@ -22,7 +22,7 @@ class MarketRegime(Enum):
 class RegimeCharacteristics:
     """Characteristics that define a market regime"""
 
-    regime: MarketRegime
+    regime: MarketState
     description: str
     typical_duration_days: int
     volatility_range: tuple  # (min, max)
@@ -35,8 +35,8 @@ class RegimeCharacteristics:
 
 # Define regime characteristics
 REGIME_DEFINITIONS = {
-    MarketRegime.BULL_TRENDING: RegimeCharacteristics(
-        regime=MarketRegime.BULL_TRENDING,
+    MarketState.BULL_TRENDING: RegimeCharacteristics(
+        regime=MarketState.BULL_TRENDING,
         description="Strong sustained upward price movement with momentum",
         typical_duration_days=45,
         volatility_range=(0.01, 0.04),
@@ -51,8 +51,8 @@ REGIME_DEFINITIONS = {
         trading_approach="Trend following, momentum strategies",
         risk_level="Medium-High",
     ),
-    MarketRegime.BEAR_TRENDING: RegimeCharacteristics(
-        regime=MarketRegime.BEAR_TRENDING,
+    MarketState.BEAR_TRENDING: RegimeCharacteristics(
+        regime=MarketState.BEAR_TRENDING,
         description="Sustained downward pressure with selling momentum",
         typical_duration_days=30,
         volatility_range=(0.015, 0.06),
@@ -67,8 +67,8 @@ REGIME_DEFINITIONS = {
         trading_approach="Short selling, defensive positioning",
         risk_level="High",
     ),
-    MarketRegime.SIDEWAYS: RegimeCharacteristics(
-        regime=MarketRegime.SIDEWAYS,
+    MarketState.SIDEWAYS: RegimeCharacteristics(
+        regime=MarketState.SIDEWAYS,
         description="Range-bound trading with no clear directional bias",
         typical_duration_days=60,
         volatility_range=(0.005, 0.025),
@@ -83,8 +83,8 @@ REGIME_DEFINITIONS = {
         trading_approach="Mean reversion, range trading",
         risk_level="Medium",
     ),
-    MarketRegime.HIGH_VOLATILITY: RegimeCharacteristics(
-        regime=MarketRegime.HIGH_VOLATILITY,
+    MarketState.HIGH_VOLATILITY: RegimeCharacteristics(
+        regime=MarketState.HIGH_VOLATILITY,
         description="Elevated price swings with uncertain direction",
         typical_duration_days=15,
         volatility_range=(0.04, 0.12),
@@ -99,8 +99,8 @@ REGIME_DEFINITIONS = {
         trading_approach="Volatility strategies, smaller positions",
         risk_level="Very High",
     ),
-    MarketRegime.CRISIS: RegimeCharacteristics(
-        regime=MarketRegime.CRISIS,
+    MarketState.CRISIS: RegimeCharacteristics(
+        regime=MarketState.CRISIS,
         description="Extreme market stress with potential for large losses",
         typical_duration_days=7,
         volatility_range=(0.08, 0.30),
@@ -118,7 +118,7 @@ REGIME_DEFINITIONS = {
 }
 
 
-def get_regime_characteristics(regime: MarketRegime) -> Optional[RegimeCharacteristics]:
+def get_regime_characteristics(regime: MarketState) -> Optional[RegimeCharacteristics]:
     """Get characteristics for a specific regime"""
     return REGIME_DEFINITIONS.get(regime)
 

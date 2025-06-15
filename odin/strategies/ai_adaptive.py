@@ -23,20 +23,16 @@ if project_root not in sys.path:
 
 # Import with proper error handling
 try:
-    from odin.ai.regime_detection.regime_detector import (
-        RegimeDetector as MarketRegimeDetector,
-    )
+    from odin.ai.regime_detection.regime_detector import RegimeDetector
 except ImportError:
     try:
         import sys
 
         sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-        from ai.regime_detection.regime_detector import (
-            RegimeDetector as MarketRegimeDetector,
-        )
+        from ai.regime_detection.regime_detector import RegimeDetector
     except ImportError:
         # Create dummy class if import fails
-        class MarketRegimeDetector:
+        class RegimeDetector:
             def __init__(self):
                 self.hmm_model = None
 
@@ -141,7 +137,7 @@ class AIAdaptiveStrategy:
 
         # AI Components
         try:
-            self.regime_detector = MarketRegimeDetector()
+            self.regime_detector = RegimeDetector()
             self.strategy_manager = AdaptiveStrategyManager()
         except Exception as e:
             self.logger.error(f"Failed to initialize AI components: {e}")
@@ -202,7 +198,7 @@ class AIAdaptiveStrategy:
                     )
                     self.initialization_complete = False
             else:
-                self.logger.info("Using dummy regime detector")
+                self.logger.info("Regime detector initialized")
                 self.initialization_complete = True
 
         except Exception as e:

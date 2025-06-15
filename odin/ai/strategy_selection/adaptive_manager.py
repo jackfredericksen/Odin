@@ -942,3 +942,7 @@ if __name__ == "__main__":
     # Generate combined signal
     combined_signal = manager.get_combined_signal(sample_data)
     print(f"Combined signal: {combined_signal}")
+
+
+# Alias for backward compatibility
+AdaptiveManager = AdaptiveStrategyManager
