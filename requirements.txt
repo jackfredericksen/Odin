@@ -62,7 +62,7 @@ cerberus==1.3.5
 
 # Hidden Markov Models (for regime detection)
 hmmlearn
-
+nest-asyncio==1.6.0   
 # Matrix Operations (for ML)
 scikit-optimize==0.9.0  # For hyperparameter optimization
 
