@@ -20,7 +20,7 @@ sys.path.insert(0, str(project_root))
 # Import enhanced systems
 from odin.core.config_manager import get_config, get_config_manager, OdinConfig
 from odin.utils.logging import configure_logging, get_logger, set_correlation_id, LogContext
-from odin.core.error_handler import ErrorHandler, OdinException, ErrorCode, ErrorSeverity, SystemException
+from odin.core.exceptions import ErrorHandler, OdinException, ErrorCode, ErrorSeverity, SystemException
 from odin.core.repository import get_repository_manager, RepositoryManager
 
 # Initialize systems
