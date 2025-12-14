@@ -252,31 +252,29 @@ class OdinDashboard {
     }
 
     /**
-     * Load initial data
+     * Load initial data - Analysis Dashboard
      */
     async loadInitialData() {
         const loadingTasks = [
             this.loadBitcoinPrice(),
-            this.loadPortfolio(),
             this.loadStrategies(),
-            this.loadOrders(),
-            this.loadAutoTradingStatus(),
-            this.loadPriceHistory()
+            this.loadPriceHistory(),
+            this.loadMarketSignals()
         ];
 
         try {
             const results = await Promise.allSettled(loadingTasks);
-            
+
             // Check for any failures
             const failures = results.filter(result => result.status === 'rejected');
             if (failures.length > 0) {
                 console.warn('⚠️ Some data loading tasks failed:', failures);
                 this.showNotification('Partial Load', 'Some data failed to load', 'warning');
             }
-            
+
             this.state.lastUpdateTime = new Date();
             this.updateLastUpdateTime();
-            
+
         } catch (error) {
             console.error('❌ Error loading initial data:', error);
             this.showNotification('Load Error', 'Failed to load initial data', 'error');
@@ -308,22 +306,21 @@ class OdinDashboard {
     }
 
     /**
-     * Update all dashboard data
+     * Update all dashboard data - Analysis Dashboard
      */
     async updateAllData() {
         try {
             const updateTasks = [
                 this.loadBitcoinPrice(),
-                this.loadPortfolio(),
                 this.loadStrategies(),
-                this.loadOrders()
+                this.loadMarketSignals()
             ];
 
             await Promise.allSettled(updateTasks);
-            
+
             this.state.lastUpdateTime = new Date();
             this.updateLastUpdateTime();
-            
+
         } catch (error) {
             console.error('❌ Error updating data:', error);
         }
@@ -344,17 +341,23 @@ class OdinDashboard {
             } else {
                 throw new Error('Invalid response format');
             }
-            
+
             this.updateBitcoinPriceDisplay(data);
+            this.updateMarketStatsDisplay(data);
             this.state.currentPrice = data.price;
         } catch (error) {
             console.error('❌ Error loading Bitcoin price:', error);
             // Show placeholder data if API fails
-            this.updateBitcoinPriceDisplay({
+            const placeholderData = {
                 price: 45000,
                 change_24h: 0,
+                high_24h: 46000,
+                low_24h: 44000,
+                volume: 1500,
                 timestamp: new Date().toISOString()
-            });
+            };
+            this.updateBitcoinPriceDisplay(placeholderData);
+            this.updateMarketStatsDisplay(placeholderData);
         }
     }
 
@@ -530,6 +533,98 @@ class OdinDashboard {
         if (this.elements['price-timestamp']) {
             this.elements['price-timestamp'].textContent = `Last updated: ${this.formatTime(data.timestamp)}`;
         }
+    }
+
+    /**
+     * Update market statistics display (24h High, Low, Volume)
+     */
+    updateMarketStatsDisplay(data) {
+        // 24h High
+        if (this.elements['high-24h']) {
+            this.elements['high-24h'].textContent = this.formatCurrency(data.high_24h || data.price * 1.05);
+        }
+
+        // 24h Low
+        if (this.elements['low-24h']) {
+            this.elements['low-24h'].textContent = this.formatCurrency(data.low_24h || data.price * 0.95);
+        }
+
+        // 24h Volume
+        if (this.elements['volume-24h']) {
+            const volume = data.volume || data.volume_24h || 0;
+            this.elements['volume-24h'].textContent = volume.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+    }
+
+    /**
+     * Load market signals (placeholder for future implementation)
+     */
+    async loadMarketSignals() {
+        try {
+            // This will use the strategies endpoint to generate signals
+            const response = await this.apiCall('/strategies/list');
+            if (response.success && response.data && response.data.strategies) {
+                this.updateMarketSignalsDisplay(response.data.strategies);
+            } else if (response.strategies) {
+                this.updateMarketSignalsDisplay(response.strategies);
+            }
+        } catch (error) {
+            console.warn('❌ Error loading market signals:', error);
+            this.updateMarketSignalsDisplay([]);
+        }
+    }
+
+    /**
+     * Update market signals table
+     */
+    updateMarketSignalsDisplay(strategies) {
+        const tbody = document.querySelector('#signals-table tbody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        if (!strategies || strategies.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="no-data">No signals available</td></tr>';
+            return;
+        }
+
+        // Convert strategies to signals
+        strategies.forEach(strategy => {
+            if (strategy.last_signal) {
+                const row = document.createElement('tr');
+                const signal = strategy.last_signal;
+                const signalType = signal.type || 'hold';
+                const signalClass = signalType === 'buy' ? 'positive' : signalType === 'sell' ? 'negative' : '';
+
+                row.innerHTML = `
+                    <td>${this.formatTime(signal.timestamp)}</td>
+                    <td>${strategy.name || strategy.id}</td>
+                    <td class="${signalClass}">${signalType.toUpperCase()}</td>
+                    <td>$${(signal.price || 0).toLocaleString()}</td>
+                    <td>${this.getSignalStrength(signal.confidence)}</td>
+                    <td>${((signal.confidence || 0) * 100).toFixed(0)}%</td>
+                `;
+                tbody.appendChild(row);
+            }
+        });
+
+        if (tbody.children.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="no-data">No recent signals</td></tr>';
+        }
+    }
+
+    /**
+     * Get signal strength indicator
+     */
+    getSignalStrength(confidence) {
+        if (confidence >= 0.8) return '●●●●●';
+        if (confidence >= 0.6) return '●●●●○';
+        if (confidence >= 0.4) return '●●●○○';
+        if (confidence >= 0.2) return '●●○○○';
+        return '●○○○○';
     }
 
     /**

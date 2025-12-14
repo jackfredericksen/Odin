@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Odin - Bitcoin Trading Dashboard</title>
+    <title>Odin - Bitcoin Analysis Dashboard</title>
     <link rel="icon" type="image/x-icon" href="/static/images/favicon.ico">
     
     <!-- External Dependencies -->
@@ -21,7 +21,7 @@
         <div class="loading-content">
             <img src="/static/images/logo.png" alt="Odin Logo" class="loading-logo">
             <div class="loading-spinner"></div>
-            <p>Initializing Odin Trading System...</p>
+            <p>Initializing Odin Analysis System...</p>
         </div>
     </div>
 
@@ -31,7 +31,7 @@
         <header class="dashboard-header">
             <div class="header-left">
                 <img src="/static/images/logo.png" alt="Odin" class="logo">
-                <h1>Odin Trading Dashboard</h1>
+                <h1>Odin Analysis Dashboard</h1>
             </div>
             <div class="header-center">
                 <div class="connection-status" id="connection-status">
@@ -41,9 +41,6 @@
             </div>
             <div class="header-right">
                 <div class="current-time" id="current-time"></div>
-                <button class="emergency-stop-btn" id="emergency-stop">
-                    🛑 Emergency Stop
-                </button>
             </div>
         </header>
 
@@ -62,29 +59,29 @@
 
                 <div class="stat-card">
                     <div class="stat-header">
-                        <h3>Portfolio Value</h3>
-                        <span class="stat-change" id="portfolio-change">+0.00%</span>
+                        <h3>24h High</h3>
+                        <span class="stat-indicator" id="high-indicator">▲</span>
                     </div>
-                    <div class="stat-value" id="portfolio-value">$0.00</div>
-                    <div class="stat-subtitle" id="portfolio-subtitle">Total Balance</div>
+                    <div class="stat-value" id="high-24h">$0.00</div>
+                    <div class="stat-subtitle" id="high-subtitle">24 Hour High</div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-header">
-                        <h3>24h P&L</h3>
-                        <span class="stat-indicator" id="pnl-indicator">●</span>
+                        <h3>24h Low</h3>
+                        <span class="stat-indicator" id="low-indicator">▼</span>
                     </div>
-                    <div class="stat-value" id="daily-pnl">$0.00</div>
-                    <div class="stat-subtitle" id="pnl-percentage">0.00%</div>
+                    <div class="stat-value" id="low-24h">$0.00</div>
+                    <div class="stat-subtitle" id="low-subtitle">24 Hour Low</div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-header">
-                        <h3>Active Positions</h3>
-                        <span class="stat-badge" id="positions-count">0</span>
+                        <h3>24h Volume</h3>
+                        <span class="stat-badge" id="volume-badge">BTC</span>
                     </div>
-                    <div class="stat-value" id="positions-value">$0.00</div>
-                    <div class="stat-subtitle" id="positions-subtitle">Total Exposure</div>
+                    <div class="stat-value" id="volume-24h">0.00</div>
+                    <div class="stat-subtitle" id="volume-subtitle">Trading Volume</div>
                 </div>
             </section>
 
@@ -110,75 +107,88 @@
                     </div>
                 </div>
 
-                <!-- Strategy Panel -->
+                <!-- Technical Analysis Panel -->
                 <div class="strategy-panel">
                     <div class="panel-header">
-                        <h3>Trading Strategies</h3>
+                        <h3>Technical Indicators</h3>
                         <div class="strategy-controls">
                             <button id="refresh-strategies" class="btn-secondary">↻ Refresh</button>
-                            <button id="auto-trading-toggle" class="btn-primary">
-                                <span id="auto-trading-status">Enable Auto Trading</span>
-                            </button>
                         </div>
                     </div>
 
                     <div class="strategies-grid" id="strategies-grid">
-                        <!-- Strategy cards will be populated dynamically -->
+                        <!-- Indicator cards will be populated dynamically -->
                     </div>
 
-                    <!-- Strategy Performance Chart -->
+                    <!-- Indicator Signals Chart -->
                     <div class="strategy-performance">
-                        <h4>Strategy Performance Comparison</h4>
+                        <h4>Indicator Signals Over Time</h4>
                         <canvas id="strategy-chart"></canvas>
                     </div>
                 </div>
             </section>
 
-            <!-- Bottom Section: Orders and Portfolio -->
+            <!-- Bottom Section: Market Analysis -->
             <section class="bottom-section">
-                <!-- Recent Orders -->
+                <!-- Market Signals -->
                 <div class="orders-panel">
                     <div class="panel-header">
-                        <h3>Recent Orders</h3>
+                        <h3>Market Signals</h3>
                         <div class="panel-controls">
-                            <button id="refresh-orders" class="btn-secondary">↻ Refresh</button>
-                            <button id="view-all-orders" class="btn-outline">View All</button>
+                            <button id="refresh-signals" class="btn-secondary">↻ Refresh</button>
                         </div>
                     </div>
                     <div class="orders-table-container">
-                        <table class="orders-table" id="orders-table">
+                        <table class="orders-table" id="signals-table">
                             <thead>
                                 <tr>
                                     <th>Time</th>
-                                    <th>Strategy</th>
-                                    <th>Type</th>
-                                    <th>Amount</th>
-                                    <th>Price</th>
-                                    <th>Status</th>
-                                    <th>P&L</th>
+                                    <th>Indicator</th>
+                                    <th>Signal</th>
+                                    <th>Value</th>
+                                    <th>Strength</th>
+                                    <th>Confidence</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Orders will be populated dynamically -->
+                                <!-- Signals will be populated dynamically -->
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- Portfolio Allocation -->
+                <!-- Price Statistics -->
                 <div class="portfolio-panel">
                     <div class="panel-header">
-                        <h3>Portfolio Allocation</h3>
+                        <h3>Price Statistics</h3>
                         <div class="panel-controls">
-                            <button id="rebalance-portfolio" class="btn-secondary">⚖️ Rebalance</button>
+                            <select id="stats-timeframe" class="btn-secondary">
+                                <option value="1h">1 Hour</option>
+                                <option value="24h" selected>24 Hours</option>
+                                <option value="7d">7 Days</option>
+                                <option value="30d">30 Days</option>
+                            </select>
                         </div>
                     </div>
                     <div class="portfolio-content">
-                        <div class="allocation-chart-container">
-                            <canvas id="allocation-chart"></canvas>
-                        </div>
-                        <div class="portfolio-details" id="portfolio-details">
-                            <!-- Portfolio details will be populated dynamically -->
+                        <div class="stats-list" id="price-stats">
+                            <!-- Price statistics will be populated dynamically -->
+                            <div class="stat-row">
+                                <span class="stat-label">Average Price:</span>
+                                <span class="stat-val" id="avg-price">$0.00</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Volatility:</span>
+                                <span class="stat-val" id="volatility">0.00%</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Price Range:</span>
+                                <span class="stat-val" id="price-range">$0.00</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Trend:</span>
+                                <span class="stat-val" id="trend">Neutral</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -188,14 +198,14 @@
         <!-- Footer -->
         <footer class="dashboard-footer">
             <div class="footer-left">
-                <span>Odin Bitcoin Trading Bot v2.0</span>
+                <span>Odin Bitcoin Analysis Dashboard v2.0</span>
                 <span class="footer-separator">|</span>
                 <span id="system-status">System Operational</span>
             </div>
             <div class="footer-right">
                 <span id="data-update-time">Last Data Update: --</span>
                 <span class="footer-separator">|</span>
-                <span>⚡ Real-time Trading</span>
+                <span>📊 Real-time Analysis</span>
             </div>
         </footer>
     </div>
