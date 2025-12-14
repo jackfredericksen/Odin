@@ -58,6 +58,27 @@ class TradingMode(Enum):
 
 
 @dataclass
+class APIResponse:
+    """Standard API response format for consistent endpoint responses."""
+
+    success: bool
+    message: str
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "success": self.success,
+            "message": self.message,
+            "data": self.data,
+            "error": self.error,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+
+@dataclass
 class PriceData:
     """Price data point with OHLCV information."""
 

@@ -10,8 +10,121 @@ License: MIT
 
 import logging
 from typing import Any, Dict, Optional
+from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+
+# Error Severity Levels
+class ErrorSeverity(Enum):
+    """Enumeration of error severity levels."""
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+
+
+# Error Codes
+class ErrorCode:
+    """Standard error codes for the Odin system."""
+    # System Errors
+    SYSTEM_ERROR = "SYSTEM_ERROR"
+    UNEXPECTED_ERROR = "UNEXPECTED_ERROR"
+    CONFIGURATION_ERROR = "CONFIGURATION_ERROR"
+
+    # Trading Errors
+    INVALID_ORDER = "INVALID_ORDER"
+    ORDER_EXECUTION_FAILED = "ORDER_EXECUTION_FAILED"
+    INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
+
+    # Connection Errors
+    EXCHANGE_CONNECTION_FAILED = "EXCHANGE_CONNECTION_FAILED"
+    DATABASE_CONNECTION_FAILED = "DATABASE_CONNECTION_FAILED"
+    DATA_SOURCE_FAILED = "DATA_SOURCE_FAILED"
+
+    # Risk Management
+    RISK_LIMIT_EXCEEDED = "RISK_LIMIT_EXCEEDED"
+    DRAWDOWN_LIMIT_EXCEEDED = "DRAWDOWN_LIMIT_EXCEEDED"
+    POSITION_SIZE_EXCEEDED = "POSITION_SIZE_EXCEEDED"
+
+    # Data Errors
+    MARKET_DATA_ERROR = "MARKET_DATA_ERROR"
+    DATA_VALIDATION_FAILED = "DATA_VALIDATION_FAILED"
+
+    # Strategy Errors
+    STRATEGY_CONFIG_INVALID = "STRATEGY_CONFIG_INVALID"
+    STRATEGY_EXECUTION_FAILED = "STRATEGY_EXECUTION_FAILED"
+
+    # Portfolio Errors
+    PORTFOLIO_VALIDATION_FAILED = "PORTFOLIO_VALIDATION_FAILED"
+    ALLOCATION_FAILED = "ALLOCATION_FAILED"
+
+
+# Error Handler
+class ErrorHandler:
+    """
+    Centralized error handling and logging utility.
+
+    Provides structured error handling with context management,
+    logging, and error tracking capabilities.
+    """
+
+    def __init__(self):
+        self.error_count = 0
+        self.errors = []
+
+    def handle_error(
+        self,
+        error: Exception,
+        severity: ErrorSeverity = ErrorSeverity.ERROR,
+        context: Optional[Dict[str, Any]] = None,
+        reraise: bool = True
+    ):
+        """
+        Handle an error with logging and optional re-raising.
+
+        Args:
+            error: The exception to handle
+            severity: Severity level of the error
+            context: Additional context information
+            reraise: Whether to re-raise the exception after handling
+        """
+        self.error_count += 1
+
+        error_data = {
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+            "severity": severity.value,
+            "context": context or {},
+            "count": self.error_count
+        }
+
+        self.errors.append(error_data)
+
+        # Log based on severity
+        if severity == ErrorSeverity.CRITICAL:
+            logger.critical(f"Critical error: {error}", extra=error_data)
+        elif severity == ErrorSeverity.ERROR:
+            logger.error(f"Error: {error}", extra=error_data)
+        elif severity == ErrorSeverity.WARNING:
+            logger.warning(f"Warning: {error}", extra=error_data)
+        else:
+            logger.info(f"Info: {error}", extra=error_data)
+
+        if reraise:
+            raise error
+
+    def get_error_stats(self) -> Dict[str, Any]:
+        """Get error statistics."""
+        return {
+            "total_errors": self.error_count,
+            "recent_errors": self.errors[-10:] if self.errors else []
+        }
+
+    def clear_errors(self):
+        """Clear error history."""
+        self.error_count = 0
+        self.errors = []
 
 
 class OdinCoreException(Exception):
@@ -60,6 +173,33 @@ class OdinCoreException(Exception):
             "context": self.context,
             "exception_type": self.__class__.__name__,
         }
+
+
+# Alias for backward compatibility
+OdinException = OdinCoreException
+
+
+# System Exception
+class SystemException(OdinCoreException):
+    """
+    Exception for system-level errors.
+
+    Used for configuration issues, startup failures, and other
+    system-wide problems.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        original_exception: Optional[Exception] = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code=ErrorCode.SYSTEM_ERROR,
+            context=context,
+            original_exception=original_exception,
+        )
 
 
 # Trading Engine Exceptions
