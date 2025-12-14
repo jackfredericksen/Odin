@@ -68,7 +68,7 @@ except ImportError:
         def __init__(self, **kwargs): pass
 
 try:
-    from odin.core.error_handler import ErrorHandler, OdinException
+    from odin.core.exceptions import ErrorHandler, OdinException
     ERROR_HANDLER_AVAILABLE = True
 except ImportError:
     ERROR_HANDLER_AVAILABLE = False

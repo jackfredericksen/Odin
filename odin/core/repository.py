@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from ..utils.logging import get_logger
-from .error_handler import OdinException, ErrorCode, ErrorSeverity
+from .exceptions import OdinException, ErrorCode, ErrorSeverity
 
 logger = get_logger(__name__)
 

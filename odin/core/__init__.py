@@ -38,7 +38,7 @@ except ImportError:
     def get_repository_manager(): return None
 
 try:
-    from .error_handler import ErrorHandler, OdinException
+    from .exceptions import ErrorHandler, OdinException
 except ImportError:
     print("Error handler not available")
     class ErrorHandler:

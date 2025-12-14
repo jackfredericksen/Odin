@@ -124,10 +124,14 @@ class OdinApplication:
                 component="application",
                 operation="load_config"
             ))
-            
+
             config_manager = get_config_manager()
             self.config = config_manager.load_config()
-            
+
+            if self.config is None:
+                logger.error("Configuration manager returned None")
+                return False
+
             logger.info("Configuration loaded successfully", LogContext(
                 component="application",
                 operation="load_config",
@@ -137,11 +141,13 @@ class OdinApplication:
                     "live_trading": self.config.trading.enable_live_trading
                 }
             ))
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Configuration loading failed: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     async def _setup_logging(self) -> bool:
