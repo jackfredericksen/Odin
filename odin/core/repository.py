@@ -39,18 +39,20 @@ class DatabaseManager:
         """Initialize database and connection pool."""
         if self._initialized:
             return
-        
+
+        # Mark as initialized FIRST to prevent recursive calls
+        self._initialized = True
+
         Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Create connection pool
         for _ in range(3):
             conn = sqlite3.connect(self.database_path, check_same_thread=False)
             conn.row_factory = sqlite3.Row
-            await self.connection_pool.put(conn)
-        
+            self.connection_pool.put_nowait(conn)
+
         # Create tables
         await self._create_tables()
-        self._initialized = True
         logger.info("Database initialized")
     
     @asynccontextmanager
@@ -73,12 +75,12 @@ class DatabaseManager:
         try:
             async with self.get_connection() as conn:
                 cursor = conn.cursor()
-                
+
                 if params:
                     cursor.execute(query, params)
                 else:
                     cursor.execute(query)
-                
+
                 if query.strip().upper().startswith('SELECT'):
                     if fetch_one:
                         data = cursor.fetchone()
@@ -91,12 +93,15 @@ class DatabaseManager:
                     data = None
                     rows_affected = cursor.rowcount
                     conn.commit()
-                
+
                 return QueryResult(success=True, data=data, rows_affected=rows_affected)
-                
+
         except Exception as e:
-            logger.error(f"Query failed: {e}")
-            return QueryResult(success=False, error=str(e))
+            error_msg = str(e) if str(e) else f"{type(e).__name__}: {repr(e)}"
+            logger.error(f"Query failed: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            return QueryResult(success=False, error=error_msg)
     
     async def _create_tables(self):
         """Create database tables."""
@@ -111,7 +116,7 @@ class DatabaseManager:
                 macd REAL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )""",
-            
+
             """CREATE TABLE IF NOT EXISTS trades (
                 id TEXT PRIMARY KEY,
                 timestamp TEXT NOT NULL,
@@ -125,7 +130,7 @@ class DatabaseManager:
                 pnl REAL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )""",
-            
+
             """CREATE TABLE IF NOT EXISTS strategy_signals (
                 id TEXT PRIMARY KEY,
                 strategy_id TEXT NOT NULL,
@@ -137,7 +142,7 @@ class DatabaseManager:
                 execution_id TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )""",
-            
+
             """CREATE TABLE IF NOT EXISTS portfolio_snapshots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
@@ -146,17 +151,23 @@ class DatabaseManager:
                 btc_balance REAL NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )""",
-            
+
             # Indexes
             "CREATE INDEX IF NOT EXISTS idx_prices_timestamp ON bitcoin_prices(timestamp)",
             "CREATE INDEX IF NOT EXISTS idx_trades_strategy ON trades(strategy_id, timestamp)",
             "CREATE INDEX IF NOT EXISTS idx_signals_strategy ON strategy_signals(strategy_id, timestamp)"
         ]
-        
-        for table_sql in tables:
+
+        for i, table_sql in enumerate(tables):
+            logger.info(f"Creating table/index {i+1}/{len(tables)}")
             result = await self.execute_query(table_sql)
             if not result.success:
-                raise OdinException(f"Table creation failed: {result.error}", ErrorCode.DATABASE_MIGRATION_FAILED)
+                logger.error(f"Failed SQL: {table_sql[:100]}...")
+                logger.error(f"Error detail: '{result.error}' (type: {type(result.error)})")
+                raise OdinException(
+                    f"Table/index creation failed: {result.error or 'Unknown error'}",
+                    ErrorCode.DATABASE_MIGRATION_FAILED
+                )
 
 
 class PriceRepository:

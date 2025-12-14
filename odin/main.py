@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Odin Bitcoin Trading Bot - Enhanced Main Entry Point
+Odin Bitcoin Analysis Dashboard - Enhanced Main Entry Point
 Integrates new configuration, logging, error handling, and repository systems.
 """
 
@@ -22,6 +22,7 @@ from odin.core.config_manager import get_config, get_config_manager, OdinConfig
 from odin.utils.logging import configure_logging, get_logger, set_correlation_id, LogContext
 from odin.core.exceptions import ErrorHandler, OdinException, ErrorCode, ErrorSeverity, SystemException
 from odin.core.repository import get_repository_manager, RepositoryManager
+from odin.core.shutdown import get_shutdown_manager, ShutdownManager
 
 # Initialize systems
 logger = get_logger(__name__)
@@ -30,10 +31,11 @@ error_handler = ErrorHandler()
 
 class OdinApplication:
     """Main application class with lifecycle management."""
-    
+
     def __init__(self):
         self.config: Optional[OdinConfig] = None
         self.repo_manager: Optional[RepositoryManager] = None
+        self.shutdown_manager: Optional[ShutdownManager] = None
         self.app = None
         self.server = None
         self.background_tasks = []
@@ -42,11 +44,15 @@ class OdinApplication:
     async def startup(self) -> bool:
         """Complete application startup sequence."""
         try:
-            logger.info("Starting Odin Bitcoin Trading Bot", LogContext(
+            logger.info("Starting Odin Bitcoin Analysis Dashboard", LogContext(
                 component="application",
                 operation="startup"
             ))
-            
+
+            # Phase 0: Initialize shutdown manager and free port
+            if not await self._initialize_shutdown_manager():
+                return False
+
             # Phase 1: Load configuration
             if not await self._load_configuration():
                 return False
@@ -117,6 +123,32 @@ class OdinApplication:
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
     
+    async def _initialize_shutdown_manager(self) -> bool:
+        """Initialize shutdown manager and ensure port is free."""
+        try:
+            logger.info("Initializing shutdown manager", LogContext(
+                component="application",
+                operation="init_shutdown_manager"
+            ))
+
+            # Get shutdown manager instance (defaults to port 8000)
+            self.shutdown_manager = get_shutdown_manager(port=8000)
+
+            # Install signal handlers for graceful shutdown
+            self.shutdown_manager.install_signal_handlers()
+
+            # Ensure port is free before starting
+            if not self.shutdown_manager.ensure_port_free():
+                logger.error("Failed to free port 8000 - cannot start application")
+                return False
+
+            logger.info("Shutdown manager initialized and port 8000 is available")
+            return True
+
+        except Exception as e:
+            logger.error(f"Shutdown manager initialization failed: {e}")
+            return False
+
     async def _load_configuration(self) -> bool:
         """Load and validate configuration."""
         try:
@@ -195,24 +227,31 @@ class OdinApplication:
                 component="application",
                 operation="init_core_systems"
             ))
-            
+
             # Create necessary directories
+            logger.info("Creating directories...")
             self._create_directories()
-            
+
             # Initialize repository manager
+            logger.info("Initializing repository manager...")
             self.repo_manager = await get_repository_manager()
-            
+            logger.info("Repository manager initialized")
+
             # Get database statistics
-            db_stats = await self.repo_manager.get_database_stats()
+            logger.info("Getting database statistics...")
+            db_stats = await self.repo_manager.get_stats()
             logger.info("Database initialized", LogContext(
                 component="application",
                 operation="init_database",
                 additional_data=db_stats
             ))
-            
+
             return True
-            
+
         except Exception as e:
+            logger.error(f"Core systems initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
             await error_handler.handle_exception(
                 e,
                 LogContext(component="application", operation="init_core_systems")
@@ -300,26 +339,20 @@ class OdinApplication:
                 component="application",
                 operation="start_background_tasks"
             ))
-            
+
             # Start data collection if configured
             if self.config.data.collection_interval > 0:
                 task = asyncio.create_task(self._data_collection_task())
                 self.background_tasks.append(task)
                 logger.info("Data collection task started")
-            
-            # Start portfolio tracking if enabled
-            if self.config.trading.auto_rebalance:
-                task = asyncio.create_task(self._portfolio_tracking_task())
-                self.background_tasks.append(task)
-                logger.info("Portfolio tracking task started")
-            
+
             # Start error statistics cleanup
             task = asyncio.create_task(self._cleanup_task())
             self.background_tasks.append(task)
-            
+
             logger.info(f"Started {len(self.background_tasks)} background tasks")
             return True
-            
+
         except Exception as e:
             await error_handler.handle_exception(
                 e,
@@ -366,16 +399,16 @@ class OdinApplication:
     async def _check_dependencies(self) -> bool:
         """Check required dependencies."""
         required_packages = [
-            'fastapi', 'uvicorn', 'pydantic', 'aiohttp', 'pandas', 'numpy'
+            'fastapi', 'uvicorn', 'pydantic', 'httpx', 'pandas', 'numpy'
         ]
-        
+
         for package in required_packages:
             try:
                 importlib.import_module(package)
             except ImportError:
                 logger.error(f"Missing dependency: {package}")
                 return False
-        
+
         return True
     
     async def _check_database(self) -> bool:
@@ -383,12 +416,11 @@ class OdinApplication:
         try:
             if not self.repo_manager:
                 return False
-            
-            # Try a simple query
-            price_repo = self.repo_manager.get_price_repository()
-            result = await price_repo.find_latest(limit=1)
-            return result.success
-            
+
+            # Try a simple query using the price_repo attribute
+            result = await self.repo_manager.price_repo.get_latest_price()
+            return True  # If no exception, database is working
+
         except Exception as e:
             logger.error(f"Database check failed: {e}")
             return False
@@ -453,32 +485,14 @@ class OdinApplication:
         """Background data collection task."""
         try:
             from odin.core.data_collector import DataCollector
-            
+
             collector = DataCollector(database=self.repo_manager.db_manager)
             await collector.start_collection()
-            
+
         except Exception as e:
             await error_handler.handle_exception(
                 e,
                 LogContext(component="background_task", operation="data_collection")
-            )
-    
-    async def _portfolio_tracking_task(self):
-        """Background portfolio tracking task."""
-        try:
-            # This would start portfolio tracking
-            logger.info("Portfolio tracking task placeholder")
-            
-            while True:
-                await asyncio.sleep(300)  # 5 minutes
-                # Add portfolio tracking logic here
-                
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            await error_handler.handle_exception(
-                e,
-                LogContext(component="background_task", operation="portfolio_tracking")
             )
     
     async def _cleanup_task(self):
@@ -520,28 +534,28 @@ class OdinApplication:
         """Display startup banner."""
         banner = """
         ================================================================
-        
-           ODIN BITCOIN TRADING BOT - v2.0.0
-           Professional Trading Automation System
-           
+
+           ODIN BITCOIN ANALYSIS DASHBOARD - v2.0.0
+           Real-Time Bitcoin Market Analysis & Visualization
+
         ================================================================
         """
         print(banner)
-        
-        logger.info("Starting Odin Bitcoin Trading Bot")
+
+        logger.info("Starting Odin Bitcoin Analysis Dashboard")
         logger.info(f"Startup time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info(f"Environment: {self.config.environment.value}")
         logger.info(f"Debug mode: {self.config.debug}")
-        logger.info(f"Live trading: {'enabled' if self.config.trading.enable_live_trading else 'disabled'}")
+        logger.info(f"Analysis mode: enabled")
     
     def _display_access_information(self):
         """Display access information."""
         host = self.config.api.host
         port = self.config.api.port
-        
+
         # Use localhost for display if binding to all interfaces
         display_host = "localhost" if host == "0.0.0.0" else host
-        
+
         logger.info("")
         logger.info("Application is now running!")
         logger.info("================================================================")
@@ -550,8 +564,7 @@ class OdinApplication:
         logger.info(f"Alternative Docs:   http://{display_host}:{port}/redoc")
         logger.info(f"Health Check:       http://{display_host}:{port}/api/v1/health")
         logger.info(f"Bitcoin Data:       http://{display_host}:{port}/api/v1/data/current")
-        logger.info(f"Portfolio:          http://{display_host}:{port}/api/v1/portfolio")
-        logger.info(f"Strategies:         http://{display_host}:{port}/api/v1/strategies/list")
+        logger.info(f"Analysis Tools:     http://{display_host}:{port}/api/v1/strategies/list")
         logger.info("================================================================")
         logger.info("")
         logger.info("Press Ctrl+C to stop the application")
@@ -560,16 +573,22 @@ class OdinApplication:
 async def main():
     """Main application entry point."""
     app = OdinApplication()
-    
+
     try:
-        # Display startup banner
-        app._display_startup_banner()
-        
+        # Print simple starting message
+        print("\n" + "="*60)
+        print("   ODIN BITCOIN ANALYSIS DASHBOARD")
+        print("   Initializing...")
+        print("="*60 + "\n")
+
         # Complete startup sequence
         if not await app.startup():
             logger.error("Application startup failed")
             sys.exit(1)
-        
+
+        # Display full banner after successful startup
+        app._display_startup_banner()
+
         # Run the server
         await app.run_server()
         

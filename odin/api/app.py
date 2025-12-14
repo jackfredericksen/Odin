@@ -1,5 +1,5 @@
 """
-Odin Bitcoin Trading Bot - FastAPI Application (Enhanced Dashboard Compatibility)
+Odin Bitcoin Analysis Dashboard - FastAPI Application (Enhanced Dashboard Compatibility)
 """
 
 import logging
@@ -29,8 +29,8 @@ def create_app() -> FastAPI:
 
     # Create FastAPI instance
     app = FastAPI(
-        title="Odin Bitcoin Trading Bot",
-        description="Professional Bitcoin Trading Bot with Live Trading & API",
+        title="Odin Bitcoin Analysis Dashboard",
+        description="Real-Time Bitcoin Market Analysis & Visualization Platform",
         version="2.0.0",
         docs_url="/docs" if settings.debug else None,
         redoc_url="/redoc" if settings.debug else None,
@@ -710,24 +710,6 @@ def create_app() -> FastAPI:
         logger.warning(f"Could not import strategy routes: {e}")
 
     try:
-        from odin.api.routes.trading import router as trading_router
-
-        app.include_router(trading_router, prefix="/api/v1/trading", tags=["trading"])
-        logger.info("Successfully imported trading routes")
-    except ImportError as e:
-        logger.warning(f"Could not import trading routes: {e}")
-
-    try:
-        from odin.api.routes.portfolio import router as portfolio_router
-
-        app.include_router(
-            portfolio_router, prefix="/api/v1/portfolio", tags=["portfolio"]
-        )
-        logger.info("Successfully imported portfolio routes")
-    except ImportError as e:
-        logger.warning(f"Could not import portfolio routes: {e}")
-
-    try:
         from odin.api.routes.websockets import router as websocket_router
 
         app.include_router(websocket_router, prefix="", tags=["websockets"])
@@ -755,29 +737,27 @@ def create_app() -> FastAPI:
                 # Fallback API info for dashboard development
                 dashboard_info = APIResponse(
                     success=True,
-                    message="Odin Bitcoin Trading Bot API Ready",
+                    message="Odin Bitcoin Analysis Dashboard API Ready",
                     data={
                         "api_version": "2.0.0",
                         "status": "running",
                         "dashboard_ready": True,
+                        "mode": "analysis",
                         "endpoints": {
                             "dashboard": "/",
                             "health": "/api/v1/health",
                             "api_docs": "/docs",
                             "bitcoin_data": "/api/v1/data/current",
-                            "portfolio": "/api/v1/portfolio",
-                            "strategies": "/api/v1/strategies/list",
-                            "trading_history": "/api/v1/trading/history",
-                            "trading_status": "/api/v1/trading/status",
+                            "historical_data": "/api/v1/data/history/{hours}",
+                            "analysis_tools": "/api/v1/strategies/list",
                         },
                         "websocket": {
                             "available": True,
                             "endpoint": "/ws",
                             "supported_events": [
                                 "price_update",
-                                "portfolio_update",
-                                "strategy_signal",
-                                "trade_execution",
+                                "indicator_update",
+                                "market_analysis",
                             ],
                         },
                     },

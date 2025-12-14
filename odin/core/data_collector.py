@@ -9,7 +9,6 @@ from multiple sources with failover and validation.
 import asyncio
 import json
 import logging
-import random
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from statistics import mean, stdev
@@ -88,128 +87,6 @@ class DataSource:
         """Record data fetch error."""
         self.error_count += 1
         logger.warning(f"Data source {self.name} error count: {self.error_count}")
-
-
-class MockDataSource(DataSource):
-    """Mock data source for testing and fallback."""
-
-    def __init__(self, name: str = "mock", priority: int = 99):
-        super().__init__(name, priority)
-        self.base_price = 45000.0
-        self.last_price = self.base_price
-
-    async def get_price(self) -> Optional[PriceData]:
-        """Get mock price data."""
-        try:
-            # Simulate price movement
-            change = random.uniform(-100, 100)
-            self.last_price = max(20000, min(80000, self.last_price + change))
-
-            price_data = PriceData(
-                symbol="BTC-USD",
-                price=round(self.last_price, 2),
-                volume=round(random.uniform(800, 1200), 2),
-                bid=round(self.last_price * 0.999, 2),
-                ask=round(self.last_price * 1.001, 2),
-                source=self.name,
-                timestamp=datetime.now(timezone.utc),
-            )
-
-            self.record_success()
-            return price_data
-
-        except Exception as e:
-            self.record_error()
-            logger.error(f"Mock price fetch error: {e}")
-            raise DataSourceException(self.name, str(e))
-
-    async def get_ohlc(self, timeframe: str = "1h", limit: int = 100) -> List[OHLCData]:
-        """Get mock OHLC data."""
-        try:
-            ohlc_data = []
-            current_time = datetime.now(timezone.utc)
-            price = self.last_price
-
-            # Parse timeframe to minutes
-            timeframe_minutes = {
-                "1m": 1,
-                "5m": 5,
-                "15m": 15,
-                "30m": 30,
-                "1h": 60,
-                "4h": 240,
-                "1d": 1440,
-            }.get(timeframe, 60)
-
-            for i in range(limit):
-                timestamp = current_time - timedelta(minutes=i * timeframe_minutes)
-
-                # Generate OHLC data
-                open_price = price + random.uniform(-50, 50)
-                high_price = open_price + random.uniform(0, 100)
-                low_price = open_price - random.uniform(0, 100)
-                close_price = open_price + random.uniform(-75, 75)
-                volume = random.uniform(100, 500)
-
-                ohlc = OHLCData(
-                    symbol="BTC-USD",
-                    timeframe=timeframe,
-                    timestamp=timestamp,
-                    open=round(open_price, 2),
-                    high=round(high_price, 2),
-                    low=round(low_price, 2),
-                    close=round(close_price, 2),
-                    volume=round(volume, 2),
-                )
-                ohlc_data.append(ohlc)
-
-                # Update price for next iteration
-                price = close_price
-
-            self.record_success()
-            return sorted(ohlc_data, key=lambda x: x.timestamp)
-
-        except Exception as e:
-            self.record_error()
-            logger.error(f"Mock OHLC fetch error: {e}")
-            raise DataSourceException(self.name, str(e))
-
-    async def get_depth(self) -> Optional[MarketDepth]:
-        """Get mock market depth data."""
-        try:
-            # Generate mock order book
-            mid_price = self.last_price
-
-            bids = []
-            asks = []
-
-            # Generate bids (below mid price)
-            for i in range(10):
-                price = mid_price - (i + 1) * 10
-                size = random.uniform(0.1, 2.0)
-                bids.append([price, size])
-
-            # Generate asks (above mid price)
-            for i in range(10):
-                price = mid_price + (i + 1) * 10
-                size = random.uniform(0.1, 2.0)
-                asks.append([price, size])
-
-            depth = MarketDepth(
-                symbol="BTC-USD",
-                bids=bids,
-                asks=asks,
-                timestamp=datetime.now(timezone.utc),
-                source=self.name,
-            )
-
-            self.record_success()
-            return depth
-
-        except Exception as e:
-            self.record_error()
-            logger.error(f"Mock depth fetch error: {e}")
-            raise DataSourceException(self.name, str(e))
 
 
 class CoinbaseDataSource(DataSource):
@@ -355,6 +232,339 @@ class CoinbaseDataSource(DataSource):
             raise DataSourceException(self.name, str(e))
 
 
+class YFinanceDataSource(DataSource):
+    """Yahoo Finance data source - Free, no API key required."""
+
+    def __init__(self):
+        super().__init__("yfinance", priority=1)
+        self._ticker = None
+
+    def _get_ticker(self):
+        """Get or create yfinance Ticker instance."""
+        if self._ticker is None:
+            try:
+                import yfinance as yf
+                self._ticker = yf.Ticker("BTC-USD")
+            except ImportError:
+                logger.error("yfinance not installed. Install with: pip install yfinance")
+                raise DataSourceException(self.name, "yfinance library not found")
+        return self._ticker
+
+    async def get_price(self) -> Optional[PriceData]:
+        """Get current Bitcoin price from Yahoo Finance."""
+        try:
+            ticker = self._get_ticker()
+
+            # Get recent data (last 1 day, 1-minute intervals)
+            hist = ticker.history(period="1d", interval="1m")
+
+            if hist.empty:
+                raise DataSourceException(self.name, "No price data available")
+
+            # Get the most recent data point
+            latest = hist.iloc[-1]
+
+            price_data = PriceData(
+                symbol="BTC-USD",
+                price=float(latest['Close']),
+                volume=float(latest['Volume']) if 'Volume' in latest else 0.0,
+                bid=float(latest['Low']),  # Approximate with low
+                ask=float(latest['High']),  # Approximate with high
+                source=self.name,
+                timestamp=datetime.now(timezone.utc),
+            )
+
+            self.record_success()
+            return price_data
+
+        except Exception as e:
+            self.record_error()
+            logger.error(f"YFinance price fetch error: {e}")
+            raise DataSourceException(self.name, str(e))
+
+    async def get_ohlc(self, timeframe: str = "1h", limit: int = 100) -> List[OHLCData]:
+        """Get OHLC data from Yahoo Finance."""
+        try:
+            ticker = self._get_ticker()
+
+            # Map timeframes
+            interval_map = {
+                "1m": ("1d", "1m"),
+                "5m": ("5d", "5m"),
+                "15m": ("1mo", "15m"),
+                "30m": ("1mo", "30m"),
+                "1h": ("1mo", "1h"),
+                "4h": ("3mo", "1h"),
+                "1d": ("1y", "1d"),
+                "1w": ("2y", "1wk"),
+            }
+
+            period, interval = interval_map.get(timeframe, ("1mo", "1h"))
+            hist = ticker.history(period=period, interval=interval)
+
+            if hist.empty:
+                raise DataSourceException(self.name, "No OHLC data available")
+
+            # Convert to OHLCData objects
+            ohlc_data = []
+            for idx, row in hist.tail(limit).iterrows():
+                ohlc = OHLCData(
+                    symbol="BTC-USD",
+                    timeframe=timeframe,
+                    timestamp=idx.to_pydatetime().replace(tzinfo=timezone.utc),
+                    open=float(row['Open']),
+                    high=float(row['High']),
+                    low=float(row['Low']),
+                    close=float(row['Close']),
+                    volume=float(row['Volume']) if 'Volume' in row else 0.0,
+                )
+                ohlc_data.append(ohlc)
+
+            self.record_success()
+            return ohlc_data
+
+        except Exception as e:
+            self.record_error()
+            logger.error(f"YFinance OHLC fetch error: {e}")
+            raise DataSourceException(self.name, str(e))
+
+    async def get_depth(self) -> Optional[MarketDepth]:
+        """Yahoo Finance doesn't provide order book data."""
+        logger.warning("Order book depth not available from Yahoo Finance")
+        return None
+
+
+class BinancePublicDataSource(DataSource):
+    """Binance Public API - Real-time data, no authentication required."""
+
+    BASE_URL = "https://api.binance.com/api/v3"
+
+    def __init__(self):
+        super().__init__("binance_public", priority=0)  # Highest priority for real-time data
+
+    async def get_price(self) -> Optional[PriceData]:
+        """Get current Bitcoin price from Binance."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Get ticker price
+                async with session.get(
+                    f"{self.BASE_URL}/ticker/24hr",
+                    params={"symbol": "BTCUSDT"}
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+
+                        price_data = PriceData(
+                            symbol="BTC-USD",
+                            price=float(data['lastPrice']),
+                            volume=float(data['volume']),
+                            bid=float(data['bidPrice']),
+                            ask=float(data['askPrice']),
+                            source=self.name,
+                            timestamp=datetime.now(timezone.utc),
+                        )
+
+                        self.record_success()
+                        return price_data
+                    else:
+                        raise DataSourceException(
+                            self.name, f"API error: {response.status}"
+                        )
+
+        except Exception as e:
+            self.record_error()
+            logger.error(f"Binance price fetch error: {e}")
+            raise DataSourceException(self.name, str(e))
+
+    async def get_ohlc(self, timeframe: str = "1h", limit: int = 100) -> List[OHLCData]:
+        """Get OHLC data from Binance."""
+        try:
+            # Map timeframes to Binance intervals
+            interval_map = {
+                "1m": "1m",
+                "5m": "5m",
+                "15m": "15m",
+                "30m": "30m",
+                "1h": "1h",
+                "4h": "4h",
+                "1d": "1d",
+                "1w": "1w",
+            }
+
+            interval = interval_map.get(timeframe, "1h")
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.BASE_URL}/klines",
+                    params={
+                        "symbol": "BTCUSDT",
+                        "interval": interval,
+                        "limit": limit
+                    }
+                ) as response:
+                    if response.status == 200:
+                        klines = await response.json()
+
+                        ohlc_data = []
+                        for kline in klines:
+                            ohlc = OHLCData(
+                                symbol="BTC-USD",
+                                timeframe=timeframe,
+                                timestamp=datetime.fromtimestamp(
+                                    kline[0] / 1000, tz=timezone.utc
+                                ),
+                                open=float(kline[1]),
+                                high=float(kline[2]),
+                                low=float(kline[3]),
+                                close=float(kline[4]),
+                                volume=float(kline[5]),
+                            )
+                            ohlc_data.append(ohlc)
+
+                        self.record_success()
+                        return ohlc_data
+                    else:
+                        raise DataSourceException(
+                            self.name, f"API error: {response.status}"
+                        )
+
+        except Exception as e:
+            self.record_error()
+            logger.error(f"Binance OHLC fetch error: {e}")
+            raise DataSourceException(self.name, str(e))
+
+    async def get_depth(self) -> Optional[MarketDepth]:
+        """Get order book depth from Binance."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.BASE_URL}/depth",
+                    params={"symbol": "BTCUSDT", "limit": 10}
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+
+                        depth = MarketDepth(
+                            symbol="BTC-USD",
+                            bids=[[float(p), float(q)] for p, q in data["bids"]],
+                            asks=[[float(p), float(q)] for p, q in data["asks"]],
+                            timestamp=datetime.now(timezone.utc),
+                            source=self.name,
+                        )
+
+                        self.record_success()
+                        return depth
+                    else:
+                        raise DataSourceException(
+                            self.name, f"API error: {response.status}"
+                        )
+
+        except Exception as e:
+            self.record_error()
+            logger.error(f"Binance depth fetch error: {e}")
+            raise DataSourceException(self.name, str(e))
+
+
+class CoinGeckoDataSource(DataSource):
+    """CoinGecko API - Free tier backup source."""
+
+    BASE_URL = "https://api.coingecko.com/api/v3"
+
+    def __init__(self):
+        super().__init__("coingecko", priority=2)  # Backup source
+
+    async def get_price(self) -> Optional[PriceData]:
+        """Get current Bitcoin price from CoinGecko."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.BASE_URL}/simple/price",
+                    params={
+                        "ids": "bitcoin",
+                        "vs_currencies": "usd",
+                        "include_24hr_vol": "true",
+                        "include_last_updated_at": "true"
+                    }
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        btc_data = data.get("bitcoin", {})
+
+                        price_data = PriceData(
+                            symbol="BTC-USD",
+                            price=float(btc_data.get("usd", 0)),
+                            volume=float(btc_data.get("usd_24h_vol", 0)),
+                            bid=0.0,  # Not available
+                            ask=0.0,  # Not available
+                            source=self.name,
+                            timestamp=datetime.now(timezone.utc),
+                        )
+
+                        self.record_success()
+                        return price_data
+                    else:
+                        raise DataSourceException(
+                            self.name, f"API error: {response.status}"
+                        )
+
+        except Exception as e:
+            self.record_error()
+            logger.error(f"CoinGecko price fetch error: {e}")
+            raise DataSourceException(self.name, str(e))
+
+    async def get_ohlc(self, timeframe: str = "1h", limit: int = 100) -> List[OHLCData]:
+        """Get historical data from CoinGecko (limited granularity on free tier)."""
+        try:
+            # CoinGecko free tier only supports daily data
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.BASE_URL}/coins/bitcoin/market_chart",
+                    params={
+                        "vs_currency": "usd",
+                        "days": min(limit, 365),
+                        "interval": "daily"
+                    }
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        prices = data.get("prices", [])
+
+                        ohlc_data = []
+                        for timestamp, price in prices[-limit:]:
+                            # CoinGecko only provides price, not full OHLC
+                            # Using price as open/high/low/close approximation
+                            ohlc = OHLCData(
+                                symbol="BTC-USD",
+                                timeframe="1d",
+                                timestamp=datetime.fromtimestamp(
+                                    timestamp / 1000, tz=timezone.utc
+                                ),
+                                open=float(price),
+                                high=float(price),
+                                low=float(price),
+                                close=float(price),
+                                volume=0.0,  # Not available in this endpoint
+                            )
+                            ohlc_data.append(ohlc)
+
+                        self.record_success()
+                        return ohlc_data
+                    else:
+                        raise DataSourceException(
+                            self.name, f"API error: {response.status}"
+                        )
+
+        except Exception as e:
+            self.record_error()
+            logger.error(f"CoinGecko OHLC fetch error: {e}")
+            raise DataSourceException(self.name, str(e))
+
+    async def get_depth(self) -> Optional[MarketDepth]:
+        """CoinGecko doesn't provide order book data on free tier."""
+        logger.warning("Order book depth not available from CoinGecko free tier")
+        return None
+
+
 class TechnicalIndicators:
     """Technical indicators calculator."""
 
@@ -494,10 +704,12 @@ class DataCollector:
         self.database = database
         self.collection_interval = collection_interval
 
-        # Data sources
+        # Data sources - Real data only
         self.data_sources: List[DataSource] = [
-            CoinbaseDataSource(),
-            MockDataSource(),  # Fallback source
+            BinancePublicDataSource(),  # Priority 0 - Real-time data
+            YFinanceDataSource(),       # Priority 1 - Historical data
+            CoinGeckoDataSource(),      # Priority 2 - Backup source
+            CoinbaseDataSource(),       # Existing Coinbase source
         ]
 
         # Sort by priority

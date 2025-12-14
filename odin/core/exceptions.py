@@ -29,6 +29,8 @@ class ErrorCode:
     """Standard error codes for the Odin system."""
     # System Errors
     SYSTEM_ERROR = "SYSTEM_ERROR"
+    SYSTEM_STARTUP_FAILED = "SYSTEM_STARTUP_FAILED"
+    SYSTEM_CONFIG_INVALID = "SYSTEM_CONFIG_INVALID"
     UNEXPECTED_ERROR = "UNEXPECTED_ERROR"
     CONFIGURATION_ERROR = "CONFIGURATION_ERROR"
 
@@ -40,6 +42,9 @@ class ErrorCode:
     # Connection Errors
     EXCHANGE_CONNECTION_FAILED = "EXCHANGE_CONNECTION_FAILED"
     DATABASE_CONNECTION_FAILED = "DATABASE_CONNECTION_FAILED"
+    DATABASE_MIGRATION_FAILED = "DATABASE_MIGRATION_FAILED"
+    DATABASE_OPERATION_FAILED = "DATABASE_OPERATION_FAILED"
+    DATA_INTEGRITY_VIOLATION = "DATA_INTEGRITY_VIOLATION"
     DATA_SOURCE_FAILED = "DATA_SOURCE_FAILED"
 
     # Risk Management
@@ -126,6 +131,43 @@ class ErrorHandler:
         self.error_count = 0
         self.errors = []
 
+    async def handle_exception(
+        self,
+        exception: Exception,
+        context: Optional[Dict[str, Any]] = None,
+        reraise: bool = False
+    ):
+        """
+        Handle an exception asynchronously.
+
+        Args:
+            exception: The exception to handle
+            context: Additional context information
+            reraise: Whether to re-raise the exception after handling
+        """
+        severity = ErrorSeverity.ERROR
+        if isinstance(exception, OdinCoreException):
+            # Use context from the exception if available
+            context = context or exception.context
+
+        self.handle_error(exception, severity, context, reraise=False)
+
+        if reraise:
+            raise exception
+
+    def clear_error_records(self, older_than_hours: int = 24):
+        """
+        Clear error records older than specified hours.
+
+        Args:
+            older_than_hours: Clear errors older than this many hours
+        """
+        # For now, just clear all errors since we don't track timestamps
+        # In a production system, you'd want to add timestamps to errors
+        if older_than_hours > 0:
+            self.errors = []
+            self.error_count = 0
+
 
 class OdinCoreException(Exception):
     """
@@ -155,15 +197,15 @@ class OdinCoreException(Exception):
         """Log exception with structured context."""
         log_data = {
             "error_code": self.error_code,
-            "message": self.message,
-            "context": self.context,
+            "error_message": self.message,
+            "error_context": self.context,
             "exception_type": self.__class__.__name__,
         }
 
         if self.original_exception:
             log_data["original_exception"] = str(self.original_exception)
 
-        logger.error("Odin Core Exception", extra=log_data)
+        logger.error(f"Odin Core Exception: {self.message}", extra=log_data)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert exception to dictionary for API responses."""
