@@ -57,7 +57,9 @@ class AnalyticsDashboard {
             this.loadPriceHistory(),
             this.loadMarketDepth(),
             this.loadFundingRate(),
-            this.loadLiquidations()
+            this.loadNews(),
+            this.loadTwitterFeed(),
+            this.loadVolumeProfile()
         ]);
 
         console.log('✅ Real data loaded successfully');
@@ -101,6 +103,27 @@ class AnalyticsDashboard {
         document.getElementById('low-24h').textContent = low > 0 ? `$${low.toLocaleString()}` : 'Loading...';
         document.getElementById('volume-24h').textContent = volume > 0 ? `${volume.toLocaleString()} BTC` : 'Loading...';
         document.getElementById('market-cap').textContent = `$${(marketCap / 1e9).toFixed(2)}B`;
+
+        // Update Hyperliquid-specific data if available
+        if (data.source === 'hyperliquid') {
+            // Funding rate
+            if (data.funding_rate !== undefined) {
+                const fundingEl = document.getElementById('funding-rate');
+                if (fundingEl) {
+                    const fundingRate = data.funding_rate;
+                    fundingEl.textContent = `${fundingRate >= 0 ? '+' : ''}${fundingRate.toFixed(4)}%`;
+                    fundingEl.className = `funding-value ${fundingRate >= 0 ? 'funding-positive' : 'funding-negative'}`;
+                }
+            }
+
+            // Open interest
+            if (data.open_interest !== undefined) {
+                const oiEl = document.getElementById('open-interest');
+                if (oiEl) {
+                    oiEl.textContent = `${data.open_interest.toLocaleString()} BTC`;
+                }
+            }
+        }
     }
 
     async loadIndicators() {
@@ -426,6 +449,7 @@ class AnalyticsDashboard {
     initializeCharts() {
         this.initializePriceChart();
         this.initializeFundingChart();
+        this.initializeOpenInterestChart();
     }
 
     initializePriceChart() {
@@ -540,6 +564,291 @@ class AnalyticsDashboard {
         });
     }
 
+    initializeOpenInterestChart() {
+        const ctx = document.getElementById('oi-chart');
+        if (!ctx) return;
+
+        this.charts.openInterest = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['No Data'],
+                datasets: [{
+                    label: 'Open Interest',
+                    data: [0],
+                    borderColor: '#0099ff',
+                    backgroundColor: 'rgba(0, 153, 255, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#8b92b0'
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: 'rgba(139, 146, 176, 0.1)'
+                        },
+                        ticks: {
+                            color: '#8b92b0',
+                            callback: function(value) {
+                                return value.toLocaleString() + ' BTC';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    async loadNews() {
+        try {
+            console.log('📰 Fetching crypto news...');
+
+            // Using CoinGecko's trending search API (free, no key required)
+            const response = await fetch('https://api.coingecko.com/api/v3/search/trending');
+
+            if (!response.ok) {
+                throw new Error('News API unavailable');
+            }
+
+            const data = await response.json();
+            console.log('✅ Trending data received');
+
+            // Transform trending data into news-like format
+            const trendingCoins = data.coins || [];
+            const newsItems = trendingCoins.map((coin, index) => ({
+                title: `${coin.item.name} (${coin.item.symbol}) - Rank #${coin.item.market_cap_rank || 'N/A'}`,
+                subtitle: `24h Price: ${coin.item.data?.price || 'N/A'} | Market Cap: $${(coin.item.data?.market_cap || 0).toLocaleString()}`,
+                url: `https://www.coingecko.com/en/coins/${coin.item.id}`,
+                source: 'CoinGecko Trending',
+                score: coin.item.score || index,
+                timestamp: new Date()
+            }));
+
+            this.displayTrendingNews(newsItems);
+        } catch (error) {
+            console.error('❌ Error loading news:', error);
+            this.showNewsError();
+        }
+    }
+
+    displayTrendingNews(items) {
+        const newsContainer = document.getElementById('news-feed');
+        if (!newsContainer) return;
+
+        if (items.length === 0) {
+            newsContainer.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No trending data available</div>';
+            return;
+        }
+
+        newsContainer.innerHTML = items.map((item, index) => {
+            return `
+                <div class="news-item" onclick="window.open('${item.url}', '_blank')">
+                    <div class="news-title">#${index + 1} ${this.escapeHtml(item.title)}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        ${this.escapeHtml(item.subtitle)}
+                    </div>
+                    <div class="news-meta" style="margin-top: 0.5rem;">
+                        <span class="news-source">${this.escapeHtml(item.source)}</span>
+                        <span class="text-green">🔥 Trending</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    showNewsError() {
+        const newsContainer = document.getElementById('news-feed');
+        if (newsContainer) {
+            newsContainer.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">News feed temporarily unavailable</div>';
+        }
+    }
+
+    async loadTwitterFeed() {
+        try {
+            console.log('𝕏 Loading crypto Twitter feed...');
+
+            // Using Nitter RSS-to-JSON for free Twitter data
+            // Alternative: We'll show curated crypto Twitter accounts
+            const accounts = [
+                { username: 'Bitcoin', handle: '@Bitcoin', text: 'Bitcoin is a swarm of cyber hornets serving the goddess of wisdom, feeding on the fire of truth' },
+                { username: 'Vitalik Buterin', handle: '@VitalikButerin', text: 'Ethereum and crypto updates' },
+                { username: 'CZ', handle: '@cz_binance', text: 'Crypto market insights' },
+                { username: 'Willy Woo', handle: '@woonomic', text: 'On-chain analytics and Bitcoin insights' }
+            ];
+
+            // Try to fetch real Twitter/X data via RSS bridge or Nitter
+            // For now, show placeholder with links to follow these accounts
+            this.displayTwitterPlaceholder(accounts);
+
+        } catch (error) {
+            console.error('❌ Error loading Twitter feed:', error);
+            this.showTwitterError();
+        }
+    }
+
+    displayTwitterPlaceholder(accounts) {
+        const twitterContainer = document.getElementById('twitter-feed');
+        if (!twitterContainer) return;
+
+        twitterContainer.innerHTML = `
+            <div style="padding: 1rem;">
+                <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                    Follow these accounts for Bitcoin insights:
+                </div>
+                ${accounts.map(account => `
+                    <div class="tweet-item" onclick="window.open('https://twitter.com/${account.handle.replace('@', '')}', '_blank')">
+                        <div class="tweet-author">
+                            <span class="tweet-username">${account.username}</span>
+                            <span class="tweet-handle">${account.handle}</span>
+                        </div>
+                        <div class="tweet-text">${account.text}</div>
+                        <div class="tweet-meta">Click to follow →</div>
+                    </div>
+                `).join('')}
+                <div style="margin-top: 1rem; padding: 1rem; background: rgba(0, 153, 255, 0.1); border-radius: 8px; font-size: 0.875rem;">
+                    💡 <strong>Note:</strong> Real-time Twitter feed requires authentication. This shows recommended accounts to follow.
+                </div>
+            </div>
+        `;
+    }
+
+    showTwitterError() {
+        const twitterContainer = document.getElementById('twitter-feed');
+        if (twitterContainer) {
+            twitterContainer.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Twitter feed unavailable</div>';
+        }
+    }
+
+    async loadVolumeProfile() {
+        try {
+            console.log('📊 Creating volume profile...');
+
+            // Get price history to build volume profile
+            const response = await fetch(`${this.apiBase}/data/history/168`); // 7 days
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch history for volume profile');
+            }
+
+            const result = await response.json();
+            const history = result.success ? result.data.history : result.history;
+
+            if (history && history.length > 0) {
+                this.createVolumeProfile(history);
+            }
+        } catch (error) {
+            console.error('❌ Error loading volume profile:', error);
+            this.showVolumeProfileError();
+        }
+    }
+
+    createVolumeProfile(history) {
+        // Create price buckets
+        const prices = history.map(h => h.price);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+
+        const bucketCount = 30;
+        const bucketSize = (maxPrice - minPrice) / bucketCount;
+
+        // Aggregate volume by price level
+        const buckets = new Array(bucketCount).fill(0).map((_, i) => ({
+            price: minPrice + (i * bucketSize),
+            volume: 0
+        }));
+
+        history.forEach(candle => {
+            const bucketIndex = Math.min(
+                Math.floor((candle.price - minPrice) / bucketSize),
+                bucketCount - 1
+            );
+            buckets[bucketIndex].volume += candle.volume || 0;
+        });
+
+        // Create horizontal bar chart with Plotly
+        const trace = {
+            y: buckets.map(b => `$${b.price.toFixed(0)}`),
+            x: buckets.map(b => b.volume),
+            type: 'bar',
+            orientation: 'h',
+            marker: {
+                color: buckets.map(b => {
+                    const intensity = b.volume / Math.max(...buckets.map(b2 => b2.volume));
+                    return `rgba(0, 153, 255, ${0.3 + intensity * 0.7})`;
+                })
+            }
+        };
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            xaxis: {
+                color: '#8b92b0',
+                gridcolor: 'rgba(139, 146, 176, 0.1)',
+                title: 'Volume (BTC)'
+            },
+            yaxis: {
+                color: '#8b92b0',
+                gridcolor: 'rgba(139, 146, 176, 0.1)',
+                title: 'Price Level'
+            },
+            margin: { t: 20, r: 20, b: 40, l: 80 },
+            showlegend: false
+        };
+
+        Plotly.newPlot('volume-profile', [trace], layout, {displayModeBar: false});
+    }
+
+    showVolumeProfileError() {
+        const vpContainer = document.getElementById('volume-profile');
+        if (vpContainer) {
+            vpContainer.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">Volume profile unavailable</div>';
+        }
+    }
+
+    getTimeAgo(date) {
+        const seconds = Math.floor((new Date() - date) / 1000);
+
+        let interval = seconds / 31536000;
+        if (interval > 1) return Math.floor(interval) + 'y ago';
+
+        interval = seconds / 2592000;
+        if (interval > 1) return Math.floor(interval) + 'mo ago';
+
+        interval = seconds / 86400;
+        if (interval > 1) return Math.floor(interval) + 'd ago';
+
+        interval = seconds / 3600;
+        if (interval > 1) return Math.floor(interval) + 'h ago';
+
+        interval = seconds / 60;
+        if (interval > 1) return Math.floor(interval) + 'm ago';
+
+        return Math.floor(seconds) + 's ago';
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     showError(message) {
         console.error('Dashboard Error:', message);
     }
@@ -558,6 +867,11 @@ class AnalyticsDashboard {
         this.intervals.push(setInterval(() => {
             this.loadMarketDepth();
         }, 60000));
+
+        // Update news every 5 minutes
+        this.intervals.push(setInterval(() => {
+            this.loadNews();
+        }, 300000));
     }
 }
 
