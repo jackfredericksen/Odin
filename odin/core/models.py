@@ -419,6 +419,48 @@ class MarketRegimeData:
 
 
 @dataclass
+class DataSourceStatus:
+    """Data source health status."""
+
+    source_name: str
+    is_healthy: bool
+    last_update: Optional[datetime] = None
+    error_count: int = 0
+    priority: int = 1
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "source_name": self.source_name,
+            "is_healthy": self.is_healthy,
+            "last_update": self.last_update.isoformat() if self.last_update else None,
+            "error_count": self.error_count,
+            "priority": self.priority,
+        }
+
+
+@dataclass
+class DataCollectionResult:
+    """Result of data collection operation."""
+
+    success: bool
+    data: Optional[PriceData] = None
+    source: Optional[str] = None
+    error: Optional[str] = None
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "success": self.success,
+            "data": self.data.to_dict() if self.data else None,
+            "source": self.source,
+            "error": self.error,
+            "timestamp": self.timestamp.isoformat(),
+        }
+
+
+@dataclass
 class StrategyPerformance:
     """Enhanced strategy performance metrics."""
 

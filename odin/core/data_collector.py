@@ -483,6 +483,8 @@ class CoinGeckoDataSource(DataSource):
                         "ids": "bitcoin",
                         "vs_currencies": "usd",
                         "include_24hr_vol": "true",
+                        "include_24hr_change": "true",
+                        "include_market_cap": "true",
                         "include_last_updated_at": "true"
                     }
                 ) as response:
@@ -490,12 +492,22 @@ class CoinGeckoDataSource(DataSource):
                         data = await response.json()
                         btc_data = data.get("bitcoin", {})
 
+                        price = float(btc_data.get("usd", 0))
+                        change_24h = float(btc_data.get("usd_24h_change", 0))
+
+                        # Calculate approximate high/low based on price and change
+                        # This is estimation since CoinGecko free tier doesn't provide exact values
+                        high_24h = price if change_24h >= 0 else price / (1 + change_24h / 100)
+                        low_24h = price if change_24h <= 0 else price / (1 + change_24h / 100)
+
                         price_data = PriceData(
                             symbol="BTC-USD",
-                            price=float(btc_data.get("usd", 0)),
+                            price=price,
                             volume=float(btc_data.get("usd_24h_vol", 0)),
-                            bid=0.0,  # Not available
-                            ask=0.0,  # Not available
+                            bid=0.0,  # Not available on free tier
+                            ask=0.0,  # Not available on free tier
+                            high=high_24h,
+                            low=low_24h,
                             source=self.name,
                             timestamp=datetime.now(timezone.utc),
                         )
@@ -563,6 +575,171 @@ class CoinGeckoDataSource(DataSource):
         """CoinGecko doesn't provide order book data on free tier."""
         logger.warning("Order book depth not available from CoinGecko free tier")
         return None
+
+
+class KrakenDataSource(DataSource):
+    """Kraken API - Free, reliable, global access."""
+
+    BASE_URL = "https://api.kraken.com/0/public"
+
+    def __init__(self):
+        super().__init__("kraken", priority=1)  # High priority - very reliable
+
+    async def get_price(self) -> Optional[PriceData]:
+        """Get current Bitcoin price from Kraken."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.BASE_URL}/Ticker",
+                    params={"pair": "XBTUSD"}
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+
+                        if data.get("error") and len(data["error"]) > 0:
+                            raise DataSourceException(
+                                self.name, f"Kraken API error: {data['error']}"
+                            )
+
+                        result = data.get("result", {})
+                        btc_data = result.get("XXBTZUSD", {})
+
+                        # Kraken response format:
+                        # c = last trade closed array [price, volume]
+                        # v = volume array [today, last 24 hours]
+                        # p = volume weighted average price array [today, last 24 hours]
+                        # h = high array [today, last 24 hours]
+                        # l = low array [today, last 24 hours]
+                        # a = ask array [price, whole lot volume, lot volume]
+                        # b = bid array [price, whole lot volume, lot volume]
+
+                        last_price = float(btc_data.get("c", [0, 0])[0])
+                        volume_24h = float(btc_data.get("v", [0, 0])[1])
+                        bid_price = float(btc_data.get("b", [0, 0, 0])[0])
+                        ask_price = float(btc_data.get("a", [0, 0, 0])[0])
+                        high_24h = float(btc_data.get("h", [0, 0])[1])
+                        low_24h = float(btc_data.get("l", [0, 0])[1])
+
+                        price_data = PriceData(
+                            symbol="BTC-USD",
+                            price=last_price,
+                            volume=volume_24h,
+                            bid=bid_price,
+                            ask=ask_price,
+                            high=high_24h,
+                            low=low_24h,
+                            source=self.name,
+                            timestamp=datetime.now(timezone.utc),
+                        )
+
+                        self.record_success()
+                        return price_data
+                    else:
+                        raise DataSourceException(
+                            self.name, f"API error: {response.status}"
+                        )
+
+        except Exception as e:
+            self.record_error()
+            logger.error(f"Kraken price fetch error: {e}")
+            raise DataSourceException(self.name, str(e))
+
+    async def get_ohlc(self, timeframe: str = "1h", limit: int = 100) -> List[OHLCData]:
+        """Get historical OHLC data from Kraken."""
+        try:
+            # Map timeframe to Kraken interval (in minutes)
+            interval_map = {
+                "1m": 1,
+                "5m": 5,
+                "15m": 15,
+                "1h": 60,
+                "4h": 240,
+                "1d": 1440,
+            }
+            interval = interval_map.get(timeframe, 60)
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.BASE_URL}/OHLC",
+                    params={
+                        "pair": "XBTUSD",
+                        "interval": interval
+                    }
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+
+                        if data.get("error") and len(data["error"]) > 0:
+                            raise DataSourceException(
+                                self.name, f"Kraken OHLC error: {data['error']}"
+                            )
+
+                        result = data.get("result", {})
+                        ohlc_list = result.get("XXBTZUSD", [])
+
+                        ohlc_data = []
+                        for candle in ohlc_list[-limit:]:
+                            # Kraken OHLC format: [time, open, high, low, close, vwap, volume, count]
+                            ohlc = OHLCData(
+                                symbol="BTC-USD",
+                                timeframe=timeframe,
+                                timestamp=datetime.fromtimestamp(int(candle[0]), tz=timezone.utc),
+                                open=float(candle[1]),
+                                high=float(candle[2]),
+                                low=float(candle[3]),
+                                close=float(candle[4]),
+                                volume=float(candle[6]),
+                            )
+                            ohlc_data.append(ohlc)
+
+                        self.record_success()
+                        return ohlc_data
+                    else:
+                        raise DataSourceException(
+                            self.name, f"OHLC API error: {response.status}"
+                        )
+
+        except Exception as e:
+            self.record_error()
+            logger.error(f"Kraken OHLC fetch error: {e}")
+            raise DataSourceException(self.name, str(e))
+
+    async def get_depth(self) -> Optional[MarketDepth]:
+        """Get order book depth from Kraken."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.BASE_URL}/Depth",
+                    params={"pair": "XBTUSD", "count": 50}
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+
+                        if data.get("error") and len(data["error"]) > 0:
+                            logger.warning(f"Kraken depth error: {data['error']}")
+                            return None
+
+                        result = data.get("result", {})
+                        depth_data = result.get("XXBTZUSD", {})
+
+                        bids = [[float(x[0]), float(x[1])] for x in depth_data.get("bids", [])]
+                        asks = [[float(x[0]), float(x[1])] for x in depth_data.get("asks", [])]
+
+                        market_depth = MarketDepth(
+                            symbol="BTC-USD",
+                            bids=bids,
+                            asks=asks,
+                            timestamp=datetime.now(timezone.utc),
+                        )
+
+                        self.record_success()
+                        return market_depth
+                    else:
+                        return None
+
+        except Exception as e:
+            logger.error(f"Kraken depth fetch error: {e}")
+            return None
 
 
 class TechnicalIndicators:
@@ -704,12 +881,13 @@ class DataCollector:
         self.database = database
         self.collection_interval = collection_interval
 
-        # Data sources - Real data only
+        # Data sources - Real data only, ordered by reliability and global access
         self.data_sources: List[DataSource] = [
-            BinancePublicDataSource(),  # Priority 0 - Real-time data
-            YFinanceDataSource(),       # Priority 1 - Historical data
-            CoinGeckoDataSource(),      # Priority 2 - Backup source
-            CoinbaseDataSource(),       # Existing Coinbase source
+            KrakenDataSource(),         # Priority 1 - Very reliable, global access
+            CoinGeckoDataSource(),      # Priority 2 - Global access, free tier
+            CoinbaseDataSource(),       # Priority 1 - Global access
+            BinancePublicDataSource(),  # Priority 0 - May be geo-restricted
+            YFinanceDataSource(),       # Priority 1 - Sometimes delayed
         ]
 
         # Sort by priority

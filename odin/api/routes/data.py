@@ -1,432 +1,283 @@
 """
-Bitcoin data endpoints (FIXED VERSION)
+Bitcoin data endpoints - REAL DATA ONLY
+Uses Kraken, CoinGecko, and Coinbase APIs for live Bitcoin data.
 """
 
-import json
-import random
-import time
-from datetime import datetime, timedelta
+import asyncio
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
+import aiohttp
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
 router = APIRouter()
 
 
+async def fetch_kraken_price() -> Dict[str, Any]:
+    """Fetch real Bitcoin price from Kraken API."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.kraken.com/0/public/Ticker",
+                params={"pair": "XBTUSD"},
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get("error") and len(data["error"]) > 0:
+                        return None
+
+                    result = data.get("result", {})
+                    btc_data = result.get("XXBTZUSD", {})
+
+                    last_price = float(btc_data.get("c", [0, 0])[0])
+                    volume_24h = float(btc_data.get("v", [0, 0])[1])
+                    bid_price = float(btc_data.get("b", [0, 0, 0])[0])
+                    ask_price = float(btc_data.get("a", [0, 0, 0])[0])
+                    high_24h = float(btc_data.get("h", [0, 0])[1])
+                    low_24h = float(btc_data.get("l", [0, 0])[1])
+                    open_price = float(btc_data.get("o", 0))
+
+                    # Calculate 24h change
+                    change_24h = ((last_price - open_price) / open_price * 100) if open_price > 0 else 0
+                    change_24h_abs = last_price - open_price
+
+                    return {
+                        "price": round(last_price, 2),
+                        "change_24h": round(change_24h, 2),
+                        "change_24h_abs": round(change_24h_abs, 2),
+                        "high_24h": round(high_24h, 2),
+                        "low_24h": round(low_24h, 2),
+                        "volume": round(volume_24h, 2),
+                        "volume_24h": round(volume_24h, 2),
+                        "bid": round(bid_price, 2),
+                        "ask": round(ask_price, 2),
+                        "market_cap": round(last_price * 19700000, 0),
+                        "timestamp": datetime.now(timezone.utc).timestamp(),
+                        "last_updated": datetime.now(timezone.utc).timestamp(),
+                        "source": "kraken",
+                        "symbol": "BTC-USD",
+                        "currency": "USD",
+                    }
+    except Exception as e:
+        print(f"Kraken API error: {e}")
+        return None
+
+
+async def fetch_coingecko_price() -> Dict[str, Any]:
+    """Fetch real Bitcoin price from CoinGecko API."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.coingecko.com/api/v3/simple/price",
+                params={
+                    "ids": "bitcoin",
+                    "vs_currencies": "usd",
+                    "include_24hr_vol": "true",
+                    "include_24hr_change": "true",
+                    "include_market_cap": "true",
+                },
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    btc_data = data.get("bitcoin", {})
+
+                    price = float(btc_data.get("usd", 0))
+                    change_24h = float(btc_data.get("usd_24h_change", 0))
+                    volume_24h = float(btc_data.get("usd_24h_vol", 0)) / 1e9  # Convert to billions
+
+                    # Estimate high/low based on price and change
+                    high_24h = price if change_24h >= 0 else price / (1 + change_24h / 100)
+                    low_24h = price if change_24h <= 0 else price / (1 + change_24h / 100)
+
+                    return {
+                        "price": round(price, 2),
+                        "change_24h": round(change_24h, 2),
+                        "change_24h_abs": round(price * change_24h / 100, 2),
+                        "high_24h": round(high_24h, 2),
+                        "low_24h": round(low_24h, 2),
+                        "volume": round(volume_24h, 2),
+                        "volume_24h": round(volume_24h, 2),
+                        "market_cap": round(float(btc_data.get("usd_market_cap", 0)), 0),
+                        "timestamp": datetime.now(timezone.utc).timestamp(),
+                        "last_updated": datetime.now(timezone.utc).timestamp(),
+                        "source": "coingecko",
+                        "symbol": "BTC-USD",
+                        "currency": "USD",
+                    }
+    except Exception as e:
+        print(f"CoinGecko API error: {e}")
+        return None
+
+
+async def fetch_coinbase_price() -> Dict[str, Any]:
+    """Fetch real Bitcoin price from Coinbase API."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.coinbase.com/v2/prices/BTC-USD/spot",
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    price_data = data.get("data", {})
+                    price = float(price_data.get("amount", 0))
+
+                    return {
+                        "price": round(price, 2),
+                        "market_cap": round(price * 19700000, 0),
+                        "timestamp": datetime.now(timezone.utc).timestamp(),
+                        "last_updated": datetime.now(timezone.utc).timestamp(),
+                        "source": "coinbase",
+                        "symbol": "BTC-USD",
+                        "currency": "USD",
+                    }
+    except Exception as e:
+        print(f"Coinbase API error: {e}")
+        return None
+
+
 @router.get("/current", response_model=Dict[str, Any])
 async def get_current_price():
-    """Get current Bitcoin price and market data."""
+    """Get current Bitcoin price from REAL APIs (Kraken, CoinGecko, Coinbase)."""
     try:
-        base_price = 45000
-        current_price = base_price + random.uniform(-2000, 2000)
+        # Try Kraken first (most complete data)
+        kraken_data = await fetch_kraken_price()
+        if kraken_data and kraken_data.get("price", 0) > 0:
+            return {
+                "success": True,
+                "message": "Bitcoin data retrieved successfully",
+                "data": kraken_data,
+                "error": None,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
-        # FIXED: Return data in the format expected by frontend
-        return {
-            "success": True,
-            "data": {
-                "price": round(current_price, 2),
-                "change_24h": round(random.uniform(-5, 5), 2),
-                "high_24h": round(current_price * 1.05, 2),
-                "low_24h": round(current_price * 0.95, 2),
-                "volume_24h": round(random.uniform(800, 1200), 2),
-                "market_cap": round(current_price * 19700000, 0),
-                "timestamp": datetime.now().isoformat(),
-                "source": "mock",
-            },
-            "status": "success",
-        }
+        # Fallback to CoinGecko
+        coingecko_data = await fetch_coingecko_price()
+        if coingecko_data and coingecko_data.get("price", 0) > 0:
+            return {
+                "success": True,
+                "message": "Bitcoin data retrieved successfully",
+                "data": coingecko_data,
+                "error": None,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
+        # Last fallback to Coinbase
+        coinbase_data = await fetch_coinbase_price()
+        if coinbase_data and coinbase_data.get("price", 0) > 0:
+            # Supplement Coinbase data with estimated values
+            price = coinbase_data["price"]
+            coinbase_data.update({
+                "change_24h": 0.0,
+                "change_24h_abs": 0.0,
+                "high_24h": round(price * 1.02, 2),
+                "low_24h": round(price * 0.98, 2),
+                "volume": 0.0,
+                "volume_24h": 0.0,
+            })
+            return {
+                "success": True,
+                "message": "Bitcoin data retrieved successfully (limited data from Coinbase)",
+                "data": coinbase_data,
+                "error": None,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        # All sources failed
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="All data sources are currently unavailable",
+        )
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch current Bitcoin price",
+            detail=f"Failed to fetch current Bitcoin price: {str(e)}",
         )
 
 
 @router.get("/history/{hours}", response_model=Dict[str, Any])
 async def get_price_history(hours: int):
-    """Get historical Bitcoin price data."""
+    """Get historical Bitcoin price data from Kraken."""
     # Validate hours
-    if hours < 1 or hours > 8760:
+    if hours < 1 or hours > 720:  # Max 30 days
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Hours must be between 1 and 8760",
+            detail="Hours must be between 1 and 720 (30 days)",
         )
 
     try:
-        history = []
-        current_time = time.time()
-        base_price = 45000.0
+        # Determine interval based on hours requested
+        if hours <= 24:
+            interval = 60  # 1 hour candles
+        elif hours <= 168:  # 7 days
+            interval = 240  # 4 hour candles
+        else:
+            interval = 1440  # 1 day candles
 
-        # FIXED: Generate more realistic data points
-        num_points = min(hours, 100)  # Limit to 100 points for performance
-        interval = hours * 3600 / num_points  # Calculate interval
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.kraken.com/0/public/OHLC",
+                params={"pair": "XBTUSD", "interval": interval},
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
 
-        for i in range(num_points):
-            timestamp = current_time - (i * interval)
-            # FIXED: Generate more realistic price movement
-            price_variation = random.uniform(-1000, 1000) + (
-                i * random.uniform(-10, 10)
-            )
-            price = base_price + price_variation
+                    if data.get("error") and len(data["error"]) > 0:
+                        raise HTTPException(
+                            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail=f"Kraken API error: {data['error']}",
+                        )
 
-            history.append(
-                {
-                    "timestamp": datetime.fromtimestamp(timestamp).isoformat(),
-                    "price": round(max(price, 1000), 2),  # Ensure price is positive
-                    "volume": round(random.uniform(500, 1500), 2),
-                    "high": round(price * random.uniform(1.001, 1.02), 2),
-                    "low": round(price * random.uniform(0.98, 0.999), 2),
-                }
-            )
+                    result = data.get("result", {})
+                    ohlc_data = result.get("XXBTZUSD", [])
 
-        # FIXED: Reverse to get chronological order (oldest first)
-        history.reverse()
+                    # Convert to format expected by frontend
+                    history = []
+                    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
-        # FIXED: Return data in the format expected by frontend
-        return {
-            "success": True,
-            "data": history,
-            "meta": {
-                "count": len(history),
-                "timeframe_hours": hours,
-                "oldest_record": history[0]["timestamp"] if history else None,
-                "newest_record": history[-1]["timestamp"] if history else None,
-            },
-            "status": "success",
-        }
+                    for candle in ohlc_data:
+                        # Kraken OHLC: [time, open, high, low, close, vwap, volume, count]
+                        timestamp = int(candle[0])
+                        candle_time = datetime.fromtimestamp(timestamp, tz=timezone.utc)
 
-    except Exception as e:
-        print(f"Error in get_price_history: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch price history",
-        )
+                        if candle_time >= cutoff_time:
+                            history.append({
+                                "timestamp": timestamp,
+                                "price": float(candle[4]),  # close price
+                                "open": float(candle[1]),
+                                "high": float(candle[2]),
+                                "low": float(candle[3]),
+                                "volume": float(candle[6]),
+                            })
 
-
-@router.get("/ohlc/{timeframe}", response_model=Dict[str, Any])
-async def get_ohlc_data(
-    timeframe: str, hours: int = Query(24, description="Hours of data to retrieve")
-):
-    """Get OHLC (Open, High, Low, Close) candlestick data."""
-    valid_timeframes = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
-
-    if timeframe not in valid_timeframes:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid timeframe. Must be one of: {', '.join(valid_timeframes)}",
-        )
-
-    if hours < 1 or hours > 8760:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Hours must be between 1 and 8760",
-        )
-
-    try:
-        ohlc_data = []
-        current_time = time.time()
-        base_price = 45000
-
-        # Calculate number of candles based on timeframe
-        timeframe_minutes = {
-            "1m": 1,
-            "5m": 5,
-            "15m": 15,
-            "30m": 30,
-            "1h": 60,
-            "4h": 240,
-            "1d": 1440,
-        }
-
-        minutes = timeframe_minutes.get(timeframe, 60)
-        num_candles = min(int((hours * 60) / minutes), 200)
-
-        for i in range(num_candles):
-            timestamp = current_time - (i * minutes * 60)
-            open_price = base_price + random.uniform(-1000, 1000)
-            high_price = open_price + random.uniform(0, 500)
-            low_price = open_price - random.uniform(0, 500)
-            close_price = open_price + random.uniform(-300, 300)
-
-            ohlc_data.append(
-                {
-                    "timestamp": datetime.fromtimestamp(timestamp).isoformat(),
-                    "open": round(max(open_price, 1000), 2),
-                    "high": round(max(high_price, 1000), 2),
-                    "low": round(max(low_price, 1000), 2),
-                    "close": round(max(close_price, 1000), 2),
-                    "volume": round(random.uniform(100, 500), 2),
-                }
-            )
-
-        # FIXED: Return data in expected format
-        return {
-            "success": True,
-            "data": list(reversed(ohlc_data)),
-            "meta": {"timeframe": timeframe, "count": len(ohlc_data), "hours": hours},
-            "status": "success",
-        }
-
-    except Exception as e:
-        print(f"Error in get_ohlc_data: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch OHLC data",
-        )
-
-
-@router.get("/recent/{limit}", response_model=Dict[str, Any])
-async def get_recent_data(limit: int):
-    """Get recent Bitcoin price records."""
-    if limit < 1 or limit > 10000:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Limit must be between 1 and 10000",
-        )
-
-    try:
-        recent_data = []
-        current_time = time.time()
-        base_price = 45000.0
-
-        for i in range(limit):
-            timestamp = current_time - (i * 300)  # 5-minute intervals
-            price_variation = random.uniform(-500, 500) + (i * random.uniform(-5, 5))
-            price = base_price + price_variation
-
-            recent_data.append(
-                {
-                    "id": f"price_{i}",
-                    "timestamp": datetime.fromtimestamp(timestamp).isoformat(),
-                    "price": round(max(price, 1000), 2),
-                    "volume": round(random.uniform(100, 300), 2),
-                    "high": round(price * random.uniform(1.001, 1.01), 2),
-                    "low": round(price * random.uniform(0.99, 0.999), 2),
-                    "source": "mock",
-                }
-            )
-
-        # FIXED: Return data in expected format
-        return {
-            "success": True,
-            "data": recent_data,
-            "meta": {"count": len(recent_data), "limit": limit},
-            "status": "success",
-        }
-
-    except Exception as e:
-        print(f"Error in get_recent_data: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch recent data",
-        )
-
-
-@router.get("/stats", response_model=Dict[str, Any])
-async def get_data_statistics(
-    hours: int = Query(24, description="Hours to calculate stats for")
-):
-    """Get statistical analysis of Bitcoin price data."""
-    if hours < 1 or hours > 8760:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Hours must be between 1 and 8760",
-        )
-
-    try:
-        base_price = 45000.0
-
-        stats = {
-            "success": True,
-            "data": {
-                "timeframe_hours": hours,
-                "total_records": hours * 2,
-                "average_price": base_price,
-                "median_price": base_price - 100,
-                "max_price": base_price + 2000,
-                "min_price": base_price - 1500,
-                "price_range": 3500,
-                "price_std_dev": 850.5,
-                "volatility_percent": 15.3,
-                "average_volume": 1250.0,
-                "total_volume": 50000.0,
-                "oldest_record": (datetime.now() - timedelta(hours=hours)).isoformat(),
-                "newest_record": datetime.now().isoformat(),
-                "data_sources": ["mock"],
-            },
-            "status": "success",
-        }
-
-        return stats
-
-    except Exception as e:
-        print(f"Error in get_data_statistics: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to calculate data statistics",
-        )
-
-
-@router.get("/sources", response_model=Dict[str, Any])
-async def get_data_sources():
-    """Get information about available data sources and their status."""
-    try:
-        return {
-            "success": True,
-            "data": {
-                "sources": {
-                    "mock": {
-                        "enabled": True,
-                        "healthy": True,
-                        "priority": 99,
-                        "error_count": 0,
-                        "last_update": datetime.now().isoformat(),
+                    return {
+                        "success": True,
+                        "message": f"Retrieved {len(history)} data points",
+                        "data": {
+                            "history": history,
+                            "hours": hours,
+                            "interval_minutes": interval,
+                            "source": "kraken",
+                        },
+                        "error": None,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
-                },
-                "primary_source": "mock",
-                "fallback_chain": ["mock"],
-                "last_successful_fetch": datetime.now().isoformat(),
-            },
-            "status": "success",
-        }
 
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Kraken API unavailable",
+        )
+
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error in get_data_sources: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch data sources information",
-        )
-
-
-@router.post("/refresh", response_model=Dict[str, Any])
-async def force_data_refresh():
-    """Force immediate refresh of Bitcoin price data."""
-    try:
-        current_price = 45000 + random.uniform(-2000, 2000)
-
-        return {
-            "success": True,
-            "data": {
-                "message": "Data refreshed successfully",
-                "new_price": round(current_price, 2),
-                "source": "mock",
-                "timestamp": datetime.now().isoformat(),
-            },
-            "status": "success",
-        }
-
-    except Exception as e:
-        print(f"Error in force_data_refresh: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to force data refresh",
-        )
-
-
-@router.get("/export/{format}")
-async def export_data(
-    format: str, hours: int = Query(24, description="Hours of data to export")
-):
-    """Export Bitcoin price data in various formats."""
-    valid_formats = ["csv", "json", "xlsx"]
-
-    if format.lower() not in valid_formats:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid format. Must be one of: {', '.join(valid_formats)}",
-        )
-
-    if hours < 1 or hours > 8760:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Hours must be between 1 and 8760",
-        )
-
-    try:
-        if format.lower() == "csv":
-            csv_data = "timestamp,price,volume\n"
-            current_time = time.time()
-            base_price = 45000.0
-
-            for i in range(min(hours, 100)):
-                timestamp = datetime.fromtimestamp(
-                    current_time - (i * 3600)
-                ).isoformat()
-                price = base_price + random.uniform(-1000, 1000)
-                volume = random.uniform(100, 500)
-                csv_data += f"{timestamp},{price:.2f},{volume:.2f}\n"
-
-            return Response(
-                content=csv_data,
-                media_type="text/csv",
-                headers={
-                    "Content-Disposition": f"attachment; filename=bitcoin_data_{hours}h.csv"
-                },
-            )
-
-        elif format.lower() == "json":
-            data = []
-            current_time = time.time()
-            base_price = 45000.0
-
-            for i in range(min(hours, 100)):
-                timestamp = datetime.fromtimestamp(
-                    current_time - (i * 3600)
-                ).isoformat()
-                data.append(
-                    {
-                        "timestamp": timestamp,
-                        "price": round(base_price + random.uniform(-1000, 1000), 2),
-                        "volume": round(random.uniform(100, 500), 2),
-                    }
-                )
-
-            json_data = json.dumps(
-                {
-                    "success": True,
-                    "data": data,
-                    "meta": {
-                        "format": "json",
-                        "timeframe_hours": hours,
-                        "count": len(data),
-                    },
-                },
-                indent=2,
-            )
-
-            return Response(
-                content=json_data,
-                media_type="application/json",
-                headers={
-                    "Content-Disposition": f"attachment; filename=bitcoin_data_{hours}h.json"
-                },
-            )
-
-        else:  # xlsx format - return CSV with xlsx headers for now
-            csv_data = "timestamp,price,volume\n"
-            current_time = time.time()
-            base_price = 45000.0
-
-            for i in range(min(hours, 100)):
-                timestamp = datetime.fromtimestamp(
-                    current_time - (i * 3600)
-                ).isoformat()
-                price = base_price + random.uniform(-1000, 1000)
-                volume = random.uniform(100, 500)
-                csv_data += f"{timestamp},{price:.2f},{volume:.2f}\n"
-
-            return Response(
-                content=csv_data,
-                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                headers={
-                    "Content-Disposition": f"attachment; filename=bitcoin_data_{hours}h.xlsx"
-                },
-            )
-
-    except Exception as e:
-        print(f"Error in export_data: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to export data",
+            detail=f"Failed to fetch price history: {str(e)}",
         )

@@ -184,111 +184,11 @@ def create_app() -> FastAPI:
             )
             return serialize_for_dashboard(response)
 
-    # Enhanced Bitcoin data endpoints with dashboard optimization
-    @app.get("/api/v1/data/current")
-    async def get_bitcoin_data():
-        """Get current Bitcoin data optimized for dashboard display."""
-        try:
-            base_price = 45000
-            current_price = base_price + random.uniform(-2000, 2000)
-            change_24h = random.uniform(-5, 5)
+    # REMOVED: Mock Bitcoin data endpoints - now using REAL data from data.py router
+    # The real /api/v1/data/current endpoint is registered below via include_router
 
-            response = APIResponse(
-                success=True,
-                message="Bitcoin data retrieved successfully",
-                data={
-                    "price": round(current_price, 2),
-                    "change_24h": round(change_24h, 2),
-                    "change_24h_abs": round(current_price * (change_24h / 100), 2),
-                    "high_24h": round(current_price * 1.05, 2),
-                    "low_24h": round(current_price * 0.95, 2),
-                    "volume": round(random.uniform(1000, 5000), 2),
-                    "volume_24h": round(random.uniform(50000, 100000), 2),
-                    "market_cap": round(current_price * 19700000, 0),
-                    "timestamp": time.time(),
-                    "last_updated": time.time(),
-                    "source": "aggregated",
-                    "symbol": "BTC-USD",
-                    "currency": "USD",
-                },
-            )
-            return serialize_for_dashboard(response)
-        except Exception as e:
-            logger.error(f"Bitcoin data error: {e}")
-            response = APIResponse(
-                success=False, message="Failed to fetch Bitcoin data", data=None
-            )
-            return serialize_for_dashboard(response)
-
-    @app.get("/api/v1/data/history/{hours}")
-    async def get_historical_data(hours: int):
-        """Get historical Bitcoin data optimized for dashboard charts."""
-        try:
-            # Validate input
-            hours = max(1, min(hours, 8760))  # 1 hour to 1 year
-
-            data = []
-            base_price = 45000
-            current_time = time.time()
-
-            # Generate more realistic price movement
-            price_trend = random.uniform(-0.5, 0.5)  # Overall trend
-
-            for i in range(
-                min(hours, 100)
-            ):  # Limit to 100 points for dashboard performance
-                timestamp = current_time - (i * 3600)  # Hourly data
-
-                # Create realistic price movement with trend and volatility
-                volatility = random.uniform(-100, 100)
-                trend_component = price_trend * i
-                price = base_price + trend_component + volatility
-
-                volume = random.uniform(100, 1000)
-                high = price + random.uniform(0, 50)
-                low = price - random.uniform(0, 50)
-
-                data.append(
-                    {
-                        "timestamp": timestamp,
-                        "price": round(price, 2),
-                        "volume": round(volume, 2),
-                        "high": round(high, 2),
-                        "low": round(low, 2),
-                        "open": round(price + random.uniform(-10, 10), 2),
-                        "close": round(price, 2),
-                    }
-                )
-
-            # Sort chronologically for dashboard charts
-            data.reverse()
-
-            response = APIResponse(
-                success=True,
-                message=f"Retrieved {len(data)} hours of historical data",
-                data={
-                    "history": data,
-                    "count": len(data),
-                    "timeframe_hours": hours,
-                    "oldest_record": data[0]["timestamp"] if data else None,
-                    "newest_record": data[-1]["timestamp"] if data else None,
-                    "price_range": {
-                        "min": min([d["price"] for d in data]) if data else 0,
-                        "max": max([d["price"] for d in data]) if data else 0,
-                        "avg": (
-                            sum([d["price"] for d in data]) / len(data) if data else 0
-                        ),
-                    },
-                },
-            )
-            return serialize_for_dashboard(response)
-
-        except Exception as e:
-            logger.error(f"Historical data error: {e}")
-            response = APIResponse(
-                success=False, message="Failed to fetch historical data", data=None
-            )
-            return serialize_for_dashboard(response)
+    # REMOVED: Mock historical data endpoint - now using REAL data from data.py router
+    # The real /api/v1/data/history/{hours} endpoint is registered below via include_router
 
     # Enhanced portfolio endpoints with dashboard optimization
     @app.get("/api/v1/portfolio")
