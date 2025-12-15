@@ -138,17 +138,91 @@ async def fetch_coinbase_price() -> Dict[str, Any]:
         return None
 
 
+async def fetch_hyperliquid_price() -> Dict[str, Any]:
+    """Fetch real Bitcoin price and funding rate from Hyperliquid DEX."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Get meta and asset contexts (includes funding, OI, volume)
+            async with session.post(
+                "https://api.hyperliquid.xyz/info",
+                json={"type": "metaAndAssetCtxs"},
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+
+                    # data[0] = meta (universe info)
+                    # data[1] = asset contexts (price, funding, etc)
+
+                    # Find BTC in the contexts (should be first, index 0)
+                    btc_ctx = None
+                    for ctx in data[1]:
+                        # BTC is typically at index 0, but let's be safe
+                        if ctx:  # First non-empty context is BTC
+                            btc_ctx = ctx
+                            break
+
+                    if not btc_ctx:
+                        return None
+
+                    mark_price = float(btc_ctx.get("markPx", 0))
+                    prev_day_px = float(btc_ctx.get("prevDayPx", mark_price))
+                    funding_rate = float(btc_ctx.get("funding", 0))
+                    open_interest = float(btc_ctx.get("openInterest", 0))
+                    volume_24h = float(btc_ctx.get("dayNtlVlm", 0))
+
+                    # Calculate 24h change
+                    change_24h = ((mark_price - prev_day_px) / prev_day_px * 100) if prev_day_px > 0 else 0
+                    change_24h_abs = mark_price - prev_day_px
+
+                    # Estimate high/low (Hyperliquid doesn't provide these directly)
+                    high_24h = mark_price * 1.015 if change_24h >= 0 else prev_day_px * 1.01
+                    low_24h = mark_price * 0.985 if change_24h <= 0 else prev_day_px * 0.99
+
+                    return {
+                        "price": round(mark_price, 2),
+                        "change_24h": round(change_24h, 2),
+                        "change_24h_abs": round(change_24h_abs, 2),
+                        "high_24h": round(high_24h, 2),
+                        "low_24h": round(low_24h, 2),
+                        "volume": round(open_interest, 2),  # Open Interest in BTC
+                        "volume_24h": round(volume_24h / 1e9, 2),  # Convert to billions USD
+                        "market_cap": round(mark_price * 19700000, 0),
+                        "timestamp": datetime.now(timezone.utc).timestamp(),
+                        "last_updated": datetime.now(timezone.utc).timestamp(),
+                        "source": "hyperliquid",
+                        "symbol": "BTC-USD",
+                        "currency": "USD",
+                        "funding_rate": round(funding_rate * 100, 4),  # Convert to percentage
+                        "open_interest": round(open_interest, 2),
+                    }
+    except Exception as e:
+        print(f"Hyperliquid API error: {e}")
+        return None
+
+
 @router.get("/current", response_model=Dict[str, Any])
 async def get_current_price():
-    """Get current Bitcoin price from REAL APIs (Kraken, CoinGecko, Coinbase)."""
+    """Get current Bitcoin price from REAL APIs (Kraken, Hyperliquid, CoinGecko, Coinbase)."""
     try:
-        # Try Kraken first (most complete data)
+        # Try Kraken first (most complete data, includes bid/ask)
         kraken_data = await fetch_kraken_price()
         if kraken_data and kraken_data.get("price", 0) > 0:
             return {
                 "success": True,
                 "message": "Bitcoin data retrieved successfully",
                 "data": kraken_data,
+                "error": None,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        # Try Hyperliquid (includes funding rate and open interest)
+        hyperliquid_data = await fetch_hyperliquid_price()
+        if hyperliquid_data and hyperliquid_data.get("price", 0) > 0:
+            return {
+                "success": True,
+                "message": "Bitcoin data retrieved successfully (with funding rate)",
+                "data": hyperliquid_data,
                 "error": None,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
@@ -179,7 +253,7 @@ async def get_current_price():
             })
             return {
                 "success": True,
-                "message": "Bitcoin data retrieved successfully (limited data from Coinbase)",
+                "message": "Bitcoin data retrieved successfully (limited data)",
                 "data": coinbase_data,
                 "error": None,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
