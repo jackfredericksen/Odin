@@ -130,6 +130,82 @@ class PriceData:
 
 
 @dataclass
+class MarketDepth:
+    """Order book market depth data."""
+
+    timestamp: datetime
+    bids: List[tuple]  # [(price, volume), ...]
+    asks: List[tuple]  # [(price, volume), ...]
+    spread: float
+    mid_price: float
+    total_bid_volume: float
+    total_ask_volume: float
+    depth_imbalance: float  # (bid_vol - ask_vol) / (bid_vol + ask_vol)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for storage."""
+        return {
+            "timestamp": self.timestamp.isoformat(),
+            "bids": self.bids,
+            "asks": self.asks,
+            "spread": self.spread,
+            "mid_price": self.mid_price,
+            "total_bid_volume": self.total_bid_volume,
+            "total_ask_volume": self.total_ask_volume,
+            "depth_imbalance": self.depth_imbalance,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "MarketDepth":
+        """Create from dictionary."""
+        return cls(
+            timestamp=datetime.fromisoformat(data["timestamp"]),
+            bids=data["bids"],
+            asks=data["asks"],
+            spread=data["spread"],
+            mid_price=data["mid_price"],
+            total_bid_volume=data["total_bid_volume"],
+            total_ask_volume=data["total_ask_volume"],
+            depth_imbalance=data["depth_imbalance"],
+        )
+
+
+@dataclass
+class OHLCData:
+    """OHLC (Open, High, Low, Close) candlestick data."""
+
+    timestamp: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for storage."""
+        return {
+            "timestamp": self.timestamp.isoformat(),
+            "open": self.open,
+            "high": self.high,
+            "low": self.low,
+            "close": self.close,
+            "volume": self.volume,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "OHLCData":
+        """Create from dictionary."""
+        return cls(
+            timestamp=datetime.fromisoformat(data["timestamp"]),
+            open=data["open"],
+            high=data["high"],
+            low=data["low"],
+            close=data["close"],
+            volume=data["volume"],
+        )
+
+
+@dataclass
 class StrategySignal:
     """Enhanced trading signal with AI metadata."""
 
@@ -927,6 +1003,8 @@ __all__ = [
     "MarketRegime",
     "TradingMode",
     "PriceData",
+    "MarketDepth",
+    "OHLCData",
     "StrategySignal",
     "Trade",
     "Portfolio",
@@ -935,6 +1013,8 @@ __all__ = [
     "AISystemStatus",
     "StrategyConfig",
     "BacktestResult",
+    "DataSourceStatus",
+    "DataCollectionResult",
     "Signal",
     "create_price_data_from_ohlcv",
     "create_signal_from_strategy",

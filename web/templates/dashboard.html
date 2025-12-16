@@ -26,6 +26,20 @@
             --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
 
+        [data-theme="light"] {
+            --bg-primary: #f5f7fa;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --accent-green: #00c853;
+            --accent-red: #ff1744;
+            --accent-blue: #2196f3;
+            --accent-purple: #9c27b0;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -463,16 +477,34 @@
                 <span id="connection-status">Live</span>
             </div>
         </div>
-        <div id="current-time" style="color: var(--text-secondary); font-size: 0.875rem;"></div>
+        <div style="display: flex; align-items: center; gap: 1.5rem;">
+            <!-- Coin Selector -->
+            <select id="coin-selector" style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; font-size: 0.875rem; font-weight: 600;">
+                <option value="BTC">₿ Bitcoin</option>
+                <option value="ETH">Ξ Ethereum</option>
+                <option value="SOL">◎ Solana</option>
+                <option value="XRP">✕ Ripple</option>
+                <option value="BNB">🔶 BNB</option>
+                <option value="SUI">〜 Sui</option>
+                <option value="HYPE">🚀 Hyperliquid</option>
+            </select>
+            <button id="theme-toggle" style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span id="theme-icon">🌙</span>
+                <span id="theme-label">Dark</span>
+            </button>
+            <div id="current-time" style="color: var(--text-secondary); font-size: 0.875rem;"></div>
+        </div>
     </header>
 
     <!-- Main Dashboard -->
     <main class="dashboard">
+        <!-- ========== SECTION 1: MARKET OVERVIEW ========== -->
+
         <!-- Price Hero -->
         <section class="price-hero">
             <div class="price-display">
                 <div class="price-main">
-                    <div class="price-label">Bitcoin Price (USD)</div>
+                    <div class="price-label"><span id="coin-name">Bitcoin</span> Price (USD)</div>
                     <div class="price-value" id="btc-price">$0.00</div>
                     <div class="price-change" id="price-change">
                         <span id="change-value">+0.00%</span>
@@ -499,6 +531,8 @@
                 </div>
             </div>
         </section>
+
+        <!-- ========== SECTION 2: TRADING DATA & CHARTS ========== -->
 
         <!-- Liquidation Heatmap -->
         <section class="card heatmap-section">
@@ -609,6 +643,8 @@
             <canvas id="oi-chart" style="margin-top: 1rem; max-height: 200px;"></canvas>
         </section>
 
+        <!-- ========== SECTION 3: MARKET SENTIMENT & NEWS ========== -->
+
         <!-- Crypto Trending Feed -->
         <section class="card" style="grid-column: span 6;">
             <div class="card-header">
@@ -650,8 +686,181 @@
                 Mark price vs Spot
             </div>
         </section>
+
+        <!-- Fear & Greed Index -->
+        <section class="card" style="grid-column: span 4;">
+            <div class="card-header">
+                <h2 class="card-title">Fear & Greed Index</h2>
+            </div>
+            <div style="text-align: center; padding: 1rem 0;">
+                <canvas id="fear-greed-gauge" style="max-height: 150px;"></canvas>
+                <div style="margin-top: 1rem;">
+                    <div id="fear-greed-value" style="font-size: 2rem; font-weight: 700;">--</div>
+                    <div id="fear-greed-label" style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem;">Calculating...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sentiment Analysis -->
+        <section class="card" style="grid-column: span 4;">
+            <div class="card-header">
+                <h2 class="card-title">Social Sentiment</h2>
+            </div>
+            <div style="text-align: center; padding: 1rem 0;">
+                <div id="sentiment-score" style="font-size: 2rem; font-weight: 700;">--</div>
+                <div id="sentiment-label" style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem;">Analyzing...</div>
+                <div id="sentiment-bar" style="margin-top: 1rem; height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden;">
+                    <div id="sentiment-fill" style="height: 100%; background: linear-gradient(90deg, var(--accent-red), var(--text-secondary), var(--accent-green)); width: 50%; transition: width 0.3s;"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- On-Chain Metrics -->
+        <section class="card" style="grid-column: span 6;">
+            <div class="card-header">
+                <h2 class="card-title">⛓️ On-Chain Activity</h2>
+            </div>
+            <div id="onchain-metrics" style="padding: 1rem 0;">
+                <div class="flow-item">
+                    <span>Exchange Netflow (24h)</span>
+                    <span id="exchange-netflow" class="text-blue">--</span>
+                </div>
+                <div class="flow-item">
+                    <span>Large Transactions (>$1M)</span>
+                    <span id="whale-count" class="text-blue">--</span>
+                </div>
+                <div class="flow-item">
+                    <span>Network Hashrate</span>
+                    <span id="hashrate">--</span>
+                </div>
+                <div class="flow-item">
+                    <span>Mining Difficulty</span>
+                    <span id="difficulty">--</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Economic Calendar -->
+        <section class="card" style="grid-column: span 6;">
+            <div class="card-header">
+                <h2 class="card-title">📅 Upcoming Events</h2>
+            </div>
+            <div id="economic-calendar" style="max-height: 300px; overflow-y: auto;">
+                <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading events...</div>
+            </div>
+        </section>
+
+        <!-- Correlation Matrix -->
+        <section class="card" style="grid-column: span 12;">
+            <div class="card-header">
+                <h2 class="card-title">Correlation Matrix</h2>
+                <p class="card-subtitle">Bitcoin vs other assets (30-day rolling)</p>
+            </div>
+            <div id="correlation-matrix" style="height: 300px;"></div>
+        </section>
+
+        <!-- ========== SECTION 4: TECHNICAL ANALYSIS ========== -->
+
+        <!-- Multi-Timeframe Analysis -->
+        <section class="card" style="grid-column: span 12;">
+            <div class="card-header">
+                <h2 class="card-title">Multi-Timeframe Analysis</h2>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                <div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">1 Hour</div>
+                    <canvas id="chart-1h" style="max-height: 200px;"></canvas>
+                    <div id="trend-1h" style="text-align: center; margin-top: 0.5rem; font-weight: 600;">--</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">4 Hour</div>
+                    <canvas id="chart-4h" style="max-height: 200px;"></canvas>
+                    <div id="trend-4h" style="text-align: center; margin-top: 0.5rem; font-weight: 600;">--</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Daily</div>
+                    <canvas id="chart-1d" style="max-height: 200px;"></canvas>
+                    <div id="trend-1d" style="text-align: center; margin-top: 0.5rem; font-weight: 600;">--</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Weekly</div>
+                    <canvas id="chart-1w" style="max-height: 200px;"></canvas>
+                    <div id="trend-1w" style="text-align: center; margin-top: 0.5rem; font-weight: 600;">--</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Support & Resistance Levels -->
+        <section class="card" style="grid-column: span 6;">
+            <div class="card-header">
+                <h2 class="card-title">📊 Key Levels</h2>
+            </div>
+            <div id="key-levels">
+                <div style="margin-bottom: 1rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">RESISTANCE</div>
+                    <div id="resistance-levels"></div>
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">CURRENT PRICE</div>
+                    <div id="current-level" style="padding: 0.5rem; background: rgba(0, 153, 255, 0.1); border-radius: 4px; font-weight: 600; text-align: center;">$--</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">SUPPORT</div>
+                    <div id="support-levels"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Fibonacci Levels -->
+        <section class="card" style="grid-column: span 6;">
+            <div class="card-header">
+                <h2 class="card-title">Fibonacci Retracement</h2>
+            </div>
+            <div id="fib-levels" style="font-size: 0.875rem;">
+                <div class="flow-item">
+                    <span>0% (High)</span>
+                    <span id="fib-0" class="text-green">$--</span>
+                </div>
+                <div class="flow-item">
+                    <span>23.6%</span>
+                    <span id="fib-236">$--</span>
+                </div>
+                <div class="flow-item">
+                    <span>38.2%</span>
+                    <span id="fib-382">$--</span>
+                </div>
+                <div class="flow-item">
+                    <span>50%</span>
+                    <span id="fib-50">$--</span>
+                </div>
+                <div class="flow-item">
+                    <span>61.8% (Golden)</span>
+                    <span id="fib-618" style="font-weight: 600;">$--</span>
+                </div>
+                <div class="flow-item">
+                    <span>78.6%</span>
+                    <span id="fib-786">$--</span>
+                </div>
+                <div class="flow-item">
+                    <span>100% (Low)</span>
+                    <span id="fib-100" class="text-red">$--</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pattern Recognition -->
+        <section class="card" style="grid-column: span 12;">
+            <div class="card-header">
+                <h2 class="card-title">🔍 Pattern Recognition</h2>
+                <p class="card-subtitle">Similar historical patterns detected</p>
+            </div>
+            <div id="pattern-matches" style="padding: 1rem;">
+                <div style="text-align: center; color: var(--text-secondary);">Analyzing price patterns...</div>
+            </div>
+        </section>
     </main>
 
+    <script src="/static/js/logger.js"></script>
     <script src="/static/js/analytics-dashboard.js?v=3.0.1"></script>
 </body>
 </html>

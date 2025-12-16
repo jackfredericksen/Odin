@@ -15,6 +15,7 @@ from odin.api.dependencies import get_data_collector
 from odin.config import settings
 from odin.core.data_collector import BitcoinDataCollector
 from odin.core.database import DatabaseManager
+from odin.utils.cache import get_cache_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -467,6 +468,44 @@ async def liveness_check():
         logger.error(f"Liveness check failed: {e}")
         return {
             "alive": False,
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat(),
+            "status": "error",
+        }
+
+
+@router.get("/cache", response_model=Dict[str, Any])
+async def get_cache_stats():
+    """
+    Get API cache statistics and performance metrics.
+
+    Returns:
+        Cache hit rate, size, and other performance metrics
+    """
+    try:
+        cache = get_cache_manager()
+        stats = cache.get_stats()
+
+        return {
+            "success": True,
+            "data": {
+                "cache_size": stats["size"],
+                "max_size": stats["max_size"],
+                "utilization_pct": round((stats["size"] / stats["max_size"]) * 100, 2),
+                "total_requests": stats["total_requests"],
+                "cache_hits": stats["hits"],
+                "cache_misses": stats["misses"],
+                "hit_rate_pct": stats["hit_rate"],
+                "evictions": stats["evictions"],
+            },
+            "timestamp": datetime.utcnow().isoformat(),
+            "status": "healthy",
+        }
+
+    except Exception as e:
+        logger.error(f"Cache stats check failed: {e}")
+        return {
+            "success": False,
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat(),
             "status": "error",

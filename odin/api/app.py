@@ -18,8 +18,18 @@ from fastapi.templating import Jinja2Templates
 from odin.config import get_settings
 from odin.core.database import get_database, init_sample_data
 from odin.core.models import APIResponse, serialize_for_dashboard
+from odin.utils.logging import get_logger, configure_logging, LogLevel
 
-logger = logging.getLogger(__name__)
+# Configure structured logging on application startup
+configure_logging(
+    level=LogLevel.INFO,
+    enable_console=True,
+    enable_file=True,
+    file_path="data/logs/odin_api.log",
+    structured_format=True
+)
+
+logger = get_logger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -673,3 +683,6 @@ def create_app() -> FastAPI:
             )
 
     return app
+
+# Create app instance
+app = create_app()
