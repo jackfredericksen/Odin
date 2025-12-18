@@ -35,6 +35,7 @@ router = APIRouter()
 # STRATEGY LISTING & ANALYSIS
 # =============================================================================
 
+
 @router.get("/list")
 async def list_strategies():
     """Get list of all available strategies."""
@@ -97,7 +98,7 @@ async def analyze_strategy(
     try:
         # Get strategy analysis
         analysis = await strategy.analyze_current_conditions()
-        
+
         # Get portfolio info
         portfolio_manager = PortfolioManager()
         current_position = await portfolio_manager.get_strategy_position(strategy_name)
@@ -157,9 +158,11 @@ async def get_strategy_chart_data(
             detail=f"Failed to get chart data for {strategy_name} strategy",
         )
 
+
 # =============================================================================
 # STRATEGY BACKTESTING
 # =============================================================================
+
 
 @router.post("/{strategy_name}/backtest/{hours}")
 async def backtest_strategy(
@@ -213,14 +216,18 @@ async def backtest_strategy(
             detail=f"Backtest failed for {strategy_name}",
         )
 
+
 # =============================================================================
 # STRATEGY COMPARISON
 # =============================================================================
 
+
 @router.get("/compare/all/{hours}")
 async def compare_all_strategies(
     hours: int,
-    initial_balance: float = Query(10000.0, description="Initial balance for comparison"),
+    initial_balance: float = Query(
+        10000.0, description="Initial balance for comparison"
+    ),
     ma_strategy: MovingAverageStrategy = Depends(get_ma_strategy),
     rsi_strategy: RSIStrategy = Depends(get_rsi_strategy),
     bb_strategy: BollingerBandsStrategy = Depends(get_bb_strategy),
@@ -240,11 +247,13 @@ async def compare_all_strategies(
 
         portfolio_manager = PortfolioManager()
         comparison_results = {}
-        
+
         # Get comparison data for each strategy
         for name, strategy in strategies.items():
             try:
-                performance = await strategy.get_performance_metrics(hours=validated_hours)
+                performance = await strategy.get_performance_metrics(
+                    hours=validated_hours
+                )
                 comparison_results[name] = {
                     "performance": performance,
                     "current_signal": await strategy.get_current_signal(),
@@ -257,11 +266,13 @@ async def compare_all_strategies(
                 comparison_results[name] = {"error": str(e)}
 
         # Rank strategies by performance
-        valid_strategies = {k: v for k, v in comparison_results.items() if "error" not in v}
+        valid_strategies = {
+            k: v for k, v in comparison_results.items() if "error" not in v
+        }
         rankings = sorted(
             valid_strategies.items(),
             key=lambda x: x[1].get("total_return", 0),
-            reverse=True
+            reverse=True,
         )
 
         return {
@@ -284,7 +295,9 @@ async def compare_all_strategies(
 
 @router.get("/leaderboard")
 async def get_strategy_leaderboard(
-    period_hours: int = Query(168, description="Period for leaderboard (default: 7 days)"),
+    period_hours: int = Query(
+        168, description="Period for leaderboard (default: 7 days)"
+    ),
     rate_limiter=Depends(get_strategy_rate_limiter),
 ):
     """Get strategy performance leaderboard."""
@@ -349,9 +362,11 @@ async def get_strategy_leaderboard(
             detail="Failed to get strategy leaderboard",
         )
 
+
 # =============================================================================
 # STRATEGY MANAGEMENT
 # =============================================================================
+
 
 @router.post("/{strategy_name}/enable")
 async def enable_strategy(
@@ -479,9 +494,11 @@ async def update_strategy_config(
             detail=f"Failed to update config for {strategy_name}",
         )
 
+
 # =============================================================================
 # STRATEGY OPTIMIZATION
 # =============================================================================
+
 
 @router.post("/{strategy_name}/optimize")
 async def optimize_strategy_parameters(
@@ -505,7 +522,9 @@ async def optimize_strategy_parameters(
         if not optimization_result or "error" in optimization_result:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=optimization_result.get("error", "Parameter optimization failed"),
+                detail=optimization_result.get(
+                    "error", "Parameter optimization failed"
+                ),
             )
 
         # Apply optimized parameters if requested
@@ -535,9 +554,11 @@ async def optimize_strategy_parameters(
             detail=f"Optimization failed for {strategy_name}",
         )
 
+
 # =============================================================================
 # STRATEGY SIGNALS
 # =============================================================================
+
 
 @router.get("/{strategy_name}/signals")
 async def get_strategy_signals(

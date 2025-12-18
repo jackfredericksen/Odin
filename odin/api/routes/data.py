@@ -11,96 +11,102 @@ from typing import Any, Dict, List
 import aiohttp
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
-from odin.utils.logging import get_logger, LogContext, log_operation_start, log_operation_success, log_operation_error
-from odin.utils.cache import cached, CACHE_PRESETS
+from odin.utils.cache import CACHE_PRESETS, cached
+from odin.utils.logging import (
+    LogContext,
+    get_logger,
+    log_operation_error,
+    log_operation_start,
+    log_operation_success,
+)
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 # Coin symbol mappings for different exchanges
 COIN_MAPPINGS = {
-    'BTC': {
-        'name': 'Bitcoin',
-        'kraken': 'XBTUSD',
-        'binance': 'BTCUSDT',
-        'coingecko': 'bitcoin',
-        'coinbase': 'BTC-USD',
-        'hyperliquid': 'BTC',
-        'circulating_supply': 19700000
+    "BTC": {
+        "name": "Bitcoin",
+        "kraken": "XBTUSD",
+        "binance": "BTCUSDT",
+        "coingecko": "bitcoin",
+        "coinbase": "BTC-USD",
+        "hyperliquid": "BTC",
+        "circulating_supply": 19700000,
     },
-    'ETH': {
-        'name': 'Ethereum',
-        'kraken': 'ETHUSD',
-        'binance': 'ETHUSDT',
-        'coingecko': 'ethereum',
-        'coinbase': 'ETH-USD',
-        'hyperliquid': 'ETH',
-        'circulating_supply': 120000000
+    "ETH": {
+        "name": "Ethereum",
+        "kraken": "ETHUSD",
+        "binance": "ETHUSDT",
+        "coingecko": "ethereum",
+        "coinbase": "ETH-USD",
+        "hyperliquid": "ETH",
+        "circulating_supply": 120000000,
     },
-    'SOL': {
-        'name': 'Solana',
-        'kraken': 'SOLUSD',
-        'binance': 'SOLUSDT',
-        'coingecko': 'solana',
-        'coinbase': 'SOL-USD',
-        'hyperliquid': 'SOL',
-        'circulating_supply': 580000000
+    "SOL": {
+        "name": "Solana",
+        "kraken": "SOLUSD",
+        "binance": "SOLUSDT",
+        "coingecko": "solana",
+        "coinbase": "SOL-USD",
+        "hyperliquid": "SOL",
+        "circulating_supply": 580000000,
     },
-    'XRP': {
-        'name': 'Ripple',
-        'kraken': 'XRPUSD',
-        'binance': 'XRPUSDT',
-        'coingecko': 'ripple',
-        'coinbase': 'XRP-USD',
-        'hyperliquid': 'XRP',
-        'circulating_supply': 57000000000
+    "XRP": {
+        "name": "Ripple",
+        "kraken": "XRPUSD",
+        "binance": "XRPUSDT",
+        "coingecko": "ripple",
+        "coinbase": "XRP-USD",
+        "hyperliquid": "XRP",
+        "circulating_supply": 57000000000,
     },
-    'BNB': {
-        'name': 'BNB',
-        'kraken': 'BNBUSD',
-        'binance': 'BNBUSDT',
-        'coingecko': 'binancecoin',
-        'coinbase': 'BNB-USD',
-        'hyperliquid': 'BNB',
-        'circulating_supply': 144000000
+    "BNB": {
+        "name": "BNB",
+        "kraken": "BNBUSD",
+        "binance": "BNBUSDT",
+        "coingecko": "binancecoin",
+        "coinbase": "BNB-USD",
+        "hyperliquid": "BNB",
+        "circulating_supply": 144000000,
     },
-    'SUI': {
-        'name': 'Sui',
-        'kraken': 'SUIUSD',
-        'binance': 'SUIUSDT',
-        'coingecko': 'sui',
-        'coinbase': 'SUI-USD',
-        'hyperliquid': 'SUI',
-        'circulating_supply': 2700000000
+    "SUI": {
+        "name": "Sui",
+        "kraken": "SUIUSD",
+        "binance": "SUIUSDT",
+        "coingecko": "sui",
+        "coinbase": "SUI-USD",
+        "hyperliquid": "SUI",
+        "circulating_supply": 2700000000,
     },
-    'HYPE': {
-        'name': 'Hyperliquid',
-        'kraken': 'HYPEUSD',
-        'binance': 'HYPEUSDT',
-        'coingecko': 'hyperliquid',
-        'coinbase': 'HYPE-USD',
-        'hyperliquid': 'HYPE',
-        'circulating_supply': 1000000000
-    }
+    "HYPE": {
+        "name": "Hyperliquid",
+        "kraken": "HYPEUSD",
+        "binance": "HYPEUSDT",
+        "coingecko": "hyperliquid",
+        "coinbase": "HYPE-USD",
+        "hyperliquid": "HYPE",
+        "circulating_supply": 1000000000,
+    },
 }
 
 
 @cached(ttl=CACHE_PRESETS["realtime"], key_prefix="kraken_price")
-async def fetch_kraken_price(symbol: str = 'BTC') -> Dict[str, Any]:
+async def fetch_kraken_price(symbol: str = "BTC") -> Dict[str, Any]:
     """Fetch real cryptocurrency price from Kraken API."""
     try:
         coin_config = COIN_MAPPINGS.get(symbol.upper())
         if not coin_config:
             return None
 
-        kraken_pair = coin_config['kraken']
-        circulating_supply = coin_config['circulating_supply']
+        kraken_pair = coin_config["kraken"]
+        circulating_supply = coin_config["circulating_supply"]
 
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 "https://api.kraken.com/0/public/Ticker",
                 params={"pair": kraken_pair},
-                timeout=aiohttp.ClientTimeout(total=5)
+                timeout=aiohttp.ClientTimeout(total=5),
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -111,7 +117,7 @@ async def fetch_kraken_price(symbol: str = 'BTC') -> Dict[str, Any]:
                     # Kraken may return the pair with X prefix (e.g., XXBTZUSD or XBTUSD)
                     pair_data = None
                     for key in result.keys():
-                        if kraken_pair.replace('X', '') in key or kraken_pair in key:
+                        if kraken_pair.replace("X", "") in key or kraken_pair in key:
                             pair_data = result[key]
                             break
 
@@ -127,7 +133,11 @@ async def fetch_kraken_price(symbol: str = 'BTC') -> Dict[str, Any]:
                     open_price = float(pair_data.get("o", 0))
 
                     # Calculate 24h change
-                    change_24h = ((last_price - open_price) / open_price * 100) if open_price > 0 else 0
+                    change_24h = (
+                        ((last_price - open_price) / open_price * 100)
+                        if open_price > 0
+                        else 0
+                    )
                     change_24h_abs = last_price - open_price
 
                     return {
@@ -148,24 +158,27 @@ async def fetch_kraken_price(symbol: str = 'BTC') -> Dict[str, Any]:
                         "currency": "USD",
                     }
     except Exception as e:
-        logger.error(f"Kraken API error for {symbol}", context=LogContext(
-            component="data_api",
-            operation="fetch_kraken_price",
-            additional_data={"symbol": symbol, "error": str(e)}
-        ))
+        logger.error(
+            f"Kraken API error for {symbol}",
+            context=LogContext(
+                component="data_api",
+                operation="fetch_kraken_price",
+                additional_data={"symbol": symbol, "error": str(e)},
+            ),
+        )
         return None
 
 
 @cached(ttl=CACHE_PRESETS["realtime"], key_prefix="coingecko_price")
-async def fetch_coingecko_price(symbol: str = 'BTC') -> Dict[str, Any]:
+async def fetch_coingecko_price(symbol: str = "BTC") -> Dict[str, Any]:
     """Fetch real cryptocurrency price from CoinGecko API."""
     try:
         coin_config = COIN_MAPPINGS.get(symbol.upper())
         if not coin_config:
             return None
 
-        coingecko_id = coin_config['coingecko']
-        circulating_supply = coin_config['circulating_supply']
+        coingecko_id = coin_config["coingecko"]
+        circulating_supply = coin_config["circulating_supply"]
 
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -177,7 +190,7 @@ async def fetch_coingecko_price(symbol: str = 'BTC') -> Dict[str, Any]:
                     "include_24hr_change": "true",
                     "include_market_cap": "true",
                 },
-                timeout=aiohttp.ClientTimeout(total=5)
+                timeout=aiohttp.ClientTimeout(total=5),
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -185,11 +198,17 @@ async def fetch_coingecko_price(symbol: str = 'BTC') -> Dict[str, Any]:
 
                     price = float(coin_data.get("usd", 0))
                     change_24h = float(coin_data.get("usd_24h_change", 0))
-                    volume_24h = float(coin_data.get("usd_24h_vol", 0)) / 1e9  # Convert to billions
+                    volume_24h = (
+                        float(coin_data.get("usd_24h_vol", 0)) / 1e9
+                    )  # Convert to billions
 
                     # Estimate high/low based on price and change
-                    high_24h = price if change_24h >= 0 else price / (1 + change_24h / 100)
-                    low_24h = price if change_24h <= 0 else price / (1 + change_24h / 100)
+                    high_24h = (
+                        price if change_24h >= 0 else price / (1 + change_24h / 100)
+                    )
+                    low_24h = (
+                        price if change_24h <= 0 else price / (1 + change_24h / 100)
+                    )
 
                     return {
                         "price": round(price, 2),
@@ -199,7 +218,9 @@ async def fetch_coingecko_price(symbol: str = 'BTC') -> Dict[str, Any]:
                         "low_24h": round(low_24h, 2),
                         "volume": round(volume_24h, 2),
                         "volume_24h": round(volume_24h, 2),
-                        "market_cap": round(float(coin_data.get("usd_market_cap", 0)), 0),
+                        "market_cap": round(
+                            float(coin_data.get("usd_market_cap", 0)), 0
+                        ),
                         "timestamp": datetime.now(timezone.utc).timestamp(),
                         "last_updated": datetime.now(timezone.utc).timestamp(),
                         "source": "coingecko",
@@ -207,29 +228,32 @@ async def fetch_coingecko_price(symbol: str = 'BTC') -> Dict[str, Any]:
                         "currency": "USD",
                     }
     except Exception as e:
-        logger.error(f"CoinGecko API error for {symbol}", context=LogContext(
-            component="data_api",
-            operation="fetch_coingecko_price",
-            additional_data={"symbol": symbol, "error": str(e)}
-        ))
+        logger.error(
+            f"CoinGecko API error for {symbol}",
+            context=LogContext(
+                component="data_api",
+                operation="fetch_coingecko_price",
+                additional_data={"symbol": symbol, "error": str(e)},
+            ),
+        )
         return None
 
 
 @cached(ttl=CACHE_PRESETS["realtime"], key_prefix="coinbase_price")
-async def fetch_coinbase_price(symbol: str = 'BTC') -> Dict[str, Any]:
+async def fetch_coinbase_price(symbol: str = "BTC") -> Dict[str, Any]:
     """Fetch real cryptocurrency price from Coinbase API."""
     try:
         coin_config = COIN_MAPPINGS.get(symbol.upper())
         if not coin_config:
             return None
 
-        coinbase_pair = coin_config['coinbase']
-        circulating_supply = coin_config['circulating_supply']
+        coinbase_pair = coin_config["coinbase"]
+        circulating_supply = coin_config["circulating_supply"]
 
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"https://api.coinbase.com/v2/prices/{coinbase_pair}/spot",
-                timeout=aiohttp.ClientTimeout(total=5)
+                timeout=aiohttp.ClientTimeout(total=5),
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -246,31 +270,34 @@ async def fetch_coinbase_price(symbol: str = 'BTC') -> Dict[str, Any]:
                         "currency": "USD",
                     }
     except Exception as e:
-        logger.error(f"Coinbase API error for {symbol}", context=LogContext(
-            component="data_api",
-            operation="fetch_coinbase_price",
-            additional_data={"symbol": symbol, "error": str(e)}
-        ))
+        logger.error(
+            f"Coinbase API error for {symbol}",
+            context=LogContext(
+                component="data_api",
+                operation="fetch_coinbase_price",
+                additional_data={"symbol": symbol, "error": str(e)},
+            ),
+        )
         return None
 
 
 @cached(ttl=CACHE_PRESETS["realtime"], key_prefix="hyperliquid_price")
-async def fetch_hyperliquid_price(symbol: str = 'BTC') -> Dict[str, Any]:
+async def fetch_hyperliquid_price(symbol: str = "BTC") -> Dict[str, Any]:
     """Fetch real cryptocurrency price and funding rate from Hyperliquid DEX."""
     try:
         coin_config = COIN_MAPPINGS.get(symbol.upper())
         if not coin_config:
             return None
 
-        hyperliquid_symbol = coin_config['hyperliquid']
-        circulating_supply = coin_config['circulating_supply']
+        hyperliquid_symbol = coin_config["hyperliquid"]
+        circulating_supply = coin_config["circulating_supply"]
 
         async with aiohttp.ClientSession() as session:
             # Get meta and asset contexts (includes funding, OI, volume)
             async with session.post(
                 "https://api.hyperliquid.xyz/info",
                 json={"type": "metaAndAssetCtxs"},
-                timeout=aiohttp.ClientTimeout(total=5)
+                timeout=aiohttp.ClientTimeout(total=5),
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -302,12 +329,20 @@ async def fetch_hyperliquid_price(symbol: str = 'BTC') -> Dict[str, Any]:
                     volume_24h = float(coin_ctx.get("dayNtlVlm", 0))
 
                     # Calculate 24h change
-                    change_24h = ((mark_price - prev_day_px) / prev_day_px * 100) if prev_day_px > 0 else 0
+                    change_24h = (
+                        ((mark_price - prev_day_px) / prev_day_px * 100)
+                        if prev_day_px > 0
+                        else 0
+                    )
                     change_24h_abs = mark_price - prev_day_px
 
                     # Estimate high/low (Hyperliquid doesn't provide these directly)
-                    high_24h = mark_price * 1.015 if change_24h >= 0 else prev_day_px * 1.01
-                    low_24h = mark_price * 0.985 if change_24h <= 0 else prev_day_px * 0.99
+                    high_24h = (
+                        mark_price * 1.015 if change_24h >= 0 else prev_day_px * 1.01
+                    )
+                    low_24h = (
+                        mark_price * 0.985 if change_24h <= 0 else prev_day_px * 0.99
+                    )
 
                     return {
                         "price": round(mark_price, 2),
@@ -315,28 +350,42 @@ async def fetch_hyperliquid_price(symbol: str = 'BTC') -> Dict[str, Any]:
                         "change_24h_abs": round(change_24h_abs, 2),
                         "high_24h": round(high_24h, 2),
                         "low_24h": round(low_24h, 2),
-                        "volume": round(open_interest, 2),  # Open Interest in coin units
-                        "volume_24h": round(volume_24h / 1e9, 2),  # Convert to billions USD
+                        "volume": round(
+                            open_interest, 2
+                        ),  # Open Interest in coin units
+                        "volume_24h": round(
+                            volume_24h / 1e9, 2
+                        ),  # Convert to billions USD
                         "market_cap": round(mark_price * circulating_supply, 0),
                         "timestamp": datetime.now(timezone.utc).timestamp(),
                         "last_updated": datetime.now(timezone.utc).timestamp(),
                         "source": "hyperliquid",
                         "symbol": f"{symbol.upper()}-USD",
                         "currency": "USD",
-                        "funding_rate": round(funding_rate * 100, 4),  # Convert to percentage
+                        "funding_rate": round(
+                            funding_rate * 100, 4
+                        ),  # Convert to percentage
                         "open_interest": round(open_interest, 2),
                     }
     except Exception as e:
-        logger.error(f"Hyperliquid API error for {symbol}", context=LogContext(
-            component="data_api",
-            operation="fetch_hyperliquid_price",
-            additional_data={"symbol": symbol, "error": str(e)}
-        ))
+        logger.error(
+            f"Hyperliquid API error for {symbol}",
+            context=LogContext(
+                component="data_api",
+                operation="fetch_hyperliquid_price",
+                additional_data={"symbol": symbol, "error": str(e)},
+            ),
+        )
         return None
 
 
 @router.get("/current", response_model=Dict[str, Any])
-async def get_current_price(symbol: str = Query(default="BTC", description="Cryptocurrency symbol (BTC, ETH, SOL, XRP, BNB, SUI, HYPE)")):
+async def get_current_price(
+    symbol: str = Query(
+        default="BTC",
+        description="Cryptocurrency symbol (BTC, ETH, SOL, XRP, BNB, SUI, HYPE)",
+    )
+):
     """Get current cryptocurrency price from REAL APIs (Kraken, Hyperliquid, CoinGecko, Coinbase)."""
     try:
         # Validate symbol
@@ -347,7 +396,7 @@ async def get_current_price(symbol: str = Query(default="BTC", description="Cryp
                 detail=f"Unsupported cryptocurrency: {symbol}. Supported: {', '.join(COIN_MAPPINGS.keys())}",
             )
 
-        coin_name = COIN_MAPPINGS[symbol]['name']
+        coin_name = COIN_MAPPINGS[symbol]["name"]
 
         # Try Kraken first (most complete data, includes bid/ask)
         kraken_data = await fetch_kraken_price(symbol)
@@ -387,14 +436,16 @@ async def get_current_price(symbol: str = Query(default="BTC", description="Cryp
         if coinbase_data and coinbase_data.get("price", 0) > 0:
             # Supplement Coinbase data with estimated values
             price = coinbase_data["price"]
-            coinbase_data.update({
-                "change_24h": 0.0,
-                "change_24h_abs": 0.0,
-                "high_24h": round(price * 1.02, 2),
-                "low_24h": round(price * 0.98, 2),
-                "volume": 0.0,
-                "volume_24h": 0.0,
-            })
+            coinbase_data.update(
+                {
+                    "change_24h": 0.0,
+                    "change_24h_abs": 0.0,
+                    "high_24h": round(price * 1.02, 2),
+                    "low_24h": round(price * 0.98, 2),
+                    "volume": 0.0,
+                    "volume_24h": 0.0,
+                }
+            )
             return {
                 "success": True,
                 "message": f"{coin_name} data retrieved successfully (limited data)",
@@ -419,7 +470,9 @@ async def get_current_price(symbol: str = Query(default="BTC", description="Cryp
 
 
 @router.get("/history/{hours}", response_model=Dict[str, Any])
-async def get_price_history(hours: int, symbol: str = Query(default="BTC", description="Cryptocurrency symbol")):
+async def get_price_history(
+    hours: int, symbol: str = Query(default="BTC", description="Cryptocurrency symbol")
+):
     """Get historical cryptocurrency price data from Kraken."""
     # Validate hours
     if hours < 1 or hours > 720:  # Max 30 days
@@ -438,7 +491,7 @@ async def get_price_history(hours: int, symbol: str = Query(default="BTC", descr
 
     try:
         coin_config = COIN_MAPPINGS[symbol]
-        kraken_pair = coin_config['kraken']
+        kraken_pair = coin_config["kraken"]
 
         # Determine interval based on hours requested
         if hours <= 24:
@@ -452,7 +505,7 @@ async def get_price_history(hours: int, symbol: str = Query(default="BTC", descr
             async with session.get(
                 "https://api.kraken.com/0/public/OHLC",
                 params={"pair": kraken_pair, "interval": interval},
-                timeout=aiohttp.ClientTimeout(total=10)
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -467,7 +520,7 @@ async def get_price_history(hours: int, symbol: str = Query(default="BTC", descr
                     # Find the OHLC data - Kraken may prefix with X
                     ohlc_data = None
                     for key in result.keys():
-                        if key != 'last':  # 'last' is the timestamp, not OHLC data
+                        if key != "last":  # 'last' is the timestamp, not OHLC data
                             ohlc_data = result[key]
                             break
 
@@ -484,14 +537,16 @@ async def get_price_history(hours: int, symbol: str = Query(default="BTC", descr
                         candle_time = datetime.fromtimestamp(timestamp, tz=timezone.utc)
 
                         if candle_time >= cutoff_time:
-                            history.append({
-                                "timestamp": timestamp,
-                                "price": float(candle[4]),  # close price
-                                "open": float(candle[1]),
-                                "high": float(candle[2]),
-                                "low": float(candle[3]),
-                                "volume": float(candle[6]),
-                            })
+                            history.append(
+                                {
+                                    "timestamp": timestamp,
+                                    "price": float(candle[4]),  # close price
+                                    "open": float(candle[1]),
+                                    "high": float(candle[2]),
+                                    "low": float(candle[3]),
+                                    "volume": float(candle[6]),
+                                }
+                            )
 
                     return {
                         "success": True,

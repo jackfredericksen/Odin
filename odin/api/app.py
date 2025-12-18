@@ -18,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 from odin.config import get_settings
 from odin.core.database import get_database, init_sample_data
 from odin.core.models import APIResponse, serialize_for_dashboard
-from odin.utils.logging import get_logger, configure_logging, LogLevel
+from odin.utils.logging import LogLevel, configure_logging, get_logger
 
 # Configure structured logging on application startup
 configure_logging(
@@ -26,7 +26,7 @@ configure_logging(
     enable_console=True,
     enable_file=True,
     file_path="data/logs/odin_api.log",
-    structured_format=True
+    structured_format=True,
 )
 
 logger = get_logger(__name__)
@@ -65,9 +65,9 @@ def create_app() -> FastAPI:
 
             # Add dashboard-friendly headers for API routes
             if request.url.path.startswith("/api/"):
-                response.headers[
-                    "Cache-Control"
-                ] = "no-cache, no-store, must-revalidate"
+                response.headers["Cache-Control"] = (
+                    "no-cache, no-store, must-revalidate"
+                )
                 response.headers["Pragma"] = "no-cache"
                 response.headers["Expires"] = "0"
                 response.headers["X-Odin-API"] = "v1"
@@ -683,6 +683,7 @@ def create_app() -> FastAPI:
             )
 
     return app
+
 
 # Create app instance
 app = create_app()

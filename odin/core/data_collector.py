@@ -244,9 +244,12 @@ class YFinanceDataSource(DataSource):
         if self._ticker is None:
             try:
                 import yfinance as yf
+
                 self._ticker = yf.Ticker("BTC-USD")
             except ImportError:
-                logger.error("yfinance not installed. Install with: pip install yfinance")
+                logger.error(
+                    "yfinance not installed. Install with: pip install yfinance"
+                )
                 raise DataSourceException(self.name, "yfinance library not found")
         return self._ticker
 
@@ -266,10 +269,10 @@ class YFinanceDataSource(DataSource):
 
             price_data = PriceData(
                 symbol="BTC-USD",
-                price=float(latest['Close']),
-                volume=float(latest['Volume']) if 'Volume' in latest else 0.0,
-                bid=float(latest['Low']),  # Approximate with low
-                ask=float(latest['High']),  # Approximate with high
+                price=float(latest["Close"]),
+                volume=float(latest["Volume"]) if "Volume" in latest else 0.0,
+                bid=float(latest["Low"]),  # Approximate with low
+                ask=float(latest["High"]),  # Approximate with high
                 source=self.name,
                 timestamp=datetime.now(timezone.utc),
             )
@@ -312,11 +315,11 @@ class YFinanceDataSource(DataSource):
                     symbol="BTC-USD",
                     timeframe=timeframe,
                     timestamp=idx.to_pydatetime().replace(tzinfo=timezone.utc),
-                    open=float(row['Open']),
-                    high=float(row['High']),
-                    low=float(row['Low']),
-                    close=float(row['Close']),
-                    volume=float(row['Volume']) if 'Volume' in row else 0.0,
+                    open=float(row["Open"]),
+                    high=float(row["High"]),
+                    low=float(row["Low"]),
+                    close=float(row["Close"]),
+                    volume=float(row["Volume"]) if "Volume" in row else 0.0,
                 )
                 ohlc_data.append(ohlc)
 
@@ -340,7 +343,9 @@ class BinancePublicDataSource(DataSource):
     BASE_URL = "https://api.binance.com/api/v3"
 
     def __init__(self):
-        super().__init__("binance_public", priority=0)  # Highest priority for real-time data
+        super().__init__(
+            "binance_public", priority=0
+        )  # Highest priority for real-time data
 
     async def get_price(self) -> Optional[PriceData]:
         """Get current Bitcoin price from Binance."""
@@ -348,18 +353,17 @@ class BinancePublicDataSource(DataSource):
             async with aiohttp.ClientSession() as session:
                 # Get ticker price
                 async with session.get(
-                    f"{self.BASE_URL}/ticker/24hr",
-                    params={"symbol": "BTCUSDT"}
+                    f"{self.BASE_URL}/ticker/24hr", params={"symbol": "BTCUSDT"}
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
 
                         price_data = PriceData(
                             symbol="BTC-USD",
-                            price=float(data['lastPrice']),
-                            volume=float(data['volume']),
-                            bid=float(data['bidPrice']),
-                            ask=float(data['askPrice']),
+                            price=float(data["lastPrice"]),
+                            volume=float(data["volume"]),
+                            bid=float(data["bidPrice"]),
+                            ask=float(data["askPrice"]),
                             source=self.name,
                             timestamp=datetime.now(timezone.utc),
                         )
@@ -396,11 +400,7 @@ class BinancePublicDataSource(DataSource):
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{self.BASE_URL}/klines",
-                    params={
-                        "symbol": "BTCUSDT",
-                        "interval": interval,
-                        "limit": limit
-                    }
+                    params={"symbol": "BTCUSDT", "interval": interval, "limit": limit},
                 ) as response:
                     if response.status == 200:
                         klines = await response.json()
@@ -438,8 +438,7 @@ class BinancePublicDataSource(DataSource):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"{self.BASE_URL}/depth",
-                    params={"symbol": "BTCUSDT", "limit": 10}
+                    f"{self.BASE_URL}/depth", params={"symbol": "BTCUSDT", "limit": 10}
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -485,8 +484,8 @@ class CoinGeckoDataSource(DataSource):
                         "include_24hr_vol": "true",
                         "include_24hr_change": "true",
                         "include_market_cap": "true",
-                        "include_last_updated_at": "true"
-                    }
+                        "include_last_updated_at": "true",
+                    },
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -497,8 +496,12 @@ class CoinGeckoDataSource(DataSource):
 
                         # Calculate approximate high/low based on price and change
                         # This is estimation since CoinGecko free tier doesn't provide exact values
-                        high_24h = price if change_24h >= 0 else price / (1 + change_24h / 100)
-                        low_24h = price if change_24h <= 0 else price / (1 + change_24h / 100)
+                        high_24h = (
+                            price if change_24h >= 0 else price / (1 + change_24h / 100)
+                        )
+                        low_24h = (
+                            price if change_24h <= 0 else price / (1 + change_24h / 100)
+                        )
 
                         price_data = PriceData(
                             symbol="BTC-USD",
@@ -534,8 +537,8 @@ class CoinGeckoDataSource(DataSource):
                     params={
                         "vs_currency": "usd",
                         "days": min(limit, 365),
-                        "interval": "daily"
-                    }
+                        "interval": "daily",
+                    },
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -590,8 +593,7 @@ class KrakenDataSource(DataSource):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"{self.BASE_URL}/Ticker",
-                    params={"pair": "XBTUSD"}
+                    f"{self.BASE_URL}/Ticker", params={"pair": "XBTUSD"}
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -661,10 +663,7 @@ class KrakenDataSource(DataSource):
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{self.BASE_URL}/OHLC",
-                    params={
-                        "pair": "XBTUSD",
-                        "interval": interval
-                    }
+                    params={"pair": "XBTUSD", "interval": interval},
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -683,7 +682,9 @@ class KrakenDataSource(DataSource):
                             ohlc = OHLCData(
                                 symbol="BTC-USD",
                                 timeframe=timeframe,
-                                timestamp=datetime.fromtimestamp(int(candle[0]), tz=timezone.utc),
+                                timestamp=datetime.fromtimestamp(
+                                    int(candle[0]), tz=timezone.utc
+                                ),
                                 open=float(candle[1]),
                                 high=float(candle[2]),
                                 low=float(candle[3]),
@@ -709,8 +710,7 @@ class KrakenDataSource(DataSource):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"{self.BASE_URL}/Depth",
-                    params={"pair": "XBTUSD", "count": 50}
+                    f"{self.BASE_URL}/Depth", params={"pair": "XBTUSD", "count": 50}
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -722,8 +722,14 @@ class KrakenDataSource(DataSource):
                         result = data.get("result", {})
                         depth_data = result.get("XXBTZUSD", {})
 
-                        bids = [[float(x[0]), float(x[1])] for x in depth_data.get("bids", [])]
-                        asks = [[float(x[0]), float(x[1])] for x in depth_data.get("asks", [])]
+                        bids = [
+                            [float(x[0]), float(x[1])]
+                            for x in depth_data.get("bids", [])
+                        ]
+                        asks = [
+                            [float(x[0]), float(x[1])]
+                            for x in depth_data.get("asks", [])
+                        ]
 
                         market_depth = MarketDepth(
                             symbol="BTC-USD",
@@ -883,11 +889,11 @@ class DataCollector:
 
         # Data sources - Real data only, ordered by reliability and global access
         self.data_sources: List[DataSource] = [
-            KrakenDataSource(),         # Priority 1 - Very reliable, global access
-            CoinGeckoDataSource(),      # Priority 2 - Global access, free tier
-            CoinbaseDataSource(),       # Priority 1 - Global access
+            KrakenDataSource(),  # Priority 1 - Very reliable, global access
+            CoinGeckoDataSource(),  # Priority 2 - Global access, free tier
+            CoinbaseDataSource(),  # Priority 1 - Global access
             BinancePublicDataSource(),  # Priority 0 - May be geo-restricted
-            YFinanceDataSource(),       # Priority 1 - Sometimes delayed
+            YFinanceDataSource(),  # Priority 1 - Sometimes delayed
         ]
 
         # Sort by priority

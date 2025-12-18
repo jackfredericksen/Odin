@@ -9,8 +9,8 @@ License: MIT
 """
 
 import logging
-from typing import Any, Dict, Optional
 from enum import Enum
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # Error Severity Levels
 class ErrorSeverity(Enum):
     """Enumeration of error severity levels."""
+
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
@@ -27,6 +28,7 @@ class ErrorSeverity(Enum):
 # Error Codes
 class ErrorCode:
     """Standard error codes for the Odin system."""
+
     # System Errors
     SYSTEM_ERROR = "SYSTEM_ERROR"
     SYSTEM_STARTUP_FAILED = "SYSTEM_STARTUP_FAILED"
@@ -83,7 +85,7 @@ class ErrorHandler:
         error: Exception,
         severity: ErrorSeverity = ErrorSeverity.ERROR,
         context: Optional[Dict[str, Any]] = None,
-        reraise: bool = True
+        reraise: bool = True,
     ):
         """
         Handle an error with logging and optional re-raising.
@@ -101,7 +103,7 @@ class ErrorHandler:
             "error_message": str(error),
             "severity": severity.value,
             "context": context or {},
-            "count": self.error_count
+            "count": self.error_count,
         }
 
         self.errors.append(error_data)
@@ -123,7 +125,7 @@ class ErrorHandler:
         """Get error statistics."""
         return {
             "total_errors": self.error_count,
-            "recent_errors": self.errors[-10:] if self.errors else []
+            "recent_errors": self.errors[-10:] if self.errors else [],
         }
 
     def clear_errors(self):
@@ -135,7 +137,7 @@ class ErrorHandler:
         self,
         exception: Exception,
         context: Optional[Dict[str, Any]] = None,
-        reraise: bool = False
+        reraise: bool = False,
     ):
         """
         Handle an exception asynchronously.

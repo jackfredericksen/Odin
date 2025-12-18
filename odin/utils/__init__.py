@@ -4,11 +4,11 @@ Odin Utils Package - Updated for new logging system
 
 # Import new logging system with backward compatibility
 from odin.utils.logging import (
-    get_logger, 
-    configure_logging, 
-    LogContext, 
+    LogContext,
+    configure_logging,
+    get_correlation_id,
+    get_logger,
     set_correlation_id,
-    get_correlation_id
 )
 
 # Backward compatibility alias
@@ -22,10 +22,10 @@ except ImportError:
     pass
 
 __all__ = [
-    'get_logger',
-    'configure_logging', 
-    'setup_logging',  # Backward compatibility
-    'LogContext',
-    'set_correlation_id',
-    'get_correlation_id'
+    "get_logger",
+    "configure_logging",
+    "setup_logging",  # Backward compatibility
+    "LogContext",
+    "set_correlation_id",
+    "get_correlation_id",
 ]

@@ -3,8 +3,8 @@ Portfolio Manager - Stub Implementation
 Provides portfolio management functionality for the Odin trading system.
 """
 
-from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 
 class PortfolioManager:
@@ -38,15 +38,11 @@ class PortfolioManager:
             "btc_value": btc_value,
             "positions": self.positions,
             "total_trades": len(self.trade_history),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def execute_trade(
-        self,
-        side: str,
-        amount: float,
-        price: float,
-        strategy_id: Optional[str] = None
+        self, side: str, amount: float, price: float, strategy_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Execute a simulated trade.
@@ -87,7 +83,7 @@ class PortfolioManager:
             "value": trade_value,
             "status": status,
             "strategy_id": strategy_id,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         if status == "executed":
@@ -102,7 +98,7 @@ class PortfolioManager:
                 "total_trades": 0,
                 "win_rate": 0.0,
                 "total_pnl": 0.0,
-                "avg_trade_pnl": 0.0
+                "avg_trade_pnl": 0.0,
             }
 
         # Simple performance calculation
@@ -113,7 +109,7 @@ class PortfolioManager:
             "win_rate": 0.0,  # Placeholder
             "total_pnl": 0.0,  # Placeholder
             "avg_trade_pnl": 0.0,  # Placeholder
-            "active_positions": len(self.positions)
+            "active_positions": len(self.positions),
         }
 
     def reset(self):

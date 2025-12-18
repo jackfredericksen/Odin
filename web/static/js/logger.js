@@ -5,12 +5,12 @@
  */
 
 class OdinLogger {
-    constructor(componentName = 'app') {
+    constructor(componentName = "app") {
         this.componentName = componentName;
         this.logLevel = this.getConfiguredLogLevel();
         this.correlationId = this.generateCorrelationId();
         this.enableBackendLogging = false; // Can be enabled for error reporting
-        this.backendEndpoint = '/api/v1/logs';
+        this.backendEndpoint = "/api/v1/logs";
 
         // Log levels in order of severity
         this.levels = {
@@ -18,25 +18,25 @@ class OdinLogger {
             INFO: 1,
             WARN: 2,
             ERROR: 3,
-            CRITICAL: 4
+            CRITICAL: 4,
         };
 
         // Color coding for different log levels
         this.colors = {
-            DEBUG: '#8b92b0',
-            INFO: '#0099ff',
-            WARN: '#ffa500',
-            ERROR: '#ff1744',
-            CRITICAL: '#ff0000'
+            DEBUG: "#8b92b0",
+            INFO: "#0099ff",
+            WARN: "#ffa500",
+            ERROR: "#ff1744",
+            CRITICAL: "#ff0000",
         };
 
         // Emoji prefixes for better visual scanning
         this.emojis = {
-            DEBUG: '🔍',
-            INFO: '✅',
-            WARN: '⚠️',
-            ERROR: '❌',
-            CRITICAL: '🚨'
+            DEBUG: "🔍",
+            INFO: "✅",
+            WARN: "⚠️",
+            ERROR: "❌",
+            CRITICAL: "🚨",
         };
     }
 
@@ -44,8 +44,8 @@ class OdinLogger {
      * Get configured log level from localStorage or default to INFO
      */
     getConfiguredLogLevel() {
-        const configLevel = localStorage.getItem('odin_log_level');
-        return configLevel || 'INFO';
+        const configLevel = localStorage.getItem("odin_log_level");
+        return configLevel || "INFO";
     }
 
     /**
@@ -54,7 +54,7 @@ class OdinLogger {
     setLogLevel(level) {
         if (this.levels.hasOwnProperty(level)) {
             this.logLevel = level;
-            localStorage.setItem('odin_log_level', level);
+            localStorage.setItem("odin_log_level", level);
         }
     }
 
@@ -100,7 +100,7 @@ class OdinLogger {
             correlationId: this.correlationId,
             context,
             url: window.location.href,
-            userAgent: navigator.userAgent
+            userAgent: navigator.userAgent,
         };
 
         // Console output with styling
@@ -110,19 +110,19 @@ class OdinLogger {
             console.log(
                 `%c${prefix}%c ${message}`,
                 `color: ${color}; font-weight: bold;`,
-                'color: inherit;',
-                context
+                "color: inherit;",
+                context,
             );
         } else {
             console.log(
                 `%c${prefix}%c ${message}`,
                 `color: ${color}; font-weight: bold;`,
-                'color: inherit;'
+                "color: inherit;",
             );
         }
 
         // Send errors to backend if enabled
-        if (this.enableBackendLogging && (level === 'ERROR' || level === 'CRITICAL')) {
+        if (this.enableBackendLogging && (level === "ERROR" || level === "CRITICAL")) {
             this.sendToBackend(logData);
         }
 
@@ -133,49 +133,49 @@ class OdinLogger {
      * Debug level logging - detailed diagnostic information
      */
     debug(message, context = {}) {
-        return this.log('DEBUG', message, context);
+        return this.log("DEBUG", message, context);
     }
 
     /**
      * Info level logging - general informational messages
      */
     info(message, context = {}) {
-        return this.log('INFO', message, context);
+        return this.log("INFO", message, context);
     }
 
     /**
      * Warning level logging - warning messages for potentially harmful situations
      */
     warn(message, context = {}) {
-        return this.log('WARN', message, context);
+        return this.log("WARN", message, context);
     }
 
     /**
      * Error level logging - error events that might still allow the application to continue
      */
     error(message, context = {}) {
-        return this.log('ERROR', message, context);
+        return this.log("ERROR", message, context);
     }
 
     /**
      * Critical level logging - severe error events that might cause the application to abort
      */
     critical(message, context = {}) {
-        return this.log('CRITICAL', message, context);
+        return this.log("CRITICAL", message, context);
     }
 
     /**
      * Log operation start
      */
     operationStart(operation, context = {}) {
-        return this.info(`Starting ${operation}`, { ...context, operation, phase: 'start' });
+        return this.info(`Starting ${operation}`, { ...context, operation, phase: "start" });
     }
 
     /**
      * Log operation success
      */
     operationSuccess(operation, duration = null, context = {}) {
-        const ctx = { ...context, operation, phase: 'success' };
+        const ctx = { ...context, operation, phase: "success" };
         if (duration !== null) {
             ctx.duration_ms = duration;
         }
@@ -189,10 +189,10 @@ class OdinLogger {
         const ctx = {
             ...context,
             operation,
-            phase: 'error',
+            phase: "error",
             error_type: error.constructor.name,
             error_message: error.message,
-            stack_trace: error.stack
+            stack_trace: error.stack,
         };
         return this.error(`Failed ${operation}`, ctx);
     }
@@ -219,7 +219,7 @@ class OdinLogger {
                 const duration = performance.now() - startTime;
                 this.debug(`Timer: ${label}`, { duration_ms: duration.toFixed(2) });
                 return duration;
-            }
+            },
         };
     }
 
@@ -247,22 +247,22 @@ class OdinLogger {
     async sendToBackend(logData) {
         try {
             await fetch(this.backendEndpoint, {
-                method: 'POST',
+                method: "POST",
                 headers: {
-                    'Content-Type': 'application/json',
+                    "Content-Type": "application/json",
                 },
-                body: JSON.stringify(logData)
+                body: JSON.stringify(logData),
             });
         } catch (err) {
             // Fail silently to avoid logging errors about logging
-            console.error('Failed to send log to backend:', err);
+            console.error("Failed to send log to backend:", err);
         }
     }
 
     /**
      * Enable backend error reporting
      */
-    enableBackendReporting(endpoint = '/api/v1/logs') {
+    enableBackendReporting(endpoint = "/api/v1/logs") {
         this.enableBackendLogging = true;
         this.backendEndpoint = endpoint;
     }
@@ -295,14 +295,14 @@ const LoggerFactory = {
      * Set global log level for all loggers
      */
     setGlobalLogLevel(level) {
-        localStorage.setItem('odin_log_level', level);
-        Object.values(this.loggers).forEach(logger => {
+        localStorage.setItem("odin_log_level", level);
+        Object.values(this.loggers).forEach((logger) => {
             logger.setLogLevel(level);
         });
-    }
+    },
 };
 
 // Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
+if (typeof module !== "undefined" && module.exports) {
     module.exports = { OdinLogger, LoggerFactory };
 }

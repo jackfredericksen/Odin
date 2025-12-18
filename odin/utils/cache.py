@@ -74,9 +74,7 @@ class CacheManager:
             self.hits += 1
             return value
 
-    async def set(
-        self, key: str, value: Any, ttl: Optional[int] = None
-    ) -> None:
+    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """
         Set value in cache with TTL.
 
@@ -89,9 +87,7 @@ class CacheManager:
             # Enforce max size with LRU eviction
             if len(self.cache) >= self.max_size and key not in self.cache:
                 # Remove oldest entry
-                oldest_key = min(
-                    self.cache.keys(), key=lambda k: self.cache[k][1]
-                )
+                oldest_key = min(self.cache.keys(), key=lambda k: self.cache[k][1])
                 del self.cache[oldest_key]
                 self.evictions += 1
 
@@ -147,9 +143,7 @@ class CacheManager:
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         total_requests = self.hits + self.misses
-        hit_rate = (
-            (self.hits / total_requests * 100) if total_requests > 0 else 0
-        )
+        hit_rate = (self.hits / total_requests * 100) if total_requests > 0 else 0
 
         return {
             "size": len(self.cache),
@@ -166,9 +160,7 @@ class CacheManager:
 _cache_manager: Optional[CacheManager] = None
 
 
-def get_cache_manager(
-    default_ttl: int = 300, max_size: int = 1000
-) -> CacheManager:
+def get_cache_manager(default_ttl: int = 300, max_size: int = 1000) -> CacheManager:
     """
     Get or create global cache manager instance.
 

@@ -95,8 +95,8 @@ class ShutdownManager:
         Returns:
             bool: True if a process was killed, False otherwise
         """
-        import subprocess
         import platform
+        import subprocess
 
         try:
             system = platform.system()
@@ -104,48 +104,47 @@ class ShutdownManager:
             if system == "Windows":
                 # Find process using port
                 result = subprocess.run(
-                    f'netstat -ano | findstr :{port}',
+                    f"netstat -ano | findstr :{port}",
                     shell=True,
                     capture_output=True,
-                    text=True
+                    text=True,
                 )
 
                 if result.returncode == 0 and result.stdout:
                     # Extract PID from netstat output
-                    lines = result.stdout.strip().split('\n')
+                    lines = result.stdout.strip().split("\n")
                     for line in lines:
-                        if 'LISTENING' in line:
+                        if "LISTENING" in line:
                             parts = line.split()
                             pid = parts[-1]
 
                             # Kill the process
                             kill_result = subprocess.run(
-                                f'taskkill /F /PID {pid}',
+                                f"taskkill /F /PID {pid}",
                                 shell=True,
                                 capture_output=True,
-                                text=True
+                                text=True,
                             )
 
                             if kill_result.returncode == 0:
                                 logger.info(f"Killed process {pid} using port {port}")
                                 return True
                             else:
-                                logger.warning(f"Failed to kill process {pid}: {kill_result.stderr}")
+                                logger.warning(
+                                    f"Failed to kill process {pid}: {kill_result.stderr}"
+                                )
 
             elif system in ["Linux", "Darwin"]:  # Linux or macOS
                 # Find process using port
                 result = subprocess.run(
-                    f'lsof -ti:{port}',
-                    shell=True,
-                    capture_output=True,
-                    text=True
+                    f"lsof -ti:{port}", shell=True, capture_output=True, text=True
                 )
 
                 if result.returncode == 0 and result.stdout:
                     pid = result.stdout.strip()
 
                     # Kill the process
-                    subprocess.run(f'kill -9 {pid}', shell=True)
+                    subprocess.run(f"kill -9 {pid}", shell=True)
                     logger.info(f"Killed process {pid} using port {port}")
                     return True
 
@@ -170,7 +169,7 @@ class ShutdownManager:
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
-                s.bind(('0.0.0.0', port))
+                s.bind(("0.0.0.0", port))
                 return True
             except OSError:
                 return False
@@ -190,6 +189,7 @@ class ShutdownManager:
         if self.kill_process_on_port(self.port):
             # Wait a moment for port to be released
             import time
+
             time.sleep(1)
 
             if self.check_port_available(self.port):
