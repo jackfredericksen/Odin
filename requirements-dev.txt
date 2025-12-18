@@ -19,6 +19,7 @@ flake8==6.1.0
 mypy==1.7.1
 pylint==3.0.3
 bandit==1.7.5
+safety==3.0.1
 
 # Pre-commit Hooks
 pre-commit==3.6.0

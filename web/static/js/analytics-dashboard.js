@@ -115,17 +115,11 @@ class AnalyticsDashboard {
         // Start clock
         this.startClock();
 
-        // Load REAL data from APIs
-        await this.loadAllData();
-
-        // Initialize charts
+        // Initialize charts FIRST (so they exist when data loads)
         this.initializeCharts();
 
-        // Calculate derived metrics
-        await this.calculateSupportResistance();
-        await this.calculateFibonacci();
-        await this.loadCorrelationMatrix();
-        await this.detectPatterns();
+        // Load REAL data from APIs (this will populate the charts)
+        await this.loadAllData();
 
         // Start auto-update
         this.startAutoUpdate();
@@ -158,6 +152,11 @@ class AnalyticsDashboard {
             { name: "Price History", fn: this.loadPriceHistory() },
             { name: "Market Depth", fn: this.loadMarketDepth() },
             { name: "Funding Rate", fn: this.loadFundingRate() },
+            { name: "Liquidations", fn: this.loadLiquidations() },
+            { name: "Correlation Matrix", fn: this.loadCorrelationMatrix() },
+            { name: "Fibonacci Levels", fn: this.calculateFibonacci() },
+            { name: "Support Resistance", fn: this.calculateSupportResistance() },
+            { name: "Pattern Detection", fn: this.detectPatterns() },
             { name: "News", fn: this.loadNews() },
             { name: "Twitter Feed", fn: this.loadTwitterFeed() },
             { name: "Volume Profile", fn: this.loadVolumeProfile() },
