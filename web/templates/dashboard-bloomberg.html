@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ODIN Terminal - Professional Market Intelligence</title>
+    <link rel="icon" type="image/x-icon" href="/static/images/favicon.ico">
+
+    <!-- External Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+    <!-- Bloomberg Terminal CSS -->
+    <link rel="stylesheet" href="/static/css/bloomberg-terminal.css">
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" style="background: var(--bg-header); border-bottom: 1px solid var(--border-primary); padding: 0.75rem 1.5rem;">
+        <div class="logo-section">
+            <div class="logo" style="font-size: 1.25rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                ODIN TERMINAL
+            </div>
+            <div class="status-indicator" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.75rem; background: var(--bg-card); border-radius: 12px; font-size: 0.75rem;">
+                <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--status-live); animation: pulse 2s infinite;"></div>
+                <span id="connection-status" style="color: var(--status-live); font-weight: 600;">LIVE</span>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <!-- Coin Selector -->
+            <select id="coin-selector" style="background: var(--bg-card); border: 1px solid var(--border-primary); color: var(--text-primary); padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 600; font-family: var(--font-mono);">
+                <option value="BTC">₿ BTC</option>
+                <option value="ETH">Ξ ETH</option>
+                <option value="SOL">◎ SOL</option>
+                <option value="XRP">✕ XRP</option>
+                <option value="BNB">🔶 BNB</option>
+                <option value="SUI">〜 SUI</option>
+                <option value="HYPE">🚀 HYPE</option>
+            </select>
+
+            <!-- Notifications -->
+            <button class="panel-toggle" style="position: relative;">
+                🔔
+                <span style="position: absolute; top: -4px; right: -4px; background: var(--accent-danger); color: white; border-radius: 10px; padding: 2px 5px; font-size: 9px; font-weight: 700;">3</span>
+            </button>
+
+            <!-- Settings -->
+            <button class="panel-toggle">⚙️</button>
+
+            <!-- Current Time -->
+            <div id="current-time" style="color: var(--text-secondary); font-size: 0.75rem; font-family: var(--font-mono);"></div>
+        </div>
+    </header>
+
+    <!-- Live Ticker Bar -->
+    <div id="ticker-bar"></div>
+
+    <!-- Bloomberg 3-Panel Layout -->
+    <div class="bloomberg-container">
+        <div class="bloomberg-main">
+            <!-- LEFT PANEL -->
+            <aside id="left-panel">
+                <!-- Markets Overview -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">Markets</span>
+                        <button id="toggle-left-panel" class="panel-toggle">◀</button>
+                    </div>
+                    <div class="terminal-panel-body" style="padding: 0;">
+                        <div class="watchlist-item">
+                            <span class="watchlist-symbol">₿ BTC</span>
+                            <div style="text-align: right;">
+                                <div class="watchlist-price" id="watch-btc-price">$--</div>
+                                <div class="watchlist-change positive" id="watch-btc-change">+0.00%</div>
+                            </div>
+                        </div>
+                        <div class="watchlist-item">
+                            <span class="watchlist-symbol">Ξ ETH</span>
+                            <div style="text-align: right;">
+                                <div class="watchlist-price" id="watch-eth-price">$--</div>
+                                <div class="watchlist-change" id="watch-eth-change">+0.00%</div>
+                            </div>
+                        </div>
+                        <div class="watchlist-item">
+                            <span class="watchlist-symbol">◎ SOL</span>
+                            <div style="text-align: right;">
+                                <div class="watchlist-price" id="watch-sol-price">$--</div>
+                                <div class="watchlist-change" id="watch-sol-change">+0.00%</div>
+                            </div>
+                        </div>
+                        <div class="watchlist-item">
+                            <span class="watchlist-symbol">✕ XRP</span>
+                            <div style="text-align: right;">
+                                <div class="watchlist-price" id="watch-xrp-price">$--</div>
+                                <div class="watchlist-change" id="watch-xrp-change">+0.00%</div>
+                            </div>
+                        </div>
+                        <div class="watchlist-item">
+                            <span class="watchlist-symbol">🔶 BNB</span>
+                            <div style="text-align: right;">
+                                <div class="watchlist-price" id="watch-bnb-price">$--</div>
+                                <div class="watchlist-change" id="watch-bnb-change">+0.00%</div>
+                            </div>
+                        </div>
+                        <div class="watchlist-item">
+                            <span class="watchlist-symbol">〜 SUI</span>
+                            <div style="text-align: right;">
+                                <div class="watchlist-price" id="watch-sui-price">$--</div>
+                                <div class="watchlist-change" id="watch-sui-change">+0.00%</div>
+                            </div>
+                        </div>
+                        <div class="watchlist-item">
+                            <span class="watchlist-symbol">🚀 HYPE</span>
+                            <div style="text-align: right;">
+                                <div class="watchlist-price" id="watch-hype-price">$--</div>
+                                <div class="watchlist-change" id="watch-hype-change">+0.00%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alerts -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">Alerts</span>
+                    </div>
+                    <div class="terminal-panel-body">
+                        <div style="font-size: 11px; color: var(--text-secondary); text-align: center; padding: 1rem;">
+                            No active alerts
+                        </div>
+                    </div>
+                </div>
+
+                <!-- News Feed (Preview) -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">Latest News</span>
+                    </div>
+                    <div class="terminal-panel-body" style="padding: 0;" id="news-preview">
+                        <div style="font-size: 11px; color: var(--text-secondary); text-align: center; padding: 1rem;">
+                            Loading news...
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Resizer -->
+            <div id="left-resizer" class="resizer resizer-horizontal"></div>
+
+            <!-- MAIN CHART AREA -->
+            <main id="main-chart-area">
+                <!-- Price Hero Section -->
+                <div style="background: var(--bg-card); border: 1px solid var(--border-primary); border-radius: 4px; padding: 1.5rem; margin-bottom: var(--spacing-md);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 1px;">
+                                <span id="coin-name">Bitcoin</span> Price (USD)
+                            </div>
+                            <div style="font-size: 2.5rem; font-weight: 700; font-family: var(--font-mono); margin-bottom: 0.5rem;" id="btc-price">$0.00</div>
+                            <div id="price-change" style="font-size: 1rem; font-family: var(--font-mono);">
+                                <span id="change-value">+0.00%</span>
+                                <span style="font-size: 0.875rem; margin-left: 0.5rem; color: var(--text-secondary);" id="change-absolute">$0.00</span>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem;">
+                            <div>
+                                <div style="font-size: 0.625rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">24H HIGH</div>
+                                <div style="font-size: 0.875rem; font-weight: 600; font-family: var(--font-mono); color: var(--accent-success);" id="high-24h">$0.00</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.625rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">24H LOW</div>
+                                <div style="font-size: 0.875rem; font-weight: 600; font-family: var(--font-mono); color: var(--accent-danger);" id="low-24h">$0.00</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.625rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">VOLUME 24H</div>
+                                <div style="font-size: 0.875rem; font-weight: 600; font-family: var(--font-mono);" id="volume-24h">0.00</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.625rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">MARKET CAP</div>
+                                <div style="font-size: 0.875rem; font-weight: 600; font-family: var(--font-mono);" id="market-cap">$0.00B</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Price Chart -->
+                <div class="terminal-panel" style="min-height: 500px;">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title"><span id="chart-coin-name">Bitcoin</span> Price Chart</span>
+                        <div class="terminal-panel-actions">
+                            <button class="panel-toggle">1H</button>
+                            <button class="panel-toggle">4H</button>
+                            <button class="panel-toggle active">24H</button>
+                            <button class="panel-toggle">7D</button>
+                            <button class="panel-toggle">30D</button>
+                        </div>
+                    </div>
+                    <div class="terminal-panel-body">
+                        <canvas id="price-chart-canvas" style="width: 100%; height: 450px;"></canvas>
+                    </div>
+                </div>
+
+                <!-- Market Depth & Liquidation Heatmap Row -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md); margin-top: var(--spacing-md);">
+                    <!-- Market Depth -->
+                    <div class="terminal-panel">
+                        <div class="terminal-panel-header">
+                            <span class="terminal-panel-title">Order Book Depth</span>
+                        </div>
+                        <div class="terminal-panel-body">
+                            <div id="order-book-depth" style="height: 350px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Liquidation Heatmap -->
+                    <div class="terminal-panel">
+                        <div class="terminal-panel-header">
+                            <span class="terminal-panel-title">Liquidation Heatmap</span>
+                        </div>
+                        <div class="terminal-panel-body">
+                            <div id="liquidation-heatmap" style="height: 350px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Resizer -->
+            <div id="right-resizer" class="resizer resizer-horizontal"></div>
+
+            <!-- RIGHT PANEL -->
+            <aside id="right-panel">
+                <button id="toggle-right-panel" class="panel-toggle" style="position: absolute; top: 10px; right: 10px; z-index: 10;">▶</button>
+
+                <!-- Quick Stats -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">Quick Stats</span>
+                    </div>
+                    <div class="terminal-panel-body">
+                        <div class="quick-stat">
+                            <div class="quick-stat-label">RSI (14)</div>
+                            <div class="quick-stat-value" id="rsi-value">--</div>
+                            <div class="quick-stat-change" id="rsi-signal">
+                                <span class="terminal-badge info">NEUTRAL</span>
+                            </div>
+                        </div>
+                        <div class="quick-stat">
+                            <div class="quick-stat-label">MACD</div>
+                            <div class="quick-stat-value" id="macd-value">--</div>
+                            <div class="quick-stat-change" id="macd-signal">
+                                <span class="terminal-badge info">NEUTRAL</span>
+                            </div>
+                        </div>
+                        <div class="quick-stat">
+                            <div class="quick-stat-label">FUNDING RATE</div>
+                            <div class="quick-stat-value" id="funding-value">--</div>
+                            <div class="quick-stat-change" id="funding-signal">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trading Signals -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">Signals</span>
+                    </div>
+                    <div class="terminal-panel-body" id="signals-panel">
+                        <div style="font-size: 11px; color: var(--text-secondary); text-align: center; padding: 1rem;">
+                            Analyzing...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Support & Resistance -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">S/R Levels</span>
+                    </div>
+                    <div class="terminal-panel-body">
+                        <div style="margin-bottom: 1rem;">
+                            <div style="font-size: 0.625rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.5px;">RESISTANCE</div>
+                            <div id="resistance-levels" style="font-size: 11px; font-family: var(--font-mono);"></div>
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <div style="font-size: 0.625rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.5px;">CURRENT</div>
+                            <div id="current-level" style="padding: 0.5rem; background: rgba(0, 212, 255, 0.1); border-radius: 4px; font-weight: 600; text-align: center; font-family: var(--font-mono); font-size: 12px;">$--</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.625rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.5px;">SUPPORT</div>
+                            <div id="support-levels" style="font-size: 11px; font-family: var(--font-mono);"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Movers -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">Top Movers (24H)</span>
+                    </div>
+                    <div class="terminal-panel-body" style="padding: 0;" id="top-movers">
+                        <div style="font-size: 11px; color: var(--text-secondary); text-align: center; padding: 1rem;">
+                            Loading...
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Resizer -->
+        <div id="bottom-resizer" class="resizer resizer-vertical"></div>
+
+        <!-- BOTTOM PANEL (Tabbed) -->
+        <div id="bottom-panel">
+            <div class="terminal-tabs">
+                <div class="terminal-tab active" data-tab="depth">Market Depth</div>
+                <div class="terminal-tab" data-tab="funding">Funding Rate</div>
+                <div class="terminal-tab" data-tab="liquidations">Liquidations</div>
+                <div class="terminal-tab" data-tab="orderflow">Order Flow</div>
+                <div class="terminal-tab" data-tab="social">Social Feed</div>
+                <button id="toggle-bottom-panel" class="panel-toggle" style="margin-left: auto; margin-right: 12px;">▼</button>
+            </div>
+            <div class="terminal-tab-content">
+                <div class="terminal-tab-pane active" id="tab-depth">
+                    <div style="height: 320px;" id="depth-chart-large"></div>
+                </div>
+                <div class="terminal-tab-pane" id="tab-funding">
+                    <canvas id="funding-chart" style="width: 100%; height: 320px;"></canvas>
+                </div>
+                <div class="terminal-tab-pane" id="tab-liquidations">
+                    <div style="height: 320px;" id="liquidations-chart"></div>
+                </div>
+                <div class="terminal-tab-pane" id="tab-orderflow">
+                    <div style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+                        Order Flow / CVD chart coming soon...
+                    </div>
+                </div>
+                <div class="terminal-tab-pane" id="tab-social">
+                    <div id="social-feed-preview" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-height: 320px; overflow-y: auto;">
+                        <div style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+                            Loading social feed...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/logger.js"></script>
+    <script src="/static/js/ticker-bar.js"></script>
+    <script src="/static/js/bloomberg-layout.js"></script>
+    <script src="/static/js/analytics-dashboard.js?v=4.0.0"></script>
+
+    <script>
+        // Initialize Bloomberg Layout
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Initializing ODIN Terminal...');
+
+            // Initialize ticker bar
+            if (window.LiveTickerBar) {
+                window.tickerBar = new LiveTickerBar();
+                window.tickerBar.init();
+            }
+
+            // Initialize Bloomberg layout
+            if (window.BloombergLayout) {
+                window.layoutManager = new BloombergLayout();
+                window.layoutManager.init();
+            }
+
+            // Initialize main dashboard
+            if (window.AnalyticsDashboard) {
+                window.dashboard = new AnalyticsDashboard();
+            }
+
+            // Tab switching
+            const tabs = document.querySelectorAll('.terminal-tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    if (tab.dataset.tab) {
+                        // Remove active class from all tabs and panes
+                        document.querySelectorAll('.terminal-tab').forEach(t => t.classList.remove('active'));
+                        document.querySelectorAll('.terminal-tab-pane').forEach(p => p.classList.remove('active'));
+
+                        // Add active class to clicked tab and corresponding pane
+                        tab.classList.add('active');
+                        document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+                    }
+                });
+            });
+
+            console.log('✅ ODIN Terminal ready');
+        });
+
+        // Keyboard shortcuts hint
+        console.log(`
+╔═══════════════════════════════════════════════════╗
+║         ODIN TERMINAL KEYBOARD SHORTCUTS          ║
+╠═══════════════════════════════════════════════════╣
+║  Ctrl+1  →  Toggle Left Panel                    ║
+║  Ctrl+2  →  Toggle Right Panel                   ║
+║  Ctrl+3  →  Toggle Bottom Panel                  ║
+║  Ctrl+R  →  Refresh All Data                     ║
+╚═══════════════════════════════════════════════════╝
+        `);
+    </script>
+</body>
+</html>

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ODIN Terminal - Professional Market Intelligence</title>
+    <link rel="icon" type="image/x-icon" href="/static/images/favicon.ico">
+
+    <!-- External Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+    <!-- Bloomberg Terminal CSS -->
+    <link rel="stylesheet" href="/static/css/bloomberg-terminal.css">
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+
+    <style>
+        /* Section Navigation Styles */
+        .section-navigation {
+            background: var(--bg-header);
+            border-bottom: 1px solid var(--border-primary);
+            padding: 0;
+            display: flex;
+            gap: 0;
+        }
+
+        .section-tab {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            background: var(--bg-panel);
+            border: none;
+            border-right: 1px solid var(--border-primary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .section-tab:hover {
+            background: rgba(0, 212, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        .section-tab.active {
+            background: var(--bg-terminal);
+            color: var(--accent-primary);
+            border-bottom: 2px solid var(--accent-primary);
+        }
+
+        .section-tab-icon {
+            font-size: 1.25rem;
+        }
+
+        .section-tab-label {
+            display: none;
+        }
+
+        @media (min-width: 768px) {
+            .section-tab-label {
+                display: inline;
+            }
+        }
+
+        /* Section Content */
+        .section {
+            display: none;
+            min-height: calc(100vh - 140px);
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        .section-content {
+            padding: var(--spacing-lg);
+        }
+
+        /* Coming Soon Placeholder */
+        .coming-soon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header" style="background: var(--bg-header); border-bottom: 1px solid var(--border-primary); padding: 0.75rem 1.5rem;">
+        <div class="logo-section">
+            <div class="logo" style="font-size: 1.25rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                ODIN TERMINAL
+            </div>
+            <div class="status-indicator" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.75rem; background: var(--bg-card); border-radius: 12px; font-size: 0.75rem;">
+                <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--status-live); animation: pulse 2s infinite;"></div>
+                <span id="connection-status" style="color: var(--status-live); font-weight: 600;">LIVE</span>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <!-- Current Price Ticker (mini) -->
+            <div id="header-price" style="font-family: var(--font-mono); font-size: 0.875rem; color: var(--text-primary);">
+                <span id="header-coin-symbol">₿ BTC</span>
+                <span id="header-coin-price">$--</span>
+                <span id="header-coin-change" class="ticker-change">--.--</span>
+            </div>
+
+            <!-- Coin Selector -->
+            <select id="coin-selector" style="background: var(--bg-card); border: 1px solid var(--border-primary); color: var(--text-primary); padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 600; font-family: var(--font-mono);">
+                <option value="BTC">₿ BTC</option>
+                <option value="ETH">Ξ ETH</option>
+                <option value="SOL">◎ SOL</option>
+                <option value="XRP">✕ XRP</option>
+                <option value="BNB">🔶 BNB</option>
+                <option value="SUI">〜 SUI</option>
+                <option value="HYPE">🚀 HYPE</option>
+            </select>
+
+            <!-- Notifications -->
+            <button class="panel-toggle" style="position: relative;">
+                🔔
+                <span style="position: absolute; top: -4px; right: -4px; background: var(--accent-danger); color: white; border-radius: 10px; padding: 2px 5px; font-size: 9px; font-weight: 700;">0</span>
+            </button>
+
+            <!-- Settings -->
+            <button class="panel-toggle">⚙️</button>
+
+            <!-- Current Time -->
+            <div id="current-time" style="color: var(--text-secondary); font-size: 0.75rem; font-family: var(--font-mono);"></div>
+        </div>
+    </header>
+
+    <!-- Section Navigation -->
+    <nav class="section-navigation">
+        <button class="section-tab active" data-section-tab="price">
+            <span class="section-tab-icon">📊</span>
+            <span class="section-tab-label">Price & Market</span>
+        </button>
+        <button class="section-tab" data-section-tab="charts">
+            <span class="section-tab-icon">📈</span>
+            <span class="section-tab-label">Charts & Analytics</span>
+        </button>
+        <button class="section-tab" data-section-tab="social">
+            <span class="section-tab-icon">🌐</span>
+            <span class="section-tab-label">Social Intelligence</span>
+        </button>
+        <button class="section-tab" data-section-tab="journal">
+            <span class="section-tab-icon">📝</span>
+            <span class="section-tab-label">Trading Journal</span>
+        </button>
+    </nav>
+
+    <!-- SECTION 1: PRICE & MARKET DATA -->
+    <section id="section-price" class="section active">
+        <div class="section-content">
+            <!-- Large Price Display -->
+            <div class="terminal-panel" style="margin-bottom: var(--spacing-lg);">
+                <div style="padding: 2rem; text-align: center;">
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px;">
+                        <span id="price-coin-name">Bitcoin</span> Price (USD)
+                    </div>
+                    <div style="font-size: 4rem; font-weight: 700; font-family: var(--font-mono); margin-bottom: 1rem;" id="btc-price-large">$0.00</div>
+                    <div id="price-change-large" style="font-size: 1.5rem; font-family: var(--font-mono);">
+                        <span id="change-value-large">+0.00%</span>
+                        <span style="font-size: 1.25rem; margin-left: 1rem; color: var(--text-secondary);" id="change-absolute-large">$0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Market Stats Grid -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-lg);">
+                <div class="quick-stat">
+                    <div class="quick-stat-label">24H High</div>
+                    <div class="quick-stat-value" style="color: var(--accent-success);" id="high-24h-stat">$0.00</div>
+                </div>
+                <div class="quick-stat">
+                    <div class="quick-stat-label">24H Low</div>
+                    <div class="quick-stat-value" style="color: var(--accent-danger);" id="low-24h-stat">$0.00</div>
+                </div>
+                <div class="quick-stat">
+                    <div class="quick-stat-label">24H Volume</div>
+                    <div class="quick-stat-value" id="volume-24h-stat">0.00</div>
+                </div>
+                <div class="quick-stat">
+                    <div class="quick-stat-label">Market Cap</div>
+                    <div class="quick-stat-value" id="market-cap-stat">$0.00B</div>
+                </div>
+            </div>
+
+            <!-- Order Book Depth -->
+            <div class="terminal-panel">
+                <div class="terminal-panel-header">
+                    <span class="terminal-panel-title">Order Book Depth</span>
+                </div>
+                <div class="terminal-panel-body">
+                    <div id="order-book-depth-main" style="height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 2: CHARTS & ANALYTICS -->
+    <section id="section-charts" class="section">
+        <div class="section-content">
+            <!-- Main Price Chart -->
+            <div class="terminal-panel" style="min-height: 600px; margin-bottom: var(--spacing-lg);">
+                <div class="terminal-panel-header">
+                    <span class="terminal-panel-title"><span id="chart-coin-name-main">Bitcoin</span> Price Chart</span>
+                    <div class="terminal-panel-actions">
+                        <button class="panel-toggle timeframe-btn" data-timeframe="1">1H</button>
+                        <button class="panel-toggle timeframe-btn" data-timeframe="4">4H</button>
+                        <button class="panel-toggle timeframe-btn active" data-timeframe="24">24H</button>
+                        <button class="panel-toggle timeframe-btn" data-timeframe="168">7D</button>
+                        <button class="panel-toggle timeframe-btn" data-timeframe="720">30D</button>
+                    </div>
+                </div>
+                <div class="terminal-panel-body">
+                    <canvas id="price-chart-canvas" style="width: 100%; height: 500px;"></canvas>
+                </div>
+            </div>
+
+            <!-- Indicators & Analysis Grid -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--spacing-md);">
+                <!-- Technical Indicators -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">Technical Indicators</span>
+                    </div>
+                    <div class="terminal-panel-body" id="indicators-panel">
+                        <div class="quick-stat">
+                            <div class="quick-stat-label">RSI (14)</div>
+                            <div class="quick-stat-value" id="rsi-value-main">--</div>
+                            <div class="quick-stat-change" id="rsi-signal-main">
+                                <span class="terminal-badge info">NEUTRAL</span>
+                            </div>
+                        </div>
+                        <div class="quick-stat">
+                            <div class="quick-stat-label">MACD</div>
+                            <div class="quick-stat-value" id="macd-value-main">--</div>
+                            <div class="quick-stat-change" id="macd-signal-main">
+                                <span class="terminal-badge info">NEUTRAL</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Support & Resistance -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">Support & Resistance</span>
+                    </div>
+                    <div class="terminal-panel-body">
+                        <div style="margin-bottom: 1rem;">
+                            <div style="font-size: 0.625rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.5px;">RESISTANCE</div>
+                            <div id="resistance-levels-main" style="font-size: 11px; font-family: var(--font-mono);"></div>
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <div style="font-size: 0.625rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.5px;">CURRENT</div>
+                            <div id="current-level-main" style="padding: 0.5rem; background: rgba(0, 212, 255, 0.1); border-radius: 4px; font-weight: 600; text-align: center; font-family: var(--font-mono); font-size: 12px;">$--</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.625rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.5px;">SUPPORT</div>
+                            <div id="support-levels-main" style="font-size: 11px; font-family: var(--font-mono);"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Liquidation Heatmap -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">Liquidation Heatmap</span>
+                    </div>
+                    <div class="terminal-panel-body">
+                        <div id="liquidation-heatmap-main" style="height: 300px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 3: SOCIAL INTELLIGENCE -->
+    <section id="section-social" class="section">
+        <div class="section-content">
+            <!-- Content will be dynamically loaded -->
+        </div>
+    </section>
+
+    <!-- SECTION 4: TRADING JOURNAL -->
+    <section id="section-journal" class="section">
+        <div class="section-content">
+            <!-- Content will be dynamically loaded -->
+        </div>
+    </section>
+
+    <!-- Scripts -->
+    <script src="/static/js/logger.js"></script>
+    <script src="/static/js/section-manager.js"></script>
+    <script src="/static/js/social-intelligence-v2.js"></script>
+    <script src="/static/js/trading-journal.js"></script>
+    <script src="/static/js/analytics-dashboard.js?v=4.1.0"></script>
+
+    <script>
+        // Initialize Dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Initializing ODIN Terminal v2...');
+
+            // Initialize main dashboard
+            if (window.AnalyticsDashboard) {
+                window.dashboard = new AnalyticsDashboard();
+            }
+
+            // Initialize section manager
+            if (window.SectionManager) {
+                window.sectionManager = new SectionManager();
+                window.sectionManager.init();
+            }
+
+            // Update header price ticker
+            const updateHeaderPrice = () => {
+                const coinSelector = document.getElementById('coin-selector');
+                const selectedCoin = coinSelector ? coinSelector.value : 'BTC';
+
+                if (window.dashboard && window.dashboard.currentPrice) {
+                    const price = window.dashboard.currentPrice;
+                    const change = window.dashboard.priceChange || 0;
+
+                    document.getElementById('header-coin-price').textContent =
+                        `$${price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+                    const changeEl = document.getElementById('header-coin-change');
+                    const isPositive = change >= 0;
+                    changeEl.className = 'ticker-change ' + (isPositive ? 'positive' : 'negative');
+                    changeEl.innerHTML = `
+                        <span class="ticker-change-icon">${isPositive ? '▲' : '▼'}</span>
+                        <span class="ticker-change-value">${Math.abs(change).toFixed(2)}</span>%
+                    `;
+                }
+            };
+
+            // Update header every 5 seconds
+            setInterval(updateHeaderPrice, 5000);
+
+            // Timeframe button handlers
+            const timeframeButtons = document.querySelectorAll('.timeframe-btn');
+            timeframeButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    timeframeButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+
+                    const hours = parseInt(btn.dataset.timeframe);
+                    if (window.dashboard && window.dashboard.loadPriceHistory) {
+                        window.dashboard.selectedTimeframe = hours;
+                        window.dashboard.loadPriceHistory();
+                    }
+                });
+            });
+
+            console.log('✅ ODIN Terminal v2 ready');
+        });
+
+        // Keyboard shortcuts hint
+        console.log(`
+╔═══════════════════════════════════════════════════╗
+║      ODIN TERMINAL v2 KEYBOARD SHORTCUTS          ║
+╠═══════════════════════════════════════════════════╣
+║  Alt+1  →  Price & Market Data                   ║
+║  Alt+2  →  Charts & Analytics                    ║
+║  Alt+3  →  Social Intelligence                   ║
+║  Alt+4  →  Trading Journal                       ║
+║  Ctrl+R →  Refresh Current Section               ║
+╚═══════════════════════════════════════════════════╝
+        `);
+    </script>
+</body>
+</html>

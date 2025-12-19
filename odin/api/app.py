@@ -627,10 +627,70 @@ def create_app() -> FastAPI:
     except ImportError as e:
         logger.warning(f"Could not import websocket routes: {e}")
 
+    try:
+        from odin.api.routes.social import router as social_router
+
+        app.include_router(social_router, prefix="", tags=["social"])
+        logger.info("Successfully imported social routes")
+    except ImportError as e:
+        logger.warning(f"Could not import social routes: {e}")
+
+    try:
+        from odin.api.routes.journal import router as journal_router
+
+        app.include_router(journal_router, prefix="", tags=["journal"])
+        logger.info("Successfully imported journal routes")
+    except ImportError as e:
+        logger.warning(f"Could not import journal routes: {e}")
+
     # Root endpoint - serve dashboard with enhanced compatibility
     @app.get("/", response_class=HTMLResponse)
     async def root(request: Request):
-        """Serve the main dashboard with enhanced compatibility."""
+        """Serve the reorganized sectioned dashboard (v2)."""
+        try:
+            if templates and template_path.exists():
+                return templates.TemplateResponse(
+                    "dashboard-v2.html",
+                    {
+                        "request": request,
+                        "version": "4.2.0",
+                        "api_base_url": "/api/v1",
+                        "websocket_url": f"ws://{request.url.netloc}/ws",
+                        "debug_mode": settings.debug,
+                    },
+                )
+        except Exception as e:
+            logger.error(f"Error serving dashboard v2: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Failed to load dashboard", "message": str(e)},
+            )
+
+    @app.get("/bloomberg", response_class=HTMLResponse)
+    async def bloomberg_dashboard(request: Request):
+        """Serve the Bloomberg-style terminal dashboard (v1)."""
+        try:
+            if templates and template_path.exists():
+                return templates.TemplateResponse(
+                    "dashboard-bloomberg.html",
+                    {
+                        "request": request,
+                        "version": "4.0.0",
+                        "api_base_url": "/api/v1",
+                        "websocket_url": f"ws://{request.url.netloc}/ws",
+                        "debug_mode": settings.debug,
+                    },
+                )
+        except Exception as e:
+            logger.error(f"Error serving Bloomberg dashboard: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Failed to load dashboard", "message": str(e)},
+            )
+
+    @app.get("/classic", response_class=HTMLResponse)
+    async def classic_dashboard(request: Request):
+        """Serve the classic dashboard (original version)."""
         try:
             if templates and template_path.exists():
                 return templates.TemplateResponse(
@@ -674,7 +734,7 @@ def create_app() -> FastAPI:
                 )
                 return JSONResponse(content=serialize_for_dashboard(dashboard_info))
         except Exception as e:
-            logger.error(f"Root endpoint error: {e}")
+            logger.error(f"Classic dashboard endpoint error: {e}")
             error_response = APIResponse(
                 success=False, message="Dashboard unavailable", data={"error": str(e)}
             )
