@@ -97,14 +97,18 @@ class SentimentAnalyzer:
 @router.get("/api/social/reddit")
 @cached(ttl=300)  # Cache for 5 minutes
 async def get_reddit_feed(
-    subreddits: str = Query("cryptocurrency,bitcoin,ethtrader", description="Comma-separated subreddits"),
-    limit: int = Query(50, ge=1, le=100, description="Number of posts to fetch")
+    subreddits: str = "cryptocurrency,bitcoin,ethtrader",
+    limit: int = 50
 ):
     """
     Fetch Reddit posts from crypto subreddits
     Uses Reddit JSON API (no auth required for public posts)
     """
     try:
+        # Ensure subreddits is a string
+        if not isinstance(subreddits, str):
+            subreddits = str(subreddits)
+
         subreddit_list = [s.strip() for s in subreddits.split(',')]
         all_posts = []
 
@@ -166,14 +170,18 @@ async def get_reddit_feed(
 @router.get("/api/social/news")
 @cached(ttl=600)  # Cache for 10 minutes
 async def get_news_feed(
-    sources: str = Query("all", description="News sources: all, coindesk, cointelegraph, decrypt"),
-    limit: int = Query(30, ge=1, le=100, description="Number of articles to fetch")
+    sources: str = "all",
+    limit: int = 30
 ):
     """
     Fetch crypto news from RSS feeds
     Sources: CoinDesk, CoinTelegraph, Decrypt
     """
     try:
+        # Ensure sources is a string
+        if not isinstance(sources, str):
+            sources = str(sources)
+
         # RSS feed URLs
         feed_urls = {
             'coindesk': 'https://www.coindesk.com/arc/outboundfeeds/rss/',
@@ -271,8 +279,8 @@ async def get_news_feed(
 @router.get("/api/social/sentiment")
 @cached(ttl=300)  # Cache for 5 minutes
 async def get_sentiment_overview(
-    coins: str = Query("all", description="Coins to analyze: all, BTC, ETH, etc."),
-    timeframe: str = Query("24h", description="Timeframe: 1h, 24h, 7d")
+    coins: str = "all",
+    timeframe: str = "24h"
 ):
     """
     Get aggregated sentiment across all social sources
@@ -360,8 +368,8 @@ async def get_sentiment_overview(
 @router.get("/api/social/trending")
 @cached(ttl=300)  # Cache for 5 minutes
 async def get_trending_topics(
-    timeframe: str = Query("24h", description="Timeframe: 1h, 24h, 7d"),
-    limit: int = Query(20, ge=1, le=50, description="Number of topics to return")
+    timeframe: str = "24h",
+    limit: int = 20
 ):
     """
     Get trending hashtags and topics across crypto social media
@@ -437,8 +445,8 @@ async def get_trending_topics(
 @router.get("/api/social/twitter")
 @cached(ttl=300)  # Cache for 5 minutes
 async def get_twitter_feed(
-    keywords: str = Query("bitcoin,crypto,btc", description="Keywords to search"),
-    limit: int = Query(50, ge=1, le=100, description="Number of tweets to fetch")
+    keywords: str = "bitcoin,crypto,btc",
+    limit: int = 50
 ):
     """
     Fetch Twitter/X feed about crypto

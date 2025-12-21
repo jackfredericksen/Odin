@@ -90,6 +90,87 @@
             justify-content: center;
             min-height: 60vh;
         }
+
+        /* Ticker Bar Styles */
+        .ticker-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            background: var(--bg-panel);
+            border: 1px solid transparent;
+        }
+
+        .ticker-item:hover {
+            background: var(--bg-card);
+            border-color: var(--border-primary);
+        }
+
+        .ticker-symbol {
+            font-weight: 700;
+            font-size: 0.875rem;
+        }
+
+        .ticker-price {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .ticker-change {
+            font-size: 0.75rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 3px;
+        }
+
+        .ticker-change.positive {
+            color: var(--accent-success);
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .ticker-change.negative {
+            color: var(--accent-danger);
+            background: rgba(255, 51, 102, 0.1);
+        }
+
+        .ticker-flash {
+            animation: flash 0.5s ease;
+        }
+
+        @keyframes flash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; transform: scale(1.05); }
+        }
+
+        .ticker-change-icon {
+            font-size: 0.625rem;
+        }
+
+        /* TradingView Chart Responsive Styles */
+        #tradingview_chart {
+            width: 100% !important;
+            height: 600px !important;
+            min-height: 600px;
+        }
+        
+        @media (max-width: 768px) {
+            #tradingview_chart {
+                height: 400px !important;
+                min-height: 400px;
+            }
+        }
+        
+        .terminal-panel-body {
+            overflow: hidden;
+        }
+        
+        /* Ensure chart container doesn't overflow */
+        .terminal-panel-body > div,
+        .terminal-panel-body > canvas {
+            max-width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -139,13 +220,9 @@
 
     <!-- Section Navigation -->
     <nav class="section-navigation">
-        <button class="section-tab active" data-section-tab="price">
+        <button class="section-tab active" data-section-tab="market">
             <span class="section-tab-icon">📊</span>
-            <span class="section-tab-label">Price & Market</span>
-        </button>
-        <button class="section-tab" data-section-tab="charts">
-            <span class="section-tab-icon">📈</span>
-            <span class="section-tab-label">Charts & Analytics</span>
+            <span class="section-tab-label">Market Overview</span>
         </button>
         <button class="section-tab" data-section-tab="social">
             <span class="section-tab-icon">🌐</span>
@@ -157,8 +234,13 @@
         </button>
     </nav>
 
+    <!-- Live Ticker Bar -->
+    <div id="ticker-bar" style="background: var(--bg-header); border-bottom: 1px solid var(--border-primary); padding: 0.75rem 1.5rem; display: flex; gap: 2rem; overflow-x: auto; white-space: nowrap; font-family: var(--font-mono); font-size: 0.875rem;">
+        <!-- Ticker items will be dynamically populated -->
+    </div>
+
     <!-- SECTION 1: PRICE & MARKET DATA -->
-    <section id="section-price" class="section active">
+    <section id="section-market" class="section active">
         <div class="section-content">
             <!-- Large Price Display -->
             <div class="terminal-panel" style="margin-bottom: var(--spacing-lg);">
@@ -178,6 +260,23 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-lg);">
                 <div class="quick-stat">
                     <div class="quick-stat-label">24H High</div>
+
+            <!-- TradingView Price Chart -->
+            <div class="terminal-panel" style="margin-bottom: var(--spacing-lg);">
+                <div class="terminal-panel-header">
+                    <span class="terminal-panel-title"><span id="chart-coin-name-main">Bitcoin</span> Price Chart</span>
+                    <div class="terminal-panel-actions">
+                        <button class="panel-toggle timeframe-btn" data-timeframe="1">1H</button>
+                        <button class="panel-toggle timeframe-btn" data-timeframe="4">4H</button>
+                        <button class="panel-toggle timeframe-btn active" data-timeframe="24">24H</button>
+                        <button class="panel-toggle timeframe-btn" data-timeframe="168">7D</button>
+                        <button class="panel-toggle timeframe-btn" data-timeframe="720">30D</button>
+                    </div>
+                </div>
+                <div class="terminal-panel-body" style="padding: 0; position: relative; min-height: 600px;">
+                    <div id="tradingview_chart" style="width: 100%; height: 600px;"></div>
+                </div>
+            </div>
                     <div class="quick-stat-value" style="color: var(--accent-success);" id="high-24h-stat">$0.00</div>
                 </div>
                 <div class="quick-stat">
@@ -194,96 +293,12 @@
                 </div>
             </div>
 
-            <!-- Order Book Depth -->
-            <div class="terminal-panel">
-                <div class="terminal-panel-header">
-                    <span class="terminal-panel-title">Order Book Depth</span>
-                </div>
-                <div class="terminal-panel-body">
-                    <div id="order-book-depth-main" style="height: 400px;"></div>
-                </div>
-            </div>
+            
         </div>
     </section>
 
     <!-- SECTION 2: CHARTS & ANALYTICS -->
-    <section id="section-charts" class="section">
-        <div class="section-content">
-            <!-- Main Price Chart -->
-            <div class="terminal-panel" style="min-height: 600px; margin-bottom: var(--spacing-lg);">
-                <div class="terminal-panel-header">
-                    <span class="terminal-panel-title"><span id="chart-coin-name-main">Bitcoin</span> Price Chart</span>
-                    <div class="terminal-panel-actions">
-                        <button class="panel-toggle timeframe-btn" data-timeframe="1">1H</button>
-                        <button class="panel-toggle timeframe-btn" data-timeframe="4">4H</button>
-                        <button class="panel-toggle timeframe-btn active" data-timeframe="24">24H</button>
-                        <button class="panel-toggle timeframe-btn" data-timeframe="168">7D</button>
-                        <button class="panel-toggle timeframe-btn" data-timeframe="720">30D</button>
-                    </div>
-                </div>
-                <div class="terminal-panel-body">
-                    <canvas id="price-chart-canvas" style="width: 100%; height: 500px;"></canvas>
-                </div>
-            </div>
-
-            <!-- Indicators & Analysis Grid -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--spacing-md);">
-                <!-- Technical Indicators -->
-                <div class="terminal-panel">
-                    <div class="terminal-panel-header">
-                        <span class="terminal-panel-title">Technical Indicators</span>
-                    </div>
-                    <div class="terminal-panel-body" id="indicators-panel">
-                        <div class="quick-stat">
-                            <div class="quick-stat-label">RSI (14)</div>
-                            <div class="quick-stat-value" id="rsi-value-main">--</div>
-                            <div class="quick-stat-change" id="rsi-signal-main">
-                                <span class="terminal-badge info">NEUTRAL</span>
-                            </div>
-                        </div>
-                        <div class="quick-stat">
-                            <div class="quick-stat-label">MACD</div>
-                            <div class="quick-stat-value" id="macd-value-main">--</div>
-                            <div class="quick-stat-change" id="macd-signal-main">
-                                <span class="terminal-badge info">NEUTRAL</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Support & Resistance -->
-                <div class="terminal-panel">
-                    <div class="terminal-panel-header">
-                        <span class="terminal-panel-title">Support & Resistance</span>
-                    </div>
-                    <div class="terminal-panel-body">
-                        <div style="margin-bottom: 1rem;">
-                            <div style="font-size: 0.625rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.5px;">RESISTANCE</div>
-                            <div id="resistance-levels-main" style="font-size: 11px; font-family: var(--font-mono);"></div>
-                        </div>
-                        <div style="margin-bottom: 1rem;">
-                            <div style="font-size: 0.625rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.5px;">CURRENT</div>
-                            <div id="current-level-main" style="padding: 0.5rem; background: rgba(0, 212, 255, 0.1); border-radius: 4px; font-weight: 600; text-align: center; font-family: var(--font-mono); font-size: 12px;">$--</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 0.625rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.5px;">SUPPORT</div>
-                            <div id="support-levels-main" style="font-size: 11px; font-family: var(--font-mono);"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Liquidation Heatmap -->
-                <div class="terminal-panel">
-                    <div class="terminal-panel-header">
-                        <span class="terminal-panel-title">Liquidation Heatmap</span>
-                    </div>
-                    <div class="terminal-panel-body">
-                        <div id="liquidation-heatmap-main" style="height: 300px;"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+    
 
     <!-- SECTION 3: SOCIAL INTELLIGENCE -->
     <section id="section-social" class="section">
@@ -302,18 +317,42 @@
     <!-- Scripts -->
     <script src="/static/js/logger.js"></script>
     <script src="/static/js/section-manager.js"></script>
+    <!-- TradingView Charting Library -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    
+    <script src="/static/js/tradingview-widget.js?v=1.0.1"></script>
+    <script src="/static/js/ticker-bar.js?v=1.0.4"></script>
     <script src="/static/js/social-intelligence-v2.js"></script>
     <script src="/static/js/trading-journal.js"></script>
-    <script src="/static/js/analytics-dashboard.js?v=4.1.0"></script>
+    <script src="/static/js/analytics-dashboard.js?v=6.0.1"></script>
 
     <script>
         // Initialize Dashboard
         document.addEventListener('DOMContentLoaded', () => {
             console.log('🚀 Initializing ODIN Terminal v2...');
 
+            // Initialize live ticker bar
+            if (window.LiveTickerBar) {
+                window.tickerBar = new LiveTickerBar();
+                window.tickerBar.init();
+            }
+
+            // Initialize TradingView widget first
+            if (window.TradingViewWidget) {
+                window.tradingViewWidget = new TradingViewWidget('tradingview_chart');
+                const savedCoin = localStorage.getItem("selectedCoin") || "BTC";
+                window.tradingViewWidget.init(savedCoin, 24);
+                console.log('TradingView widget initialized');
+            }
+            
             // Initialize main dashboard
             if (window.AnalyticsDashboard) {
+                console.log('Creating AnalyticsDashboard instance...');
                 window.dashboard = new AnalyticsDashboard();
+                console.log('Dashboard created:', window.dashboard);
+                console.log('handleCoinChange exists:', typeof window.dashboard.handleCoinChange);
+            } else {
+                console.error('AnalyticsDashboard class not found!');
             }
 
             // Initialize section manager
@@ -355,9 +394,18 @@
                     btn.classList.add('active');
 
                     const hours = parseInt(btn.dataset.timeframe);
-                    if (window.dashboard && window.dashboard.loadPriceHistory) {
+                    console.log('Timeframe changed to:', hours, 'hours');
+                    
+                    if (window.dashboard) {
                         window.dashboard.selectedTimeframe = hours;
-                        window.dashboard.loadPriceHistory();
+                        if (window.dashboard.loadPriceHistory) {
+                            window.dashboard.loadPriceHistory();
+                        }
+                    }
+                    
+                    if (window.tradingViewWidget) {
+                        console.log('Updating TradingView timeframe to:', hours);
+                        window.tradingViewWidget.switchTimeframe(hours);
                     }
                 });
             });

@@ -9,7 +9,7 @@ class LiveTickerBar {
         this.prices = {};
         this.updateInterval = 5000; // 5 seconds
         this.intervalId = null;
-        this.apiBase = '/api';
+        this.apiBase = '/api/v1';
 
         // Coin display info
         this.coinInfo = {
@@ -53,7 +53,8 @@ class LiveTickerBar {
                 fetch(`${this.apiBase}/data/price?symbol=${coin}`)
                     .then(res => res.json())
                     .then(result => {
-                        const data = result.success ? result.data : result;
+                        // Handle API response format
+                        const data = result.success && result.data ? result.data : result;
                         return { coin, data };
                     })
                     .catch(err => {
@@ -67,11 +68,14 @@ class LiveTickerBar {
             // Update prices object
             results.forEach(({ coin, data }) => {
                 if (data && data.price) {
+                    // Calculate change_percent if not provided
+                    let change_percent = data.change_percent || data.change_24h || 0;
+
                     this.prices[coin] = {
                         price: data.price,
-                        change_24h: data.change_24h || 0,
-                        change_percent: data.change_percent || 0,
-                        volume_24h: data.volume_24h || 0,
+                        change_24h: data.change_24h || data.change_24h_abs || 0,
+                        change_percent: change_percent,
+                        volume_24h: data.volume_24h || data.volume || 0,
                         timestamp: Date.now()
                     };
                 }
@@ -165,28 +169,37 @@ class LiveTickerBar {
     }
 
     /**
-     * Attach click handlers to ticker items
+     * Attach click handlers to ticker items using event delegation
      */
     attachClickHandlers() {
-        const tickerItems = document.querySelectorAll('.ticker-item');
+        const tickerContainer = document.getElementById('ticker-bar');
+        if (!tickerContainer) {
+            console.warn('⚠️ Cannot attach click handlers - ticker bar not found');
+            return;
+        }
 
-        tickerItems.forEach(item => {
-            item.addEventListener('click', () => {
-                const coin = item.dataset.coin;
-                if (coin) {
-                    // Dispatch event for coin selection
-                    const event = new CustomEvent('ticker-coin-selected', { detail: { coin } });
-                    document.dispatchEvent(event);
+        // Use event delegation for better reliability
+        tickerContainer.addEventListener('click', (e) => {
+            // Find the clicked ticker item
+            const tickerItem = e.target.closest('.ticker-item');
+            if (!tickerItem) return;
 
-                    // Also update the main coin selector if it exists
-                    const coinSelector = document.getElementById('coin-selector');
-                    if (coinSelector) {
-                        coinSelector.value = coin;
-                        coinSelector.dispatchEvent(new Event('change'));
-                    }
-                }
+            const coin = tickerItem.dataset.coin;
+            if (!coin) return;
+
+            console.log(`🎯 Ticker clicked: ${coin}`);
+
+            // Dispatch custom event for analytics dashboard to handle
+            // The dashboard will update the dropdown after processing
+            const event = new CustomEvent('ticker-coin-selected', {
+                detail: { coin },
+                bubbles: true
             });
+            document.dispatchEvent(event);
+            console.log(`📡 Dispatched ticker-coin-selected event for ${coin}`);
         });
+
+        console.log('✅ Ticker click handlers attached (event delegation)');
     }
 
     /**

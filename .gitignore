@@ -39,10 +39,7 @@ venv.bak/
 *.swp
 *.swo
 *~
-DASHBOARD_FIX_GUIDE.md
-DASHBOARD_REDESIGN_PLAN.md
-DEPENDENCY_GRAPH.md
-
+*.backup
 # OS
 .DS_Store
 .DS_Store?

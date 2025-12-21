@@ -1,6 +1,6 @@
 /**
  * Section Manager - Handles tab-based navigation between dashboard sections
- * Sections: Price & Market, Charts & Analytics, Social Intelligence, Trading Journal
+ * Sections: Market Overview, Charts & Analytics, Social Intelligence, Trading Journal
  */
 
 class SectionManager {
@@ -28,7 +28,7 @@ class SectionManager {
         // Keyboard shortcuts
         this.initKeyboardShortcuts();
 
-        // Load initial section (Price & Market)
+        // Load initial section (Market Overview)
         this.switchSection('price');
 
         console.log('✅ Section Manager initialized');
@@ -54,7 +54,7 @@ class SectionManager {
      */
     initKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
-            // Alt+1: Price & Market
+            // Alt+1: Market Overview
             if (e.altKey && e.key === '1') {
                 e.preventDefault();
                 this.switchSection('price');
@@ -186,10 +186,10 @@ class SectionManager {
     }
 
     /**
-     * Load Price & Market section
+     * Load Market Overview section
      */
     async loadPriceSection() {
-        console.log('📊 Loading Price & Market data...');
+        console.log('📊 Loading Market Overview data...');
 
         if (window.dashboard) {
             // Use existing dashboard methods

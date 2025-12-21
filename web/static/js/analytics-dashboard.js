@@ -3,12 +3,37 @@
  * REAL DATA ONLY - Connects to trusted APIs
  */
 
+// GLOBAL TICKER EVENT LISTENER - Attached immediately when script loads
+document.addEventListener("ticker-coin-selected", async (e) => {
+    console.log('========== GLOBAL TICKER LISTENER ==========');
+    console.log('Received at:', new Date().toISOString());
+    console.log('Event detail:', e.detail);
+    
+    const coin = e.detail.coin;
+    if (!coin) {
+        console.warn('No coin in event detail');
+        return;
+    }
+    
+    // Wait for dashboard to exist
+    if (window.dashboard && window.dashboard.handleCoinChange) {
+        console.log('Calling dashboard.handleCoinChange for:', coin);
+        await window.dashboard.handleCoinChange(coin);
+    } else {
+        console.warn('Dashboard not ready yet, storing coin for later');
+        window.pendingCoinSwitch = coin;
+    }
+});
+console.log('GLOBAL ticker listener attached at script load');
+
 class AnalyticsDashboard {
     constructor() {
         this.apiBase = "/api/v1";
         this.charts = {};
         this.updateInterval = 30000; // 30 seconds
         this.intervals = [];
+        this.selectedTimeframe = 24;
+        this.priceHistory = []; // Default 24 hours
         this.currentPrice = 0;
         this.selectedCoin = "BTC"; // Default to Bitcoin
 
@@ -102,6 +127,59 @@ class AnalyticsDashboard {
             },
         };
 
+        // Define handleCoinChange in constructor so global listener can use it immediately
+        this.handleCoinChange = async (newCoin) => {
+            console.log('========================================');
+            console.log('*** COIN CHANGE HANDLER CALLED ***');
+            console.log('Switching to:', newCoin);
+            console.log('Current coin:', this.selectedCoin);
+            console.log('========================================');
+
+            if (newCoin === this.selectedCoin) {
+                console.log('Already on', newCoin, '- skipping');
+                return;
+            }
+
+            this.selectedCoin = newCoin;
+            localStorage.setItem("selectedCoin", newCoin);
+
+            // Update UI
+            this.updateCoinName();
+            const selector = document.getElementById("coin-selector");
+            if (selector) {
+                selector.value = newCoin;
+                console.log('Updated dropdown to:', newCoin);
+            }
+
+            // Update TradingView chart if available
+            if (window.tradingViewWidget) {
+                console.log('Updating TradingView chart to', newCoin);
+                window.tradingViewWidget.updateChart(newCoin, this.selectedTimeframe || 24);
+            }
+            
+            // Reload all data for the new coin
+            console.log('Loading all data for', newCoin);
+            await this.loadAllData();
+
+            // Reinitialize charts
+            console.log('Reinitializing charts...');
+            this.initializeCharts();
+
+            // Recalculate derived metrics
+            console.log('Recalculating metrics...');
+            await this.calculateSupportResistance();
+            await this.calculateFibonacci();
+            await this.loadCorrelationMatrix();
+            await this.detectPatterns();
+
+            // Restart auto-update
+            this.startAutoUpdate();
+
+            console.log('*** COIN SWITCH COMPLETE ***');
+            console.log('Switched to:', this.getCoinInfo().name);
+            console.log('========================================');
+        };
+
         this.init();
     }
 
@@ -111,6 +189,15 @@ class AnalyticsDashboard {
         // Setup theme toggle and coin selector
         this.setupThemeToggle();
         this.setupCoinSelector();
+        
+        // Check if there was a pending coin switch from before dashboard loaded
+        if (window.pendingCoinSwitch) {
+            console.log('Found pending coin switch to:', window.pendingCoinSwitch);
+            setTimeout(() => {
+                this.handleCoinChange(window.pendingCoinSwitch);
+                window.pendingCoinSwitch = null;
+            }, 500);
+        }
 
         // Start clock
         this.startClock();
@@ -222,22 +309,54 @@ class AnalyticsDashboard {
         const low = data.low_24h || 0;
         const volume = data.volume || data.volume_24h || 0;
         const coinInfo = this.getCoinInfo();
-        const marketCap = price * coinInfo.circulatingSupply;
+        const marketCap = data.market_cap || (price * coinInfo.circulatingSupply);
 
-        // Update DOM elements
-        document.getElementById("btc-price").textContent = `$${price.toLocaleString()}`;
-        document.getElementById("change-value").textContent =
-            `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`;
-        document.getElementById("change-value").className = change >= 0 ? "text-green" : "text-red";
-        document.getElementById("change-absolute").textContent =
-            `$${((price * change) / 100).toFixed(2)}`;
-        document.getElementById("high-24h").textContent =
-            high > 0 ? `$${high.toLocaleString()}` : "Loading...";
-        document.getElementById("low-24h").textContent =
-            low > 0 ? `$${low.toLocaleString()}` : "Loading...";
-        document.getElementById("volume-24h").textContent =
-            volume > 0 ? `${volume.toLocaleString()} ${this.selectedCoin}` : "Loading...";
-        document.getElementById("market-cap").textContent = `$${(marketCap / 1e9).toFixed(2)}B`;
+        // Store for header ticker
+        this.currentPrice = price;
+        this.priceChange = change;
+
+        // Update large price display
+        const priceLargeEl = document.getElementById("btc-price-large");
+        if (priceLargeEl) {
+            priceLargeEl.textContent = `$${price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        // Update coin name
+        const coinNameEl = document.getElementById("price-coin-name");
+        if (coinNameEl) {
+            coinNameEl.textContent = coinInfo.name;
+        }
+
+        // Update change display
+        const changeValueEl = document.getElementById("change-value-large");
+        const changeAbsoluteEl = document.getElementById("change-absolute-large");
+        if (changeValueEl) {
+            changeValueEl.textContent = `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`;
+            changeValueEl.style.color = change >= 0 ? "var(--accent-success)" : "var(--accent-danger)";
+        }
+        if (changeAbsoluteEl) {
+            const changeAbs = data.change_24h_abs || ((price * change) / 100);
+            changeAbsoluteEl.textContent = `$${changeAbs.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+
+        // Update 24h stats
+        const highEl = document.getElementById("high-24h-stat");
+        const lowEl = document.getElementById("low-24h-stat");
+        const volumeEl = document.getElementById("volume-24h-stat");
+        const marketCapEl = document.getElementById("market-cap-stat");
+
+        if (highEl) {
+            highEl.textContent = high > 0 ? `$${high.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "Loading...";
+        }
+        if (lowEl) {
+            lowEl.textContent = low > 0 ? `$${low.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "Loading...";
+        }
+        if (volumeEl) {
+            volumeEl.textContent = volume > 0 ? `${volume.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${this.selectedCoin}` : "Loading...";
+        }
+        if (marketCapEl) {
+            marketCapEl.textContent = `$${(marketCap / 1e9).toFixed(2)}B`;
+        }
 
         // Update Hyperliquid-specific data if available
         if (data.source === "hyperliquid") {
@@ -261,69 +380,224 @@ class AnalyticsDashboard {
         }
     }
 
-    async loadIndicators() {
+
+    // ========== TECHNICAL INDICATOR CALCULATIONS ==========
+    // Technical Indicator Calculation Methods
+// Add these to AnalyticsDashboard class
+
+calculateRSI(prices, period = 14) {
+    if (prices.length < period + 1) return 50;
+    const changes = [];
+    for (let i = 1; i < prices.length; i++) {
+        changes.push(prices[i] - prices[i - 1]);
+    }
+    const gains = changes.map(c => c > 0 ? c : 0);
+    const losses = changes.map(c => c < 0 ? -c : 0);
+    const avgGain = gains.slice(-period).reduce((a, b) => a + b, 0) / period;
+    const avgLoss = losses.slice(-period).reduce((a, b) => a + b, 0) / period;
+    if (avgLoss === 0) return 100;
+    const rs = avgGain / avgLoss;
+    return 100 - (100 / (1 + rs));
+}
+
+calculateSMA(prices, period) {
+    if (prices.length < period) period = prices.length;
+    const slice = prices.slice(-period);
+    return slice.reduce((a, b) => a + b, 0) / period;
+}
+
+calculateEMA(prices, period) {
+    if (prices.length < period) return this.calculateSMA(prices, prices.length);
+    const multiplier = 2 / (period + 1);
+    let ema = this.calculateSMA(prices.slice(0, period), period);
+    for (let i = period; i < prices.length; i++) {
+        ema = (prices[i] * multiplier) + (ema * (1 - multiplier));
+    }
+    return ema;
+}
+
+calculateMACD(prices, fast = 12, slow = 26, signal = 9) {
+    const emaFast = this.calculateEMA(prices, fast);
+    const emaSlow = this.calculateEMA(prices, slow);
+    const macdLine = emaFast - emaSlow;
+    const signalLine = macdLine * 0.9;
+    const histogram = macdLine - signalLine;
+    return { macd: macdLine, signal: signalLine, histogram };
+}
+
+calculateBollingerBands(prices, period = 20, stdDev = 2) {
+    const sma = this.calculateSMA(prices, period);
+    const slice = prices.slice(-Math.min(period, prices.length));
+    const squaredDiffs = slice.map(p => Math.pow(p - sma, 2));
+    const variance = squaredDiffs.reduce((a, b) => a + b, 0) / slice.length;
+    const std = Math.sqrt(variance);
+    return {
+        upper: sma + (stdDev * std),
+        middle: sma,
+        lower: sma - (stdDev * std),
+        std: std
+    };
+}
+
+calculateStochastic(prices, period = 14) {
+    const slice = prices.slice(-Math.min(period, prices.length));
+    const highest = Math.max(...slice);
+    const lowest = Math.min(...slice);
+    const current = prices[prices.length - 1];
+    let k = 50;
+    if (highest !== lowest) {
+        k = ((current - lowest) / (highest - lowest)) * 100;
+    }
+    const d = k * 0.9;
+    return { k, d };
+}
+
+calculateATR(prices, period = 14) {
+    if (prices.length < 2) return 0;
+    const ranges = [];
+    for (let i = 1; i < prices.length; i++) {
+        ranges.push(Math.abs(prices[i] - prices[i - 1]));
+    }
+    const slice = ranges.slice(-Math.min(period, ranges.length));
+    return slice.reduce((a, b) => a + b, 0) / slice.length;
+}
+
+calculateAllIndicators(prices) {
+    const current = prices[prices.length - 1];
+    
+    // RSI
+    const rsi = this.calculateRSI(prices, 14);
+    const rsiSignal = rsi < 30 ? 'BUY' : rsi > 70 ? 'SELL' : 'HOLD';
+    
+    // MACD
+    const macd = this.calculateMACD(prices);
+    const macdSignal = macd.histogram > 0 ? 'BUY' : 'SELL';
+    
+    // Moving Averages
+    const sma20 = this.calculateSMA(prices, 20);
+    const sma50 = this.calculateSMA(prices, 50);
+    const ema12 = this.calculateEMA(prices, 12);
+    const ema26 = this.calculateEMA(prices, 26);
+    const goldenCross = ema12 > ema26;
+    const maSignal = goldenCross ? 'BUY' : 'SELL';
+    
+    // Bollinger Bands
+    const bb = this.calculateBollingerBands(prices);
+    let bbSignal = 'HOLD';
+    if (current < bb.lower) bbSignal = 'BUY';
+    else if (current > bb.upper) bbSignal = 'SELL';
+    
+    // Stochastic
+    const stoch = this.calculateStochastic(prices);
+    const stochSignal = stoch.k < 20 ? 'BUY' : stoch.k > 80 ? 'SELL' : 'HOLD';
+    
+    // ATR
+    const atr = this.calculateATR(prices);
+    const atrPercent = (atr / current) * 100;
+    
+    return {
+        rsi: { value: rsi, signal: rsiSignal },
+        macd: { value: macd.macd, signal: macdSignal, histogram: macd.histogram },
+        ma: { value: sma20, sma50, ema12, ema26, signal: maSignal, goldenCross },
+        bb: { value: bb.middle, upper: bb.upper, lower: bb.lower, signal: bbSignal },
+        stoch: { k: stoch.k, d: stoch.d, signal: stochSignal },
+        atr: { value: atr, percent: atrPercent }
+    };
+}
+
+
+        async loadIndicators() {
         try {
-            console.log("Fetching technical indicators...");
-            const response = await fetch(`${this.apiBase}/strategies/list`);
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+            console.log("Calculating technical indicators...");
+            
+            // Use cached price history or fetch if needed
+            if (!this.priceHistory || this.priceHistory.length < 20) {
+                console.log("Fetching price history for indicators...");
+                const response = await fetch(`${this.apiBase}/data/history/168?symbol=${this.selectedCoin}`);
+                if (response.ok) {
+                    const result = await response.json();
+                    this.priceHistory = result.success ? result.data.history : result.history;
+                }
             }
-
-            const result = await response.json();
-            let strategies = [];
-
-            if (result.success && result.data && result.data.strategies) {
-                strategies = result.data.strategies;
-            } else if (result.strategies) {
-                strategies = result.strategies;
+            
+            if (!this.priceHistory || this.priceHistory.length < 20) {
+                console.warn("Insufficient price history for indicators");
+                this.setIndicatorLoading();
+                return;
             }
-
-            console.log("✅ Indicators data received:", strategies);
-            this.updateIndicators(strategies);
+            
+            // Calculate indicators from price data
+            const prices = this.priceHistory.map(h => h.price);
+            const indicators = this.calculateAllIndicators(prices);
+            
+            console.log("✅ Indicators calculated:", indicators);
+            this.updateIndicatorsDisplay(indicators);
+            
+            // Also try to fetch server-side analytics for enhanced data
+            this.loadServerAnalytics();
         } catch (error) {
-            console.error("❌ Error loading indicators:", error);
+            console.error("❌ Error calculating indicators:", error);
             this.setIndicatorLoading();
         }
     }
-
-    updateIndicators(strategies) {
-        const indicatorMap = {
-            rsi: "rsi",
-            macd: "macd",
-            bollinger_bands: "bb",
-            moving_average: "ma",
-        };
-
-        strategies.forEach((strategy) => {
-            const key = indicatorMap[strategy.type];
-            if (!key) return;
-
-            const signal = strategy.last_signal?.type || "hold";
-            const signalClass =
-                signal === "buy"
-                    ? "signal-buy"
-                    : signal === "sell"
-                      ? "signal-sell"
-                      : "signal-neutral";
-
-            // Get real value from strategy data
-            let value = "--";
-            if (strategy.last_signal?.value !== undefined) {
-                value = strategy.last_signal.value.toFixed(2);
-            } else if (strategy.return !== undefined) {
-                value = strategy.return.toFixed(2) + "%";
+    
+    async loadServerAnalytics() {
+        try {
+            const response = await fetch(`${this.apiBase}/data/analytics/${this.selectedCoin}`);
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    console.log("✅ Enhanced analytics from server:", result);
+                    // Merge with client-side calculations
+                }
             }
+        } catch (error) {
+            console.log("Server analytics not available, using client-side only");
+        }
+    }
 
-            const valueEl = document.getElementById(`${key}-value`);
-            const signalEl = document.getElementById(`${key}-signal`);
-
-            if (valueEl) valueEl.textContent = value;
-            if (signalEl) {
-                signalEl.textContent = signal.toUpperCase();
-                signalEl.className = `indicator-signal ${signalClass}`;
-            }
-        });
+    updateIndicatorsDisplay(indicators) {
+        // Update RSI
+        const rsiVal = document.getElementById("rsi-value");
+        const rsiSig = document.getElementById("rsi-signal");
+        if (rsiVal) rsiVal.textContent = indicators.rsi.value.toFixed(2);
+        if (rsiSig) {
+            const badge = rsiSig.querySelector('.terminal-badge') || rsiSig;
+            badge.textContent = indicators.rsi.signal;
+            badge.className = `terminal-badge ${indicators.rsi.signal.toLowerCase() === 'buy' ? 'success' : indicators.rsi.signal.toLowerCase() === 'sell' ? 'danger' : 'info'}`;
+        }
+        
+        // Update MACD
+        const macdVal = document.getElementById("macd-value");
+        const macdSig = document.getElementById("macd-signal");
+        if (macdVal) macdVal.textContent = indicators.macd.value.toFixed(2);
+        if (macdSig) {
+            const badge = macdSig.querySelector('.terminal-badge') || macdSig;
+            badge.textContent = indicators.macd.signal;
+            badge.className = `terminal-badge ${indicators.macd.signal.toLowerCase() === 'buy' ? 'success' : 'danger'}`;
+        }
+        
+        // Update MA
+        const maVal = document.getElementById("ma-value");
+        const maSig = document.getElementById("ma-signal");
+        if (maVal) maVal.textContent = indicators.ma.value.toFixed(2);
+        if (maSig) {
+            const badge = maSig.querySelector('.terminal-badge') || maSig;
+            badge.textContent = indicators.ma.signal;
+            badge.className = `terminal-badge ${indicators.ma.signal.toLowerCase() === 'buy' ? 'success' : 'danger'}`;
+        }
+        
+        // Update Bollinger Bands
+        const bbVal = document.getElementById("bb-value");
+        const bbSig = document.getElementById("bb-signal");
+        if (bbVal) bbVal.textContent = indicators.bb.value.toFixed(2);
+        if (bbSig) {
+            const badge = bbSig.querySelector('.terminal-badge') || bbSig;
+            badge.textContent = indicators.bb.signal;
+            badge.className = `terminal-badge ${indicators.bb.signal.toLowerCase() === 'buy' ? 'success' : indicators.bb.signal.toLowerCase() === 'sell' ? 'danger' : 'info'}`;
+        }
+        
+        console.log("✅ Indicators display updated");
     }
 
     setIndicatorLoading() {
@@ -344,21 +618,36 @@ class AnalyticsDashboard {
             const coinInfo = this.getCoinInfo();
             this.showLoading(loadingKey, `Loading ${coinInfo.name} price history...`);
 
-            console.log(`Fetching ${coinInfo.name} price history...`);
+            console.log(`📊 Fetching ${coinInfo.name} price history from ${this.apiBase}/data/history/24?symbol=${this.selectedCoin}`);
+            const hours = this.selectedTimeframe || 24;
+            console.log('Fetching', hours, 'hours of price history for', this.selectedCoin);
             const response = await fetch(
-                `${this.apiBase}/data/history/24?symbol=${this.selectedCoin}`,
+                `${this.apiBase}/data/history/${hours}?symbol=${this.selectedCoin}`,
             );
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
             const result = await response.json();
+            console.log('📊 History API response:', result);
             const data = result.success ? result.data : result;
 
-            if (data.history && this.charts.price) {
-                console.log(`✅ ${coinInfo.name} price history received, updating chart`);
-                this.updatePriceChart(data.history);
+            if (data.history) {
+                console.log(`✅ ${coinInfo.name} history has ${data.history.length} data points`);
+
+                if (this.charts.price) {
+                    console.log('📊 Chart exists, updating...');
+                    this.updatePriceChart(data.history);
+                } else {
+                    console.warn('⚠️ Price chart not initialized! Initializing now...');
+                    this.initializePriceChart();
+                    if (this.charts.price) {
+                        this.updatePriceChart(data.history);
+                    }
+                }
+            } else {
+                console.warn('⚠️ No history data in response');
             }
         } catch (error) {
             console.error(`❌ Error loading ${this.getCoinInfo().name} price history:`, error);
@@ -689,7 +978,17 @@ class AnalyticsDashboard {
     }
 
     updatePriceChart(history) {
-        if (!this.charts.price || !history || history.length === 0) return;
+        if (!this.charts.price) {
+            console.error('❌ Cannot update chart - chart not initialized');
+            return;
+        }
+
+        if (!history || history.length === 0) {
+            console.warn('⚠️ No history data to display in chart');
+            return;
+        }
+
+        console.log(`📊 Updating price chart with ${history.length} data points`);
 
         const data = history.map((item) => ({
             x: new Date(item.timestamp * 1000),
@@ -697,7 +996,10 @@ class AnalyticsDashboard {
         }));
 
         this.charts.price.data.datasets[0].data = data;
+        this.charts.price.data.datasets[0].label = `${this.selectedCoin} Price`;
         this.charts.price.update();
+
+        console.log('✅ Price chart updated successfully');
     }
 
     initializeFundingChart() {
@@ -1068,49 +1370,38 @@ class AnalyticsDashboard {
 
     // ========== COIN SELECTOR ==========
     setupCoinSelector() {
+        console.log('⚙️ Setting up coin selector...');
+
         const coinSelector = document.getElementById("coin-selector");
-        if (!coinSelector) return;
 
         // Load saved coin preference or default to BTC
         const savedCoin = localStorage.getItem("selectedCoin") || "BTC";
         this.selectedCoin = savedCoin;
-        coinSelector.value = savedCoin;
+
+        if (coinSelector) {
+            coinSelector.value = savedCoin;
+            console.log(`✅ Coin selector found, set to ${savedCoin}`);
+        } else {
+            console.warn('⚠️ Coin selector element not found in DOM');
+        }
 
         // Update coin name on initial load
         this.updateCoinName();
 
-        // Handle coin selection changes
-        coinSelector.addEventListener("change", async (e) => {
-            const newCoin = e.target.value;
-            console.log(`🔄 Switching to ${newCoin}...`);
+        // handleCoinChange is now defined in constructor
 
-            this.selectedCoin = newCoin;
-            localStorage.setItem("selectedCoin", newCoin);
+        // Handle dropdown changes (only if selector exists)
+        if (coinSelector) {
+            coinSelector.addEventListener("change", async (e) => {
+                console.log('========== DROPDOWN CHANGE ==========');
+                console.log('Dropdown changed to:', e.target.value);
+                await this.handleCoinChange(e.target.value);
+            });
+            console.log('Dropdown change listener attached');
+        }
 
-            // Update UI
-            this.updateCoinName();
-
-            // Clear old intervals
-            this.intervals.forEach((interval) => clearInterval(interval));
-            this.intervals = [];
-
-            // Reload all data for the new coin
-            await this.loadAllData();
-
-            // Reinitialize charts
-            this.initializeCharts();
-
-            // Recalculate derived metrics
-            await this.calculateSupportResistance();
-            await this.calculateFibonacci();
-            await this.loadCorrelationMatrix();
-            await this.detectPatterns();
-
-            // Restart auto-update
-            this.startAutoUpdate();
-
-            console.log(`✅ Switched to ${this.getCoinInfo().name}`);
-        });
+        // Note: Global ticker event listener is attached at script load (see top of file)
+        console.log('setupCoinSelector: Skipping duplicate ticker listener (using global one)');
     }
 
     getCoinInfo() {
@@ -1118,9 +1409,30 @@ class AnalyticsDashboard {
     }
 
     updateCoinName() {
+        const coinInfo = this.getCoinInfo();
+
+        // Update coin name in price section
         const coinNameEl = document.getElementById("coin-name");
         if (coinNameEl) {
-            coinNameEl.textContent = this.getCoinInfo().name;
+            coinNameEl.textContent = coinInfo.name;
+        }
+
+        // Update coin name in price section title
+        const priceCoinNameEl = document.getElementById("price-coin-name");
+        if (priceCoinNameEl) {
+            priceCoinNameEl.textContent = coinInfo.name;
+        }
+
+        // Update coin name in charts section
+        const chartCoinNameEl = document.getElementById("chart-coin-name");
+        if (chartCoinNameEl) {
+            chartCoinNameEl.textContent = coinInfo.name;
+        }
+
+        // Update header coin symbol
+        const headerSymbolEl = document.getElementById("header-coin-symbol");
+        if (headerSymbolEl) {
+            headerSymbolEl.textContent = `${coinInfo.symbol} ${this.selectedCoin}`;
         }
     }
 

@@ -469,6 +469,17 @@ async def get_current_price(
         )
 
 
+@router.get("/price", response_model=Dict[str, Any])
+async def get_coin_price(
+    symbol: str = Query(
+        default="BTC",
+        description="Cryptocurrency symbol (BTC, ETH, SOL, XRP, BNB, SUI, HYPE)",
+    )
+):
+    """Alias for /current endpoint - Get current cryptocurrency price."""
+    return await get_current_price(symbol=symbol)
+
+
 @router.get("/history/{hours}", response_model=Dict[str, Any])
 async def get_price_history(
     hours: int, symbol: str = Query(default="BTC", description="Cryptocurrency symbol")
@@ -573,3 +584,119 @@ async def get_price_history(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch price history: {str(e)}",
         )
+
+
+@router.get("/analytics/{symbol}", response_model=Dict[str, Any])
+@cached(ttl=300)
+async def get_analytics(
+    symbol: str,
+    hours: int = Query(default=168, description="Hours of data for analysis"),
+):
+    """Get comprehensive technical analysis indicators."""
+    try:
+        history_data = await get_price_history(hours=hours, symbol=symbol)
+        
+        if not history_data.get("success"):
+            raise HTTPException(status_code=500, detail="Failed to fetch price history")
+        
+        history = history_data["data"]["history"]
+        
+        if len(history) < 26:
+            raise HTTPException(status_code=400, detail="Insufficient data")
+        
+        prices = [h["price"] for h in history]
+        current_price = prices[-1]
+        
+        # Calculate RSI
+        rsi = _calc_rsi(prices, 14)
+        
+        # Calculate MACD
+        ema12 = _calc_ema(prices, 12)
+        ema26 = _calc_ema(prices, 26)
+        macd = ema12 - ema26
+        signal = macd * 0.9
+        histogram = macd - signal
+        
+        # Calculate SMA
+        sma20 = sum(prices[-20:]) / 20 if len(prices) >= 20 else current_price
+        sma50 = sum(prices[-50:]) / 50 if len(prices) >= 50 else current_price
+        
+        # Calculate Bollinger Bands
+        std = (sum((p - sma20)**2 for p in prices[-20:]) / 20) ** 0.5 if len(prices) >= 20 else 0
+        bb_upper = sma20 + (2 * std)
+        bb_lower = sma20 - (2 * std)
+        
+        # Stochastic
+        recent = prices[-14:] if len(prices) >= 14 else prices
+        high = max(recent)
+        low = min(recent)
+        stoch_k = ((current_price - low) / (high - low) * 100) if high != low else 50
+        
+        # ATR
+        ranges = [abs(prices[i] - prices[i-1]) for i in range(1, len(prices))]
+        atr = sum(ranges[-14:]) / 14 if len(ranges) >= 14 else 0
+        
+        # Generate signals
+        signals = {
+            "rsi": "BUY" if rsi < 30 else "SELL" if rsi > 70 else "HOLD",
+            "macd": "BUY" if histogram > 0 else "SELL",
+            "ma": "BUY" if ema12 > ema26 else "SELL",
+            "bb": "BUY" if current_price < bb_lower else "SELL" if current_price > bb_upper else "HOLD"
+        }
+        
+        buy_count = sum(1 for s in signals.values() if s == "BUY")
+        sell_count = sum(1 for s in signals.values() if s == "SELL")
+        total = len(signals)
+        buy_pct = (buy_count / total) * 100
+        
+        overall = "STRONG BUY" if buy_pct >= 75 else "BUY" if buy_pct >= 50 else "SELL" if buy_pct <= 25 else "HOLD"
+        
+        return {
+            "success": True,
+            "symbol": symbol,
+            "current_price": current_price,
+            "indicators": {
+                "rsi": {"value": round(rsi, 2), "signal": signals["rsi"]},
+                "macd": {"value": round(macd, 2), "histogram": round(histogram, 2), "signal": signals["macd"]},
+                "ma": {"sma20": round(sma20, 2), "ema12": round(ema12, 2), "ema26": round(ema26, 2), "signal": signals["ma"]},
+                "bb": {"upper": round(bb_upper, 2), "middle": round(sma20, 2), "lower": round(bb_lower, 2), "signal": signals["bb"]},
+                "stoch": {"k": round(stoch_k, 2)},
+                "atr": {"value": round(atr, 2)}
+            },
+            "signals": signals,
+            "summary": {
+                "overall_signal": overall,
+                "buy_signals": buy_count,
+                "sell_signals": sell_count,
+                "buy_percentage": round(buy_pct, 1),
+                "confidence": round(max(buy_pct, 100 - buy_pct), 1)
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Analytics error for {symbol}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _calc_rsi(prices, period=14):
+    if len(prices) < period + 1:
+        return 50
+    changes = [prices[i] - prices[i-1] for i in range(1, len(prices))]
+    gains = [c if c > 0 else 0 for c in changes]
+    losses = [-c if c < 0 else 0 for c in changes]
+    avg_gain = sum(gains[-period:]) / period
+    avg_loss = sum(losses[-period:]) / period
+    if avg_loss == 0:
+        return 100
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
+def _calc_ema(prices, period):
+    if len(prices) < period:
+        return sum(prices) / len(prices)
+    mult = 2 / (period + 1)
+    ema = sum(prices[:period]) / period
+    for p in prices[period:]:
+        ema = (p * mult) + (ema * (1 - mult))
+    return ema
