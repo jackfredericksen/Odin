@@ -145,11 +145,6 @@ class AnalyticsDashboard {
 
             // Update UI
             this.updateCoinName();
-            const selector = document.getElementById("coin-selector");
-            if (selector) {
-                selector.value = newCoin;
-                console.log('Updated dropdown to:', newCoin);
-            }
 
             // Update TradingView chart if available
             if (window.tradingViewWidget) {
@@ -189,7 +184,8 @@ class AnalyticsDashboard {
         // Setup theme toggle and coin selector
         this.setupThemeToggle();
         this.setupCoinSelector();
-        
+        this.setupTimeframeButtons();
+
         // Check if there was a pending coin switch from before dashboard loaded
         if (window.pendingCoinSwitch) {
             console.log('Found pending coin switch to:', window.pendingCoinSwitch);
@@ -252,6 +248,7 @@ class AnalyticsDashboard {
             { name: "Economic Calendar", fn: this.loadEconomicCalendar() },
             { name: "Multi-Timeframe", fn: this.loadMultiTimeframeData() },
             { name: "Fear & Greed", fn: this.calculateFearGreedIndex() },
+            { name: "CME Gaps", fn: this.loadCMEGaps() },
         ];
 
         const results = await Promise.allSettled(loadTasks.map((task) => task.fn));
@@ -1255,10 +1252,10 @@ calculateAllIndicators(prices) {
 
     async loadVolumeProfile() {
         try {
-            console.log("📊 Creating volume profile...");
+            console.log(`📊 Creating volume profile for ${this.selectedCoin}...`);
 
             // Get price history to build volume profile
-            const response = await fetch(`${this.apiBase}/data/history/168`); // 7 days
+            const response = await fetch(`${this.apiBase}/data/history/168?symbol=${this.selectedCoin}`); // 7 days
 
             if (!response.ok) {
                 throw new Error("Failed to fetch history for volume profile");
@@ -1370,38 +1367,18 @@ calculateAllIndicators(prices) {
 
     // ========== COIN SELECTOR ==========
     setupCoinSelector() {
-        console.log('⚙️ Setting up coin selector...');
-
-        const coinSelector = document.getElementById("coin-selector");
+        console.log('⚙️ Setting up coin selection...');
 
         // Load saved coin preference or default to BTC
         const savedCoin = localStorage.getItem("selectedCoin") || "BTC";
         this.selectedCoin = savedCoin;
 
-        if (coinSelector) {
-            coinSelector.value = savedCoin;
-            console.log(`✅ Coin selector found, set to ${savedCoin}`);
-        } else {
-            console.warn('⚠️ Coin selector element not found in DOM');
-        }
-
         // Update coin name on initial load
         this.updateCoinName();
 
-        // handleCoinChange is now defined in constructor
-
-        // Handle dropdown changes (only if selector exists)
-        if (coinSelector) {
-            coinSelector.addEventListener("change", async (e) => {
-                console.log('========== DROPDOWN CHANGE ==========');
-                console.log('Dropdown changed to:', e.target.value);
-                await this.handleCoinChange(e.target.value);
-            });
-            console.log('Dropdown change listener attached');
-        }
-
-        // Note: Global ticker event listener is attached at script load (see top of file)
-        console.log('setupCoinSelector: Skipping duplicate ticker listener (using global one)');
+        // Note: Coin selection is handled entirely by ticker bar clicks
+        // Global ticker event listener is attached at script load (see top of file)
+        console.log('✅ Coin selection initialized - ticker bar will handle switching');
     }
 
     getCoinInfo() {
@@ -1434,6 +1411,31 @@ calculateAllIndicators(prices) {
         if (headerSymbolEl) {
             headerSymbolEl.textContent = `${coinInfo.symbol} ${this.selectedCoin}`;
         }
+    }
+
+    // ========== TIMEFRAME BUTTONS ==========
+    setupTimeframeButtons() {
+        const buttons = document.querySelectorAll('.timeframe-btn');
+        buttons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const timeframe = parseInt(e.target.getAttribute('data-timeframe'));
+                console.log(`Timeframe button clicked: ${timeframe}h`);
+
+                // Update active state
+                buttons.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+
+                // Update selected timeframe
+                this.selectedTimeframe = timeframe;
+
+                // Update TradingView chart if available
+                if (window.tradingViewWidget) {
+                    console.log(`Updating TradingView chart to ${timeframe}h timeframe`);
+                    window.tradingViewWidget.updateChart(this.selectedCoin, timeframe);
+                }
+            });
+        });
+        console.log(`✅ Timeframe buttons initialized (${buttons.length} buttons)`);
     }
 
     // ========== THEME TOGGLE ==========
@@ -1604,10 +1606,10 @@ calculateAllIndicators(prices) {
     // ========== FEAR & GREED INDEX ==========
     async calculateFearGreedIndex() {
         try {
-            console.log("📊 Calculating Fear & Greed Index...");
+            console.log(`📊 Calculating Fear & Greed Index for ${this.selectedCoin}...`);
 
             // Fetch current price data
-            const response = await fetch(`${this.apiBase}/data/current`);
+            const response = await fetch(`${this.apiBase}/data/current?symbol=${this.selectedCoin}`);
             const result = await response.json();
             const data = result.success ? result.data : result;
 
@@ -1746,7 +1748,7 @@ calculateAllIndicators(prices) {
     // ========== MULTI-TIMEFRAME ANALYSIS ==========
     async loadMultiTimeframeData() {
         try {
-            console.log("📊 Loading multi-timeframe data...");
+            console.log(`📊 Loading multi-timeframe data for ${this.selectedCoin}...`);
 
             const timeframes = [
                 { id: "1h", hours: 24 },
@@ -1756,7 +1758,7 @@ calculateAllIndicators(prices) {
             ];
 
             for (const tf of timeframes) {
-                const response = await fetch(`${this.apiBase}/data/history/${tf.hours}`);
+                const response = await fetch(`${this.apiBase}/data/history/${tf.hours}?symbol=${this.selectedCoin}`);
                 const result = await response.json();
                 const history = result.success ? result.data.history : result.history;
 
@@ -1836,9 +1838,9 @@ calculateAllIndicators(prices) {
     // ========== SUPPORT & RESISTANCE ==========
     async calculateSupportResistance() {
         try {
-            console.log("📊 Calculating support & resistance...");
+            console.log(`📊 Calculating support & resistance for ${this.selectedCoin}...`);
 
-            const response = await fetch(`${this.apiBase}/data/history/168`);
+            const response = await fetch(`${this.apiBase}/data/history/168?symbol=${this.selectedCoin}`);
             const result = await response.json();
             const history = result.success ? result.data.history : result.history;
 
@@ -1882,9 +1884,16 @@ calculateAllIndicators(prices) {
     }
 
     displayKeyLevels(support, resistance, currentPrice) {
+        console.log("📊 Displaying key levels:", { support, resistance, currentPrice });
+
         const resistanceLevelsEl = document.getElementById("resistance-levels");
         const supportLevelsEl = document.getElementById("support-levels");
         const currentLevelEl = document.getElementById("current-level");
+
+        if (!resistanceLevelsEl || !supportLevelsEl || !currentLevelEl) {
+            console.error("❌ Key level elements not found in DOM");
+            return;
+        }
 
         if (currentLevelEl) {
             currentLevelEl.textContent = `$${currentPrice.toLocaleString()}`;
@@ -1920,9 +1929,9 @@ calculateAllIndicators(prices) {
     // ========== FIBONACCI RETRACEMENT ==========
     async calculateFibonacci() {
         try {
-            console.log("📊 Calculating Fibonacci levels...");
+            console.log(`📊 Calculating Fibonacci levels for ${this.selectedCoin}...`);
 
-            const response = await fetch(`${this.apiBase}/data/history/168`);
+            const response = await fetch(`${this.apiBase}/data/history/168?symbol=${this.selectedCoin}`);
             const result = await response.json();
             const history = result.success ? result.data.history : result.history;
 
@@ -2004,9 +2013,9 @@ calculateAllIndicators(prices) {
     // ========== PATTERN RECOGNITION ==========
     async detectPatterns() {
         try {
-            console.log("🔍 Detecting patterns...");
+            console.log(`🔍 Detecting patterns for ${this.selectedCoin}...`);
 
-            const response = await fetch(`${this.apiBase}/data/history/720`);
+            const response = await fetch(`${this.apiBase}/data/history/720?symbol=${this.selectedCoin}`);
             const result = await response.json();
             const history = result.success ? result.data.history : result.history;
 
@@ -2389,6 +2398,130 @@ calculateAllIndicators(prices) {
                 this.loadNews();
             }, 300000),
         );
+    }
+
+    // ========== CME GAP TRACKER ==========
+    async loadCMEGaps() {
+        try {
+            // CME gaps only relevant for BTC
+            if (this.selectedCoin !== 'BTC') {
+                const gapsList = document.getElementById('cme-gaps-list');
+                if (gapsList) {
+                    gapsList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.875rem;">CME gaps only available for Bitcoin</div>';
+                }
+                return;
+            }
+
+            console.log("Loading CME gap data...");
+            const response = await fetch(`${this.apiBase}/data/history/720?symbol=BTC`);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+            const history = result.success ? result.data.history : result.history;
+
+            const gaps = this.calculateCMEGaps(history);
+            this.displayCMEGaps(gaps);
+
+        } catch (error) {
+            console.error("Error loading CME gaps:", error);
+            const gapsList = document.getElementById('cme-gaps-list');
+            if (gapsList) {
+                gapsList.innerHTML = '<div style="color: var(--accent-danger); font-size: 0.875rem;">Error loading CME data</div>';
+            }
+        }
+    }
+
+    calculateCMEGaps(history) {
+        const gaps = [];
+        const gapThreshold = 0.02; // 2% minimum gap size
+
+        // CME futures trade Mon-Fri, gaps appear on weekends
+        // Sort history by timestamp
+        const sorted = [...history].sort((a, b) => a.timestamp - b.timestamp);
+
+        for (let i = 1; i < sorted.length; i++) {
+            const prev = sorted[i - 1];
+            const curr = sorted[i];
+
+            // Check for significant price gap
+            const gapPercent = Math.abs((curr.price - prev.price) / prev.price);
+
+            if (gapPercent >= gapThreshold) {
+                const gapLow = Math.min(prev.price, curr.price);
+                const gapHigh = Math.max(prev.price, curr.price);
+                const gapSize = gapHigh - gapLow;
+                const currentPrice = sorted[sorted.length - 1].price;
+
+                // Determine if gap is filled
+                const isFilled = sorted.slice(i).some(h =>
+                    h.price >= gapLow && h.price <= gapHigh
+                );
+
+                gaps.push({
+                    timestamp: curr.timestamp,
+                    low: gapLow,
+                    high: gapHigh,
+                    size: gapSize,
+                    percent: gapPercent * 100,
+                    direction: curr.price > prev.price ? 'UP' : 'DOWN',
+                    filled: isFilled,
+                    distance: isFilled ? 0 : Math.min(
+                        Math.abs(currentPrice - gapLow),
+                        Math.abs(currentPrice - gapHigh)
+                    )
+                });
+            }
+        }
+
+        // Return most recent 5 gaps
+        return gaps.slice(-5).reverse();
+    }
+
+    displayCMEGaps(gaps) {
+        console.log("📊 Displaying CME gaps:", gaps);
+
+        const gapsList = document.getElementById('cme-gaps-list');
+        if (!gapsList) {
+            console.error("❌ cme-gaps-list element not found in DOM");
+            return;
+        }
+
+        if (gaps.length === 0) {
+            gapsList.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.875rem;">No significant CME gaps detected</div>';
+            return;
+        }
+
+        let html = '';
+        gaps.forEach(gap => {
+            const statusBadge = gap.filled
+                ? '<span class="terminal-badge success">FILLED</span>'
+                : '<span class="terminal-badge danger">OPEN</span>';
+
+            const directionIcon = gap.direction === 'UP' ? '↑' : '↓';
+
+            const date = new Date(gap.timestamp * 1000).toLocaleDateString();
+
+            html += `
+                <div class="quick-stat" style="margin-bottom: 12px; border-left: 3px solid var(--${gap.filled ? 'success' : 'danger'});">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <span class="quick-stat-label">${date} ${directionIcon}</span>
+                        ${statusBadge}
+                    </div>
+                    <div class="quick-stat-value" style="font-size: 0.9em;">
+                        $${gap.low.toFixed(2)} - $${gap.high.toFixed(2)}
+                    </div>
+                    <div class="quick-stat-change">
+                        Size: $${gap.size.toFixed(2)} (${gap.percent.toFixed(2)}%)
+                        ${!gap.filled ? `<br>Distance: $${gap.distance.toFixed(2)}` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        gapsList.innerHTML = html;
     }
 }
 

@@ -5,12 +5,11 @@
 
 class SectionManager {
     constructor() {
-        this.sections = ['price', 'charts', 'social', 'journal'];
-        this.activeSection = 'price'; // Default section
+        this.sections = ['market', 'social', 'journal'];
+        this.activeSection = 'market'; // Default section
         this.sectionData = {};
         this.lazyLoaded = {
-            price: false,
-            charts: false,
+            market: false,
             social: false,
             journal: false
         };
@@ -29,7 +28,7 @@ class SectionManager {
         this.initKeyboardShortcuts();
 
         // Load initial section (Market Overview)
-        this.switchSection('price');
+        this.switchSection('market');
 
         console.log('✅ Section Manager initialized');
     }
@@ -57,23 +56,17 @@ class SectionManager {
             // Alt+1: Market Overview
             if (e.altKey && e.key === '1') {
                 e.preventDefault();
-                this.switchSection('price');
+                this.switchSection('market');
             }
 
-            // Alt+2: Charts & Analytics
+            // Alt+2: Social Intelligence
             if (e.altKey && e.key === '2') {
-                e.preventDefault();
-                this.switchSection('charts');
-            }
-
-            // Alt+3: Social Intelligence
-            if (e.altKey && e.key === '3') {
                 e.preventDefault();
                 this.switchSection('social');
             }
 
-            // Alt+4: Trading Journal
-            if (e.altKey && e.key === '4') {
+            // Alt+3: Trading Journal
+            if (e.altKey && e.key === '3') {
                 e.preventDefault();
                 this.switchSection('journal');
             }
@@ -154,11 +147,8 @@ class SectionManager {
 
         try {
             switch (sectionName) {
-                case 'price':
-                    await this.loadPriceSection();
-                    break;
-                case 'charts':
-                    await this.loadChartsSection();
+                case 'market':
+                    await this.loadMarketSection();
                     break;
                 case 'social':
                     await this.loadSocialSection();
@@ -186,43 +176,22 @@ class SectionManager {
     }
 
     /**
-     * Load Market Overview section
+     * Load Market Overview section (consolidated price + charts + analytics)
      */
-    async loadPriceSection() {
+    async loadMarketSection() {
         console.log('📊 Loading Market Overview data...');
 
         if (window.dashboard) {
-            // Use existing dashboard methods
+            // Load all market data - price, indicators, support/resistance, CME gaps
             await Promise.allSettled([
                 window.dashboard.loadBitcoinPrice(),
-                window.dashboard.loadMarketDepth(),
-                window.dashboard.loadIndicators()
-            ]);
-        }
-
-        this.sectionData.price = {
-            lastRefresh: Date.now(),
-            loaded: true
-        };
-    }
-
-    /**
-     * Load Charts & Analytics section
-     */
-    async loadChartsSection() {
-        console.log('📈 Loading Charts & Analytics data...');
-
-        if (window.dashboard) {
-            await Promise.allSettled([
-                window.dashboard.loadPriceHistory(),
                 window.dashboard.loadIndicators(),
                 window.dashboard.calculateSupportResistance(),
-                window.dashboard.calculateFibonacci(),
-                window.dashboard.detectPatterns()
+                window.dashboard.loadCMEGaps()
             ]);
         }
 
-        this.sectionData.charts = {
+        this.sectionData.market = {
             lastRefresh: Date.now(),
             loaded: true
         };

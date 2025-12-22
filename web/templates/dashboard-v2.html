@@ -69,6 +69,16 @@
             }
         }
 
+        /* Responsive navigation layout */
+        @media (max-width: 1200px) {
+            .section-navigation {
+                flex: 1 1 auto !important;
+            }
+            #ticker-bar {
+                display: none !important;
+            }
+        }
+
         /* Section Content */
         .section {
             display: none;
@@ -175,9 +185,9 @@
 </head>
 <body>
     <!-- Header -->
-    <header class="header" style="background: var(--bg-header); border-bottom: 1px solid var(--border-primary); padding: 0.75rem 1.5rem;">
-        <div class="logo-section">
-            <div class="logo" style="font-size: 1.25rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+    <header class="header" style="background: var(--bg-header); border-bottom: 1px solid var(--border-primary); padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div class="logo" style="font-size: 1.5rem; font-weight: 700; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 1px;">
                 ODIN TERMINAL
             </div>
             <div class="status-indicator" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.75rem; background: var(--bg-card); border-radius: 12px; font-size: 0.75rem;">
@@ -185,62 +195,44 @@
                 <span id="connection-status" style="color: var(--status-live); font-weight: 600;">LIVE</span>
             </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <!-- Current Price Ticker (mini) -->
-            <div id="header-price" style="font-family: var(--font-mono); font-size: 0.875rem; color: var(--text-primary);">
-                <span id="header-coin-symbol">₿ BTC</span>
-                <span id="header-coin-price">$--</span>
+        <div style="display: flex; align-items: center; gap: 1.5rem;">
+            <!-- Current Price Display -->
+            <div id="header-price" style="font-family: var(--font-mono); font-size: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.75rem;">
+                <span id="header-coin-symbol" style="font-weight: 700; font-size: 1.125rem;">₿ BTC</span>
+                <span id="header-coin-price" style="font-weight: 600;">$--</span>
                 <span id="header-coin-change" class="ticker-change">--.--</span>
             </div>
-
-            <!-- Coin Selector -->
-            <select id="coin-selector" style="background: var(--bg-card); border: 1px solid var(--border-primary); color: var(--text-primary); padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 600; font-family: var(--font-mono);">
-                <option value="BTC">₿ BTC</option>
-                <option value="ETH">Ξ ETH</option>
-                <option value="SOL">◎ SOL</option>
-                <option value="XRP">✕ XRP</option>
-                <option value="BNB">🔶 BNB</option>
-                <option value="SUI">〜 SUI</option>
-                <option value="HYPE">🚀 HYPE</option>
-            </select>
-
-            <!-- Notifications -->
-            <button class="panel-toggle" style="position: relative;">
-                🔔
-                <span style="position: absolute; top: -4px; right: -4px; background: var(--accent-danger); color: white; border-radius: 10px; padding: 2px 5px; font-size: 9px; font-weight: 700;">0</span>
-            </button>
-
-            <!-- Settings -->
-            <button class="panel-toggle">⚙️</button>
-
             <!-- Current Time -->
-            <div id="current-time" style="color: var(--text-secondary); font-size: 0.75rem; font-family: var(--font-mono);"></div>
+            <div id="current-time" style="color: var(--text-secondary); font-size: 0.875rem; font-family: var(--font-mono);"></div>
         </div>
     </header>
 
-    <!-- Section Navigation -->
-    <nav class="section-navigation">
-        <button class="section-tab active" data-section-tab="market">
-            <span class="section-tab-icon">📊</span>
-            <span class="section-tab-label">Market Overview</span>
-        </button>
-        <button class="section-tab" data-section-tab="social">
-            <span class="section-tab-icon">🌐</span>
-            <span class="section-tab-label">Social Intelligence</span>
-        </button>
-        <button class="section-tab" data-section-tab="journal">
-            <span class="section-tab-icon">📝</span>
-            <span class="section-tab-label">Trading Journal</span>
-        </button>
+    <!-- Section Navigation with Integrated Ticker -->
+    <nav style="background: var(--bg-header); border-bottom: 1px solid var(--border-primary); display: flex; align-items: center; justify-content: space-between;">
+        <!-- Section Tabs -->
+        <div class="section-navigation" style="display: flex; gap: 0; border-bottom: none; flex: 0 0 auto;">
+            <button class="section-tab active" data-section-tab="market">
+                <span class="section-tab-icon">📊</span>
+                <span class="section-tab-label">Market Overview</span>
+            </button>
+            <button class="section-tab" data-section-tab="social">
+                <span class="section-tab-icon">🌐</span>
+                <span class="section-tab-label">Social Intelligence</span>
+            </button>
+            <button class="section-tab" data-section-tab="journal">
+                <span class="section-tab-icon">📝</span>
+                <span class="section-tab-label">Trading Journal</span>
+            </button>
+        </div>
+
+        <!-- Live Ticker Bar -->
+        <div id="ticker-bar" style="flex: 1; padding: 0.75rem 1.5rem; display: flex; gap: 2rem; overflow-x: auto; white-space: nowrap; font-family: var(--font-mono); font-size: 0.875rem;">
+            <!-- Ticker items will be dynamically populated -->
+        </div>
     </nav>
 
-    <!-- Live Ticker Bar -->
-    <div id="ticker-bar" style="background: var(--bg-header); border-bottom: 1px solid var(--border-primary); padding: 0.75rem 1.5rem; display: flex; gap: 2rem; overflow-x: auto; white-space: nowrap; font-family: var(--font-mono); font-size: 0.875rem;">
-        <!-- Ticker items will be dynamically populated -->
-    </div>
-
     <!-- SECTION 1: PRICE & MARKET DATA -->
-    <section id="section-market" class="section active">
+        <section id="section-market" class="section active">
         <div class="section-content">
             <!-- Large Price Display -->
             <div class="terminal-panel" style="margin-bottom: var(--spacing-lg);">
@@ -260,23 +252,6 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-lg);">
                 <div class="quick-stat">
                     <div class="quick-stat-label">24H High</div>
-
-            <!-- TradingView Price Chart -->
-            <div class="terminal-panel" style="margin-bottom: var(--spacing-lg);">
-                <div class="terminal-panel-header">
-                    <span class="terminal-panel-title"><span id="chart-coin-name-main">Bitcoin</span> Price Chart</span>
-                    <div class="terminal-panel-actions">
-                        <button class="panel-toggle timeframe-btn" data-timeframe="1">1H</button>
-                        <button class="panel-toggle timeframe-btn" data-timeframe="4">4H</button>
-                        <button class="panel-toggle timeframe-btn active" data-timeframe="24">24H</button>
-                        <button class="panel-toggle timeframe-btn" data-timeframe="168">7D</button>
-                        <button class="panel-toggle timeframe-btn" data-timeframe="720">30D</button>
-                    </div>
-                </div>
-                <div class="terminal-panel-body" style="padding: 0; position: relative; min-height: 600px;">
-                    <div id="tradingview_chart" style="width: 100%; height: 600px;"></div>
-                </div>
-            </div>
                     <div class="quick-stat-value" style="color: var(--accent-success);" id="high-24h-stat">$0.00</div>
                 </div>
                 <div class="quick-stat">
@@ -293,9 +268,101 @@
                 </div>
             </div>
 
-            
+            <!-- TradingView Price Chart -->
+            <div class="terminal-panel" style="margin-bottom: var(--spacing-lg);">
+                <div class="terminal-panel-header">
+                    <span class="terminal-panel-title"><span id="chart-coin-name">Bitcoin</span> Price Chart</span>
+                    <div class="terminal-panel-actions">
+                        <button class="panel-toggle timeframe-btn" data-timeframe="1">1H</button>
+                        <button class="panel-toggle timeframe-btn" data-timeframe="4">4H</button>
+                        <button class="panel-toggle timeframe-btn active" data-timeframe="24">24H</button>
+                        <button class="panel-toggle timeframe-btn" data-timeframe="168">7D</button>
+                        <button class="panel-toggle timeframe-btn" data-timeframe="720">30D</button>
+                    </div>
+                </div>
+                <div class="terminal-panel-body" style="padding: 0; position: relative; min-height: 600px;">
+                    <div id="tradingview_chart" style="width: 100%; height: 600px;"></div>
+                </div>
+            </div>
+
+            <!-- Analysis Grid: Indicators, Support/Resistance, CME Gaps -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-lg);">
+
+                <!-- Technical Indicators Panel -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">Technical Indicators</span>
+                    </div>
+                    <div class="terminal-panel-body">
+                        <div class="quick-stat" style="margin-bottom: 12px;">
+                            <div class="quick-stat-label">RSI (14)</div>
+                            <div class="quick-stat-value" id="rsi-value">--</div>
+                            <div class="quick-stat-change" id="rsi-signal">
+                                <span class="terminal-badge info">NEUTRAL</span>
+                            </div>
+                        </div>
+                        <div class="quick-stat" style="margin-bottom: 12px;">
+                            <div class="quick-stat-label">MACD</div>
+                            <div class="quick-stat-value" id="macd-value">--</div>
+                            <div class="quick-stat-change" id="macd-signal">
+                                <span class="terminal-badge info">NEUTRAL</span>
+                            </div>
+                        </div>
+                        <div class="quick-stat" style="margin-bottom: 12px;">
+                            <div class="quick-stat-label">Moving Average (20)</div>
+                            <div class="quick-stat-value" id="ma-value">--</div>
+                            <div class="quick-stat-change" id="ma-signal">
+                                <span class="terminal-badge info">NEUTRAL</span>
+                            </div>
+                        </div>
+                        <div class="quick-stat">
+                            <div class="quick-stat-label">Bollinger Bands</div>
+                            <div class="quick-stat-value" id="bb-value">--</div>
+                            <div class="quick-stat-change" id="bb-signal">
+                                <span class="terminal-badge info">NEUTRAL</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Support & Resistance Panel -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">Support & Resistance</span>
+                    </div>
+                    <div class="terminal-panel-body">
+                        <div style="margin-bottom: 1rem;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px;">RESISTANCE</div>
+                            <div id="resistance-levels" style="font-size: 0.875rem; color: var(--accent-danger);">Loading...</div>
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px;">CURRENT PRICE</div>
+                            <div id="current-level" style="padding: 0.5rem; background: rgba(0, 153, 255, 0.1); border-radius: 4px; font-weight: 600; text-align: center; font-family: var(--font-mono);">$--</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px;">SUPPORT</div>
+                            <div id="support-levels" style="font-size: 0.875rem; color: var(--accent-success);">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CME Gap Tracker Panel -->
+                <div class="terminal-panel">
+                    <div class="terminal-panel-header">
+                        <span class="terminal-panel-title">CME Gaps</span>
+                    </div>
+                    <div class="terminal-panel-body">
+                        <div id="cme-gaps-list">
+                            <div style="color: var(--text-secondary); font-size: 0.875rem;">Loading CME data...</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
     </section>
+
+
 
     <!-- SECTION 2: CHARTS & ANALYTICS -->
     
