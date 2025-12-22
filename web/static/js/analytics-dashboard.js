@@ -143,6 +143,10 @@ class AnalyticsDashboard {
             this.selectedCoin = newCoin;
             localStorage.setItem("selectedCoin", newCoin);
 
+            // Clear cached data to force fresh fetch
+            this.priceHistory = [];
+            this.currentPrice = 0;
+
             // Update UI
             this.updateCoinName();
 
@@ -229,10 +233,13 @@ class AnalyticsDashboard {
     async loadAllData() {
         console.log(`📡 Loading real data from APIs for ${this.getCoinInfo().name}...`);
 
+        // Load price history FIRST (required for indicators)
+        await this.loadPriceHistory();
+
+        // Then load everything else in parallel
         const loadTasks = [
             { name: "Bitcoin Price", fn: this.loadBitcoinPrice() },
             { name: "Indicators", fn: this.loadIndicators() },
-            { name: "Price History", fn: this.loadPriceHistory() },
             { name: "Market Depth", fn: this.loadMarketDepth() },
             { name: "Funding Rate", fn: this.loadFundingRate() },
             { name: "Liquidations", fn: this.loadLiquidations() },
@@ -459,6 +466,455 @@ calculateATR(prices, period = 14) {
     return slice.reduce((a, b) => a + b, 0) / slice.length;
 }
 
+// ========== ADVANCED INSTITUTIONAL INDICATORS ==========
+
+calculateVWAP(history) {
+    // Volume-Weighted Average Price - institutional benchmark
+    if (!history || history.length === 0) return null;
+
+    let cumVolumePrice = 0;
+    let cumVolume = 0;
+
+    for (const candle of history) {
+        const volume = candle.volume || 1;
+        cumVolumePrice += candle.price * volume;
+        cumVolume += volume;
+    }
+
+    const vwap = cumVolumePrice / cumVolume;
+    const current = history[history.length - 1].price;
+    const deviation = ((current - vwap) / vwap) * 100;
+
+    return {
+        vwap,
+        deviation,
+        signal: deviation < -2 ? 'BUY' : deviation > 2 ? 'SELL' : 'HOLD',
+        aboveVWAP: current > vwap
+    };
+}
+
+calculateOrderFlowImbalance(history) {
+    // Order Flow Imbalance - detects smart money accumulation/distribution
+    if (!history || history.length < 10) return null;
+
+    let buyPressure = 0;
+    let sellPressure = 0;
+
+    for (let i = 1; i < history.length; i++) {
+        const priceChange = history[i].price - history[i - 1].price;
+        const volume = history[i].volume || 1;
+
+        if (priceChange > 0) {
+            buyPressure += volume;
+        } else if (priceChange < 0) {
+            sellPressure += volume;
+        }
+    }
+
+    const totalVolume = buyPressure + sellPressure;
+    const imbalance = totalVolume > 0 ? ((buyPressure - sellPressure) / totalVolume) * 100 : 0;
+
+    return {
+        imbalance,
+        buyPressure,
+        sellPressure,
+        signal: imbalance > 15 ? 'STRONG BUY' : imbalance < -15 ? 'STRONG SELL' : imbalance > 5 ? 'BUY' : imbalance < -5 ? 'SELL' : 'NEUTRAL'
+    };
+}
+
+calculateIchimokuCloud(prices) {
+    // Ichimoku Kinko Hyo - Japanese institutional indicator
+    if (prices.length < 52) return null;
+
+    const tenkan = 9;
+    const kijun = 26;
+    const senkou = 52;
+
+    // Tenkan-sen (Conversion Line)
+    const tenkanHigh = Math.max(...prices.slice(-tenkan));
+    const tenkanLow = Math.min(...prices.slice(-tenkan));
+    const tenkanSen = (tenkanHigh + tenkanLow) / 2;
+
+    // Kijun-sen (Base Line)
+    const kijunHigh = Math.max(...prices.slice(-kijun));
+    const kijunLow = Math.min(...prices.slice(-kijun));
+    const kijunSen = (kijunHigh + kijunLow) / 2;
+
+    // Senkou Span A (Leading Span A)
+    const senkouA = (tenkanSen + kijunSen) / 2;
+
+    // Senkou Span B (Leading Span B)
+    const senkouHigh = Math.max(...prices.slice(-senkou));
+    const senkouLow = Math.min(...prices.slice(-senkou));
+    const senkouB = (senkouHigh + senkouLow) / 2;
+
+    const current = prices[prices.length - 1];
+    const cloudTop = Math.max(senkouA, senkouB);
+    const cloudBottom = Math.min(senkouA, senkouB);
+
+    let signal = 'NEUTRAL';
+    if (current > cloudTop && tenkanSen > kijunSen) signal = 'STRONG BUY';
+    else if (current > cloudTop) signal = 'BUY';
+    else if (current < cloudBottom && tenkanSen < kijunSen) signal = 'STRONG SELL';
+    else if (current < cloudBottom) signal = 'SELL';
+
+    return {
+        tenkanSen,
+        kijunSen,
+        senkouA,
+        senkouB,
+        cloudTop,
+        cloudBottom,
+        signal,
+        inCloud: current >= cloudBottom && current <= cloudTop,
+        bullishCloud: senkouA > senkouB
+    };
+}
+
+calculateSupertrend(prices, period = 10, multiplier = 3) {
+    // Supertrend - Advanced trend following indicator
+    if (prices.length < period) return null;
+
+    const atr = this.calculateATR(prices, period);
+    const hl2 = prices.slice(-period).reduce((sum, p) => sum + p, 0) / period;
+
+    const upperBand = hl2 + (multiplier * atr);
+    const lowerBand = hl2 - (multiplier * atr);
+    const current = prices[prices.length - 1];
+
+    const trend = current > upperBand ? 'BULLISH' : current < lowerBand ? 'BEARISH' : 'RANGING';
+    const signal = trend === 'BULLISH' ? 'BUY' : trend === 'BEARISH' ? 'SELL' : 'HOLD';
+
+    return {
+        upperBand,
+        lowerBand,
+        trend,
+        signal,
+        strength: Math.abs(current - hl2) / atr
+    };
+}
+
+calculateElderRay(prices) {
+    // Elder Ray Index - Detects bull/bear power
+    if (prices.length < 13) return null;
+
+    const ema13 = this.calculateEMA(prices, 13);
+    const current = prices[prices.length - 1];
+    const high = Math.max(...prices.slice(-13));
+    const low = Math.min(...prices.slice(-13));
+
+    const bullPower = high - ema13;
+    const bearPower = low - ema13;
+    const elderRay = bullPower + bearPower;
+
+    let signal = 'NEUTRAL';
+    if (bullPower > 0 && bearPower > 0) signal = 'STRONG BUY';
+    else if (bullPower > 0 && bearPower < 0 && bullPower > Math.abs(bearPower)) signal = 'BUY';
+    else if (bullPower < 0 && bearPower < 0) signal = 'STRONG SELL';
+    else if (bearPower < 0 && Math.abs(bearPower) > bullPower) signal = 'SELL';
+
+    return {
+        bullPower,
+        bearPower,
+        elderRay,
+        signal,
+        divergence: bullPower * bearPower < 0
+    };
+}
+
+calculateKeltnerChannels(prices, period = 20, multiplier = 2) {
+    // Keltner Channels - Volatility-based trend indicator
+    if (prices.length < period) return null;
+
+    const ema = this.calculateEMA(prices, period);
+    const atr = this.calculateATR(prices, period);
+
+    const upper = ema + (multiplier * atr);
+    const lower = ema - (multiplier * atr);
+    const current = prices[prices.length - 1];
+
+    let signal = 'HOLD';
+    if (current > upper) signal = 'OVERBOUGHT';
+    else if (current < lower) signal = 'OVERSOLD';
+
+    const bandwidth = ((upper - lower) / ema) * 100;
+
+    return {
+        upper,
+        middle: ema,
+        lower,
+        signal,
+        bandwidth,
+        squeeze: bandwidth < 10 // Low volatility squeeze
+    };
+}
+
+// ========== LEGENDARY TRADER INDICATORS ==========
+
+calculateWyckoffAccumulation(history) {
+    // Richard Wyckoff's Accumulation/Distribution Detection
+    // Analyzes volume vs price action to detect smart money
+    if (!history || history.length < 20) return null;
+
+    let accumulation = 0;
+    let distribution = 0;
+
+    for (let i = 1; i < history.length; i++) {
+        const priceChange = history[i].price - history[i-1].price;
+        const volume = history[i].volume || 1;
+
+        // High volume + small price change = accumulation/distribution
+        const avgVolume = history.reduce((sum, h) => sum + (h.volume || 1), 0) / history.length;
+
+        if (volume > avgVolume * 1.5) {
+            if (Math.abs(priceChange) < history[i-1].price * 0.01) {
+                // High volume, low price movement
+                if (priceChange >= 0) accumulation += volume;
+                else distribution += volume;
+            }
+        }
+    }
+
+    const total = accumulation + distribution;
+    const wyckoffScore = total > 0 ? ((accumulation - distribution) / total) * 100 : 0;
+
+    let phase = 'NEUTRAL';
+    if (wyckoffScore > 30) phase = 'ACCUMULATION';
+    else if (wyckoffScore < -30) phase = 'DISTRIBUTION';
+    else if (wyckoffScore > 10) phase = 'MARKUP';
+    else if (wyckoffScore < -10) phase = 'MARKDOWN';
+
+    return {
+        score: wyckoffScore,
+        phase,
+        signal: wyckoffScore > 20 ? 'BUY' : wyckoffScore < -20 ? 'SELL' : 'HOLD',
+        accumulation,
+        distribution
+    };
+}
+
+calculateMinerviniTrend(prices, history) {
+    // Mark Minervini's Trend Template (SEPA criteria)
+    if (prices.length < 200) return null;
+
+    const current = prices[prices.length - 1];
+    const sma50 = this.calculateSMA(prices, 50);
+    const sma150 = this.calculateSMA(prices, 150);
+    const sma200 = this.calculateSMA(prices, 200);
+
+    // 52-week high/low
+    const high52w = Math.max(...prices.slice(-252));
+    const low52w = Math.min(...prices.slice(-252));
+
+    // Minervini's 8 criteria
+    const criteria = {
+        priceAbove150: current > sma150,
+        priceAbove200: current > sma200,
+        sma200Trending: sma200 > prices[prices.length - 30],
+        sma50Above150: sma50 > sma150,
+        sma50Above200: sma50 > sma200,
+        currentAbove50: current > sma50,
+        priceNear52High: current >= high52w * 0.75, // Within 25% of 52w high
+        priceAbove52Low: current >= low52w * 1.30  // At least 30% above 52w low
+    };
+
+    const score = Object.values(criteria).filter(Boolean).length;
+
+    let signal = 'NEUTRAL';
+    if (score >= 7) signal = 'STRONG BUY';
+    else if (score >= 5) signal = 'BUY';
+    else if (score <= 2) signal = 'SELL';
+
+    return {
+        score,
+        maxScore: 8,
+        percentage: (score / 8) * 100,
+        signal,
+        criteria,
+        stage: score >= 6 ? 'STAGE 2' : score >= 4 ? 'STAGE 1' : score <= 2 ? 'STAGE 4' : 'STAGE 3'
+    };
+}
+
+calculateMarketCipher(prices, history) {
+    // Market Cipher B - Combines multiple oscillators
+    // Popular among crypto traders (inspired by VuManChu)
+    if (prices.length < 20 || !history) return null;
+
+    // Wave Trend
+    const ema1 = this.calculateEMA(prices, 10);
+    const ema2 = this.calculateEMA(prices, 21);
+    const waveTrend = ((ema1 - ema2) / ema2) * 100;
+
+    // Money Flow
+    let mfPositive = 0;
+    let mfNegative = 0;
+
+    for (let i = 1; i < Math.min(history.length, 14); i++) {
+        const typical = history[i].price;
+        const volume = history[i].volume || 1;
+
+        if (history[i].price > history[i-1].price) {
+            mfPositive += typical * volume;
+        } else {
+            mfNegative += typical * volume;
+        }
+    }
+
+    const mfi = mfPositive + mfNegative > 0 ?
+        100 - (100 / (1 + (mfPositive / mfNegative))) : 50;
+
+    // RSI
+    const rsi = this.calculateRSI(prices, 14);
+
+    // Combined signal
+    let signal = 'NEUTRAL';
+    let strength = 0;
+
+    if (waveTrend < -3 && mfi < 30 && rsi < 30) {
+        signal = 'EXTREME BUY';
+        strength = 3;
+    } else if (waveTrend < -1 && (mfi < 40 || rsi < 40)) {
+        signal = 'BUY';
+        strength = 2;
+    } else if (waveTrend > 3 && mfi > 70 && rsi > 70) {
+        signal = 'EXTREME SELL';
+        strength = -3;
+    } else if (waveTrend > 1 && (mfi > 60 || rsi > 60)) {
+        signal = 'SELL';
+        strength = -2;
+    }
+
+    return {
+        waveTrend,
+        moneyFlow: mfi,
+        rsi,
+        signal,
+        strength,
+        divergence: (waveTrend < 0 && rsi > 50) || (waveTrend > 0 && rsi < 50)
+    };
+}
+
+calculateWeisWave(history) {
+    // David Weis Wave Volume - Cumulative volume analysis
+    if (!history || history.length < 10) return null;
+
+    const waves = [];
+    let currentWave = { volume: 0, direction: null, bars: 0 };
+
+    for (let i = 1; i < history.length; i++) {
+        const trend = history[i].price > history[i-1].price ? 'up' : 'down';
+        const volume = history[i].volume || 1;
+
+        if (currentWave.direction === null) {
+            currentWave.direction = trend;
+        }
+
+        if (trend === currentWave.direction) {
+            currentWave.volume += volume;
+            currentWave.bars++;
+        } else {
+            waves.push({...currentWave});
+            currentWave = { volume, direction: trend, bars: 1 };
+        }
+    }
+
+    if (currentWave.bars > 0) waves.push(currentWave);
+
+    // Analyze last 5 waves
+    const recentWaves = waves.slice(-5);
+    const upWaves = recentWaves.filter(w => w.direction === 'up');
+    const downWaves = recentWaves.filter(w => w.direction === 'down');
+
+    const upVolume = upWaves.reduce((sum, w) => sum + w.volume, 0);
+    const downVolume = downWaves.reduce((sum, w) => sum + w.volume, 0);
+
+    const imbalance = upVolume + downVolume > 0 ?
+        ((upVolume - downVolume) / (upVolume + downVolume)) * 100 : 0;
+
+    return {
+        currentDirection: currentWave.direction,
+        volumeImbalance: imbalance,
+        signal: imbalance > 25 ? 'STRONG BUY' : imbalance > 10 ? 'BUY' :
+                imbalance < -25 ? 'STRONG SELL' : imbalance < -10 ? 'SELL' : 'NEUTRAL',
+        upVolume,
+        downVolume,
+        waveCount: waves.length
+    };
+}
+
+calculateSMC(prices, history) {
+    // Smart Money Concepts (SMC) - Order blocks & liquidity
+    // Popular in ICT (Inner Circle Trader) methodology
+    if (!history || history.length < 30) return null;
+
+    const current = prices[prices.length - 1];
+
+    // Find Order Blocks (strong support/resistance from institutions)
+    const orderBlocks = [];
+    for (let i = 5; i < history.length - 5; i++) {
+        const volume = history[i].volume || 1;
+        const avgVolume = history.reduce((s, h) => s + (h.volume || 1), 0) / history.length;
+
+        // High volume candle with strong move
+        if (volume > avgVolume * 2) {
+            const priceMove = Math.abs(history[i].price - history[i-1].price);
+            const avgMove = prices.slice(-10).reduce((s, p, idx, arr) =>
+                idx > 0 ? s + Math.abs(p - arr[idx-1]) : s, 0) / 10;
+
+            if (priceMove > avgMove * 1.5) {
+                orderBlocks.push({
+                    price: history[i].price,
+                    type: history[i].price > history[i-1].price ? 'bullish' : 'bearish',
+                    strength: volume / avgVolume
+                });
+            }
+        }
+    }
+
+    // Find nearest order block
+    const bullishOB = orderBlocks.filter(ob => ob.type === 'bullish' && ob.price < current)
+        .sort((a, b) => b.price - a.price)[0];
+    const bearishOB = orderBlocks.filter(ob => ob.type === 'bearish' && ob.price > current)
+        .sort((a, b) => a.price - b.price)[0];
+
+    // Market Structure (Higher Highs, Lower Lows)
+    const highs = [];
+    const lows = [];
+
+    for (let i = 5; i < prices.length - 5; i++) {
+        const isHigh = prices.slice(i-5, i).every(p => p < prices[i]) &&
+                       prices.slice(i+1, i+6).every(p => p < prices[i]);
+        const isLow = prices.slice(i-5, i).every(p => p > prices[i]) &&
+                      prices.slice(i+1, i+6).every(p => p > prices[i]);
+
+        if (isHigh) highs.push(prices[i]);
+        if (isLow) lows.push(prices[i]);
+    }
+
+    const recentHighs = highs.slice(-3);
+    const recentLows = lows.slice(-3);
+
+    let marketStructure = 'RANGING';
+    if (recentHighs.length >= 2 && recentHighs[recentHighs.length-1] > recentHighs[recentHighs.length-2]) {
+        marketStructure = 'BULLISH';
+    } else if (recentLows.length >= 2 && recentLows[recentLows.length-1] < recentLows[recentLows.length-2]) {
+        marketStructure = 'BEARISH';
+    }
+
+    let signal = 'NEUTRAL';
+    if (marketStructure === 'BULLISH' && bullishOB) signal = 'BUY';
+    else if (marketStructure === 'BEARISH' && bearishOB) signal = 'SELL';
+
+    return {
+        marketStructure,
+        signal,
+        bullishOrderBlock: bullishOB?.price,
+        bearishOrderBlock: bearishOB?.price,
+        orderBlockCount: orderBlocks.length,
+        trendStrength: orderBlocks.length > 5 ? 'STRONG' : 'WEAK'
+    };
+}
+
 calculateAllIndicators(prices) {
     const current = prices[prices.length - 1];
     
@@ -491,45 +947,86 @@ calculateAllIndicators(prices) {
     // ATR
     const atr = this.calculateATR(prices);
     const atrPercent = (atr / current) * 100;
-    
+
+    // Advanced Indicators
+    const supertrend = this.calculateSupertrend(prices);
+    const ichimoku = this.calculateIchimokuCloud(prices);
+    const elderRay = this.calculateElderRay(prices);
+    const keltner = this.calculateKeltnerChannels(prices);
+
     return {
         rsi: { value: rsi, signal: rsiSignal },
         macd: { value: macd.macd, signal: macdSignal, histogram: macd.histogram },
         ma: { value: sma20, sma50, ema12, ema26, signal: maSignal, goldenCross },
         bb: { value: bb.middle, upper: bb.upper, lower: bb.lower, signal: bbSignal },
         stoch: { k: stoch.k, d: stoch.d, signal: stochSignal },
-        atr: { value: atr, percent: atrPercent }
+        atr: { value: atr, percent: atrPercent },
+        supertrend: supertrend || { signal: 'N/A', trend: 'N/A' },
+        ichimoku: ichimoku || { signal: 'N/A' },
+        elderRay: elderRay || { signal: 'N/A', bullPower: 0, bearPower: 0 },
+        keltner: keltner || { signal: 'N/A', squeeze: false }
     };
 }
 
 
         async loadIndicators() {
         try {
-            console.log("Calculating technical indicators...");
-            
+            console.log(`📊 Calculating technical indicators for ${this.selectedCoin}...`);
+
             // Use cached price history or fetch if needed
             if (!this.priceHistory || this.priceHistory.length < 20) {
-                console.log("Fetching price history for indicators...");
+                console.log("⚠️ Price history not available, fetching...");
                 const response = await fetch(`${this.apiBase}/data/history/168?symbol=${this.selectedCoin}`);
                 if (response.ok) {
                     const result = await response.json();
                     this.priceHistory = result.success ? result.data.history : result.history;
                 }
             }
-            
+
             if (!this.priceHistory || this.priceHistory.length < 20) {
-                console.warn("Insufficient price history for indicators");
+                console.warn("❌ Insufficient price history for indicators");
                 this.setIndicatorLoading();
                 return;
             }
-            
+
+            console.log(`✅ Using ${this.priceHistory.length} price points for ${this.selectedCoin} indicators`);
+
             // Calculate indicators from price data
             const prices = this.priceHistory.map(h => h.price);
             const indicators = this.calculateAllIndicators(prices);
-            
-            console.log("✅ Indicators calculated:", indicators);
+
+            // Calculate advanced indicators that need volume data
+            const vwap = this.calculateVWAP(this.priceHistory);
+            const orderFlow = this.calculateOrderFlowImbalance(this.priceHistory);
+
+            // Calculate legendary trader indicators
+            console.log(`🏆 Calculating legendary indicators for ${this.selectedCoin}...`);
+            const wyckoff = this.calculateWyckoffAccumulation(this.priceHistory);
+            const minervini = this.calculateMinerviniTrend(prices, this.priceHistory);
+            const marketCipher = this.calculateMarketCipher(prices, this.priceHistory);
+            const weisWave = this.calculateWeisWave(this.priceHistory);
+            const smc = this.calculateSMC(prices, this.priceHistory);
+
+            // Merge all indicators
+            indicators.vwap = vwap || { signal: 'N/A', deviation: 0 };
+            indicators.orderFlow = orderFlow || { signal: 'N/A', imbalance: 0 };
+            indicators.wyckoff = wyckoff || { signal: 'HOLD', phase: 'N/A' };
+            indicators.minervini = minervini || { signal: 'NEUTRAL', score: 0 };
+            indicators.marketCipher = marketCipher || { signal: 'NEUTRAL', strength: 0 };
+            indicators.weisWave = weisWave || { signal: 'NEUTRAL', volumeImbalance: 0 };
+            indicators.smc = smc || { signal: 'NEUTRAL', marketStructure: 'RANGING' };
+
+            console.log(`✅ All indicators calculated for ${this.selectedCoin}:`, {
+                wyckoff: wyckoff?.phase,
+                minervini: minervini?.score,
+                marketCipher: marketCipher?.signal,
+                weisWave: weisWave?.volumeImbalance,
+                smc: smc?.marketStructure
+            });
             this.updateIndicatorsDisplay(indicators);
-            
+            this.updateAdvancedIndicatorsDisplay(indicators);
+            this.updateLegendaryIndicatorsDisplay(indicators);
+
             // Also try to fetch server-side analytics for enhanced data
             this.loadServerAnalytics();
         } catch (error) {
@@ -607,6 +1104,231 @@ calculateAllIndicators(prices) {
                 signalEl.className = "indicator-signal signal-neutral";
             }
         });
+    }
+
+    updateAdvancedIndicatorsDisplay(indicators) {
+        console.log("📊 Updating advanced indicators display");
+
+        // VWAP
+        const vwapEl = document.getElementById("vwap-value");
+        const vwapSigEl = document.getElementById("vwap-signal");
+        if (vwapEl && indicators.vwap) {
+            vwapEl.textContent = `$${indicators.vwap.vwap?.toFixed(2) || '--'}`;
+        }
+        if (vwapSigEl && indicators.vwap) {
+            const badge = vwapSigEl.querySelector('.terminal-badge') || vwapSigEl;
+            badge.textContent = indicators.vwap.signal;
+            const badgeClass = indicators.vwap.signal === 'BUY' ? 'success' : indicators.vwap.signal === 'SELL' ? 'danger' : 'info';
+            badge.className = `terminal-badge ${badgeClass}`;
+        }
+
+        // Order Flow Imbalance
+        const ofiEl = document.getElementById("ofi-value");
+        const ofiSigEl = document.getElementById("ofi-signal");
+        if (ofiEl && indicators.orderFlow) {
+            ofiEl.textContent = `${indicators.orderFlow.imbalance?.toFixed(1) || 0}%`;
+        }
+        if (ofiSigEl && indicators.orderFlow) {
+            const badge = ofiSigEl.querySelector('.terminal-badge') || ofiSigEl;
+            badge.textContent = indicators.orderFlow.signal;
+            const signal = indicators.orderFlow.signal;
+            let badgeClass = 'info';
+            if (signal.includes('STRONG BUY')) badgeClass = 'success';
+            else if (signal.includes('STRONG SELL')) badgeClass = 'danger';
+            else if (signal === 'BUY') badgeClass = 'success';
+            else if (signal === 'SELL') badgeClass = 'danger';
+            badge.className = `terminal-badge ${badgeClass}`;
+        }
+
+        // Ichimoku Cloud
+        const ichimokuEl = document.getElementById("ichimoku-value");
+        const ichimokuSigEl = document.getElementById("ichimoku-signal");
+        if (ichimokuEl && indicators.ichimoku) {
+            const cloud = indicators.ichimoku.inCloud ? 'In Cloud' : indicators.ichimoku.bullishCloud ? 'Bullish' : 'Bearish';
+            ichimokuEl.textContent = cloud;
+        }
+        if (ichimokuSigEl && indicators.ichimoku) {
+            const badge = ichimokuSigEl.querySelector('.terminal-badge') || ichimokuSigEl;
+            badge.textContent = indicators.ichimoku.signal;
+            const signal = indicators.ichimoku.signal;
+            let badgeClass = 'info';
+            if (signal.includes('STRONG BUY')) badgeClass = 'success';
+            else if (signal.includes('STRONG SELL')) badgeClass = 'danger';
+            else if (signal === 'BUY') badgeClass = 'success';
+            else if (signal === 'SELL') badgeClass = 'danger';
+            badge.className = `terminal-badge ${badgeClass}`;
+        }
+
+        // Supertrend
+        const supertrendEl = document.getElementById("supertrend-value");
+        const supertrendSigEl = document.getElementById("supertrend-signal");
+        if (supertrendEl && indicators.supertrend) {
+            supertrendEl.textContent = indicators.supertrend.trend || 'N/A';
+        }
+        if (supertrendSigEl && indicators.supertrend) {
+            const badge = supertrendSigEl.querySelector('.terminal-badge') || supertrendSigEl;
+            badge.textContent = indicators.supertrend.signal;
+            const badgeClass = indicators.supertrend.signal === 'BUY' ? 'success' : indicators.supertrend.signal === 'SELL' ? 'danger' : 'info';
+            badge.className = `terminal-badge ${badgeClass}`;
+        }
+
+        // Elder Ray
+        const elderEl = document.getElementById("elder-value");
+        const elderSigEl = document.getElementById("elder-signal");
+        if (elderEl && indicators.elderRay) {
+            const bull = indicators.elderRay.bullPower?.toFixed(2) || 0;
+            const bear = indicators.elderRay.bearPower?.toFixed(2) || 0;
+            elderEl.textContent = `B:${bull} / Be:${bear}`;
+        }
+        if (elderSigEl && indicators.elderRay) {
+            const badge = elderSigEl.querySelector('.terminal-badge') || elderSigEl;
+            badge.textContent = indicators.elderRay.signal;
+            const signal = indicators.elderRay.signal;
+            let badgeClass = 'info';
+            if (signal.includes('STRONG BUY')) badgeClass = 'success';
+            else if (signal.includes('STRONG SELL')) badgeClass = 'danger';
+            else if (signal === 'BUY') badgeClass = 'success';
+            else if (signal === 'SELL') badgeClass = 'danger';
+            badge.className = `terminal-badge ${badgeClass}`;
+        }
+
+        // Keltner Channels
+        const keltnerEl = document.getElementById("keltner-value");
+        const keltnerSigEl = document.getElementById("keltner-signal");
+        if (keltnerEl && indicators.keltner) {
+            const status = indicators.keltner.squeeze ? 'SQUEEZE' : 'NORMAL';
+            keltnerEl.textContent = status;
+        }
+        if (keltnerSigEl && indicators.keltner) {
+            const badge = keltnerSigEl.querySelector('.terminal-badge') || keltnerSigEl;
+            badge.textContent = indicators.keltner.signal;
+            const signal = indicators.keltner.signal;
+            const badgeClass = signal === 'OVERSOLD' ? 'success' : signal === 'OVERBOUGHT' ? 'danger' : 'info';
+            badge.className = `terminal-badge ${badgeClass}`;
+        }
+    }
+
+    updateLegendaryIndicatorsDisplay(indicators) {
+        console.log("🏆 Updating legendary trader indicators display");
+
+        // Wyckoff Accumulation/Distribution
+        const wyckoffPhaseEl = document.getElementById("wyckoff-phase");
+        const wyckoffScoreEl = document.getElementById("wyckoff-score");
+        const wyckoffSigEl = document.getElementById("wyckoff-signal");
+        if (wyckoffPhaseEl && indicators.wyckoff) {
+            wyckoffPhaseEl.textContent = indicators.wyckoff.phase || 'NEUTRAL';
+            wyckoffPhaseEl.style.color = indicators.wyckoff.phase === 'ACCUMULATION' ? 'var(--status-profit)' :
+                                          indicators.wyckoff.phase === 'DISTRIBUTION' ? 'var(--status-loss)' :
+                                          'var(--text-secondary)';
+        }
+        if (wyckoffScoreEl && indicators.wyckoff) {
+            wyckoffScoreEl.textContent = `Score: ${indicators.wyckoff.score?.toFixed(1) || 0}%`;
+        }
+        if (wyckoffSigEl && indicators.wyckoff) {
+            const badge = wyckoffSigEl.querySelector('.terminal-badge') || wyckoffSigEl;
+            badge.textContent = indicators.wyckoff.signal;
+            const badgeClass = indicators.wyckoff.signal === 'BUY' ? 'success' : indicators.wyckoff.signal === 'SELL' ? 'danger' : 'info';
+            badge.className = `terminal-badge ${badgeClass}`;
+        }
+
+        // Minervini Trend Template
+        const minerviniScoreEl = document.getElementById("minervini-score");
+        const minerviniStageEl = document.getElementById("minervini-stage");
+        const minerviniSigEl = document.getElementById("minervini-signal");
+        if (minerviniScoreEl && indicators.minervini) {
+            const score = indicators.minervini.score || 0;
+            const maxScore = indicators.minervini.maxScore || 8;
+            minerviniScoreEl.textContent = `${score}/${maxScore}`;
+            minerviniScoreEl.style.color = score >= 6 ? 'var(--status-profit)' :
+                                            score >= 4 ? 'var(--text-warning)' :
+                                            'var(--status-loss)';
+        }
+        if (minerviniStageEl && indicators.minervini) {
+            minerviniStageEl.textContent = `Stage: ${indicators.minervini.stage || 'N/A'}`;
+        }
+        if (minerviniSigEl && indicators.minervini) {
+            const badge = minerviniSigEl.querySelector('.terminal-badge') || minerviniSigEl;
+            badge.textContent = indicators.minervini.signal;
+            const signal = indicators.minervini.signal;
+            let badgeClass = 'info';
+            if (signal === 'STRONG BUY') badgeClass = 'success';
+            else if (signal === 'BUY') badgeClass = 'success';
+            else if (signal === 'SELL') badgeClass = 'danger';
+            badge.className = `terminal-badge ${badgeClass}`;
+        }
+
+        // Market Cipher B
+        const cipherStrengthEl = document.getElementById("cipher-strength");
+        const cipherWaveEl = document.getElementById("cipher-wave");
+        const cipherSigEl = document.getElementById("cipher-signal");
+        if (cipherStrengthEl && indicators.marketCipher) {
+            const strength = indicators.marketCipher.strength || 0;
+            cipherStrengthEl.textContent = `${strength > 0 ? '+' : ''}${strength.toFixed(1)}`;
+            cipherStrengthEl.style.color = strength > 0 ? 'var(--status-profit)' : 'var(--status-loss)';
+        }
+        if (cipherWaveEl && indicators.marketCipher) {
+            cipherWaveEl.textContent = `Wave: ${indicators.marketCipher.waveTrend?.toFixed(2) || 0}`;
+        }
+        if (cipherSigEl && indicators.marketCipher) {
+            const badge = cipherSigEl.querySelector('.terminal-badge') || cipherSigEl;
+            badge.textContent = indicators.marketCipher.signal;
+            const signal = indicators.marketCipher.signal;
+            let badgeClass = 'info';
+            if (signal.includes('STRONG BUY')) badgeClass = 'success';
+            else if (signal === 'BUY') badgeClass = 'success';
+            else if (signal === 'SELL') badgeClass = 'danger';
+            badge.className = `terminal-badge ${badgeClass}`;
+        }
+
+        // Weis Wave Volume
+        const weisImbalanceEl = document.getElementById("weis-imbalance");
+        const weisWaveEl = document.getElementById("weis-wave");
+        const weisSigEl = document.getElementById("weis-signal");
+        if (weisImbalanceEl && indicators.weisWave) {
+            const imbalance = indicators.weisWave.volumeImbalance || 0;
+            weisImbalanceEl.textContent = `${imbalance > 0 ? '+' : ''}${imbalance.toFixed(1)}%`;
+            weisImbalanceEl.style.color = imbalance > 0 ? 'var(--status-profit)' : 'var(--status-loss)';
+        }
+        if (weisWaveEl && indicators.weisWave) {
+            weisWaveEl.textContent = `Wave: ${indicators.weisWave.currentWave || 'UP'}`;
+        }
+        if (weisSigEl && indicators.weisWave) {
+            const badge = weisSigEl.querySelector('.terminal-badge') || weisSigEl;
+            badge.textContent = indicators.weisWave.signal;
+            const badgeClass = indicators.weisWave.signal === 'BUY' ? 'success' : indicators.weisWave.signal === 'SELL' ? 'danger' : 'info';
+            badge.className = `terminal-badge ${badgeClass}`;
+        }
+
+        // Smart Money Concepts (SMC)
+        const smcStructureEl = document.getElementById("smc-structure");
+        const smcOrderBlockEl = document.getElementById("smc-orderblock");
+        const smcSigEl = document.getElementById("smc-signal");
+        if (smcStructureEl && indicators.smc) {
+            const structure = indicators.smc.marketStructure || 'RANGING';
+            smcStructureEl.textContent = structure;
+            smcStructureEl.style.color = structure === 'BULLISH' ? 'var(--status-profit)' :
+                                          structure === 'BEARISH' ? 'var(--status-loss)' :
+                                          'var(--text-secondary)';
+        }
+        if (smcOrderBlockEl && indicators.smc) {
+            let obText = 'None';
+            if (indicators.smc.bullishOrderBlock) {
+                obText = `🟢 $${indicators.smc.bullishOrderBlock.price?.toFixed(2) || '??'}`;
+            } else if (indicators.smc.bearishOrderBlock) {
+                obText = `🔴 $${indicators.smc.bearishOrderBlock.price?.toFixed(2) || '??'}`;
+            }
+            smcOrderBlockEl.textContent = obText;
+        }
+        if (smcSigEl && indicators.smc) {
+            const badge = smcSigEl.querySelector('.terminal-badge') || smcSigEl;
+            badge.textContent = indicators.smc.signal;
+            const signal = indicators.smc.signal;
+            let badgeClass = 'info';
+            if (signal.includes('STRONG BUY')) badgeClass = 'success';
+            else if (signal === 'BUY') badgeClass = 'success';
+            else if (signal === 'SELL') badgeClass = 'danger';
+            badge.className = `terminal-badge ${badgeClass}`;
+        }
     }
 
     async loadPriceHistory() {

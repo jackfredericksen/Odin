@@ -359,6 +359,204 @@
                 </div>
 
             </div>
+
+            <!-- Advanced Institutional Indicators Grid -->
+            <div style="margin-top: var(--spacing-lg);">
+                <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: var(--spacing-md); color: var(--text-primary); text-transform: uppercase; letter-spacing: 1px;">⚡ Advanced Signals</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--spacing-md);">
+
+                    <!-- VWAP Panel -->
+                    <div class="terminal-panel">
+                        <div class="terminal-panel-header">
+                            <span class="terminal-panel-title">VWAP</span>
+                        </div>
+                        <div class="terminal-panel-body">
+                            <div class="quick-stat">
+                                <div class="quick-stat-label">Volume-Weighted Avg Price</div>
+                                <div class="quick-stat-value" id="vwap-value">--</div>
+                                <div class="quick-stat-change" id="vwap-signal">
+                                    <span class="terminal-badge info">HOLD</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Order Flow Imbalance Panel -->
+                    <div class="terminal-panel">
+                        <div class="terminal-panel-header">
+                            <span class="terminal-panel-title">Order Flow</span>
+                        </div>
+                        <div class="terminal-panel-body">
+                            <div class="quick-stat">
+                                <div class="quick-stat-label">Buy/Sell Imbalance</div>
+                                <div class="quick-stat-value" id="ofi-value">--</div>
+                                <div class="quick-stat-change" id="ofi-signal">
+                                    <span class="terminal-badge info">NEUTRAL</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ichimoku Cloud Panel -->
+                    <div class="terminal-panel">
+                        <div class="terminal-panel-header">
+                            <span class="terminal-panel-title">Ichimoku Cloud</span>
+                        </div>
+                        <div class="terminal-panel-body">
+                            <div class="quick-stat">
+                                <div class="quick-stat-label">Cloud Status</div>
+                                <div class="quick-stat-value" id="ichimoku-value">--</div>
+                                <div class="quick-stat-change" id="ichimoku-signal">
+                                    <span class="terminal-badge info">NEUTRAL</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Supertrend Panel -->
+                    <div class="terminal-panel">
+                        <div class="terminal-panel-header">
+                            <span class="terminal-panel-title">Supertrend</span>
+                        </div>
+                        <div class="terminal-panel-body">
+                            <div class="quick-stat">
+                                <div class="quick-stat-label">Trend Direction</div>
+                                <div class="quick-stat-value" id="supertrend-value">--</div>
+                                <div class="quick-stat-change" id="supertrend-signal">
+                                    <span class="terminal-badge info">HOLD</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Elder Ray Panel -->
+                    <div class="terminal-panel">
+                        <div class="terminal-panel-header">
+                            <span class="terminal-panel-title">Elder Ray</span>
+                        </div>
+                        <div class="terminal-panel-body">
+                            <div class="quick-stat">
+                                <div class="quick-stat-label">Bull/Bear Power</div>
+                                <div class="quick-stat-value" id="elder-value">--</div>
+                                <div class="quick-stat-change" id="elder-signal">
+                                    <span class="terminal-badge info">NEUTRAL</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Keltner Channels Panel -->
+                    <div class="terminal-panel">
+                        <div class="terminal-panel-header">
+                            <span class="terminal-panel-title">Keltner Channels</span>
+                        </div>
+                        <div class="terminal-panel-body">
+                            <div class="quick-stat">
+                                <div class="quick-stat-label">Volatility Status</div>
+                                <div class="quick-stat-value" id="keltner-value">--</div>
+                                <div class="quick-stat-change" id="keltner-signal">
+                                    <span class="terminal-badge info">HOLD</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Legendary Trader Indicators Grid -->
+                <div style="margin-top: var(--spacing-xl);">
+                    <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: var(--spacing-md); color: var(--text-primary); text-transform: uppercase; letter-spacing: 1px;">🏆 Legendary Traders</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--spacing-md);">
+
+                        <!-- Wyckoff Accumulation/Distribution Panel -->
+                        <div class="terminal-panel">
+                            <div class="terminal-panel-header">
+                                <span class="terminal-panel-title">Wyckoff Analysis</span>
+                            </div>
+                            <div class="terminal-panel-body">
+                                <div class="quick-stat">
+                                    <div class="quick-stat-label">Richard Wyckoff Method</div>
+                                    <div class="quick-stat-value" id="wyckoff-phase">NEUTRAL</div>
+                                    <div id="wyckoff-score" style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem;">Score: 0%</div>
+                                    <div class="quick-stat-change" id="wyckoff-signal">
+                                        <span class="terminal-badge info">HOLD</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Minervini Trend Template Panel -->
+                        <div class="terminal-panel">
+                            <div class="terminal-panel-header">
+                                <span class="terminal-panel-title">Minervini SEPA</span>
+                            </div>
+                            <div class="terminal-panel-body">
+                                <div class="quick-stat">
+                                    <div class="quick-stat-label">Mark Minervini Trend Template</div>
+                                    <div class="quick-stat-value" id="minervini-score">0/8</div>
+                                    <div id="minervini-stage" style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem;">Stage: N/A</div>
+                                    <div class="quick-stat-change" id="minervini-signal">
+                                        <span class="terminal-badge info">NEUTRAL</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Market Cipher B Panel -->
+                        <div class="terminal-panel">
+                            <div class="terminal-panel-header">
+                                <span class="terminal-panel-title">Market Cipher B</span>
+                            </div>
+                            <div class="terminal-panel-body">
+                                <div class="quick-stat">
+                                    <div class="quick-stat-label">VuManChu Oscillator</div>
+                                    <div class="quick-stat-value" id="cipher-strength">0.0</div>
+                                    <div id="cipher-wave" style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem;">Wave: 0.00</div>
+                                    <div class="quick-stat-change" id="cipher-signal">
+                                        <span class="terminal-badge info">NEUTRAL</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Weis Wave Volume Panel -->
+                        <div class="terminal-panel">
+                            <div class="terminal-panel-header">
+                                <span class="terminal-panel-title">Weis Wave</span>
+                            </div>
+                            <div class="terminal-panel-body">
+                                <div class="quick-stat">
+                                    <div class="quick-stat-label">David Weis Volume Analysis</div>
+                                    <div class="quick-stat-value" id="weis-imbalance">0.0%</div>
+                                    <div id="weis-wave" style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem;">Wave: UP</div>
+                                    <div class="quick-stat-change" id="weis-signal">
+                                        <span class="terminal-badge info">NEUTRAL</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Smart Money Concepts Panel -->
+                        <div class="terminal-panel">
+                            <div class="terminal-panel-header">
+                                <span class="terminal-panel-title">Smart Money (SMC)</span>
+                            </div>
+                            <div class="terminal-panel-body">
+                                <div class="quick-stat">
+                                    <div class="quick-stat-label">ICT Order Blocks & Liquidity</div>
+                                    <div class="quick-stat-value" id="smc-structure">RANGING</div>
+                                    <div id="smc-orderblock" style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem;">None</div>
+                                    <div class="quick-stat-change" id="smc-signal">
+                                        <span class="terminal-badge info">NEUTRAL</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
         </div>
     </section>
 
