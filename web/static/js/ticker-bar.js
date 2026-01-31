@@ -1,26 +1,64 @@
 /**
- * Live Ticker Bar - Bloomberg-style multi-coin price ticker
- * Displays real-time prices for all 7 supported coins
+ * Live Ticker Bar - Bloomberg-style multi-asset price ticker
+ * Displays real-time prices for cryptocurrencies, precious metals, and stocks
  */
 
 class LiveTickerBar {
-    constructor(coins = ['BTC', 'ETH', 'SOL', 'XRP', 'BNB', 'SUI', 'HYPE']) {
-        this.coins = coins;
+    constructor(assets = null) {
+        // Default assets: top cryptos, key metals, major stocks
+        this.defaultAssets = [
+            // Cryptocurrencies
+            'BTC', 'ETH', 'SOL', 'XRP', 'BNB',
+            // Precious Metals
+            'GOLD', 'SILVER',
+            // Major Stocks
+            'SPY', 'NVDA', 'TSLA'
+        ];
+        this.assets = assets || this.defaultAssets;
         this.prices = {};
         this.updateInterval = 5000; // 5 seconds
         this.intervalId = null;
         this.apiBase = '/api/v1';
 
-        // Coin display info
-        this.coinInfo = {
-            'BTC': { name: 'Bitcoin', symbol: '₿', color: '#f7931a' },
-            'ETH': { name: 'Ethereum', symbol: 'Ξ', color: '#627eea' },
-            'SOL': { name: 'Solana', symbol: '◎', color: '#00d4aa' },
-            'XRP': { name: 'XRP', symbol: '✕', color: '#23292f' },
-            'BNB': { name: 'BNB', symbol: '🔶', color: '#f3ba2f' },
-            'SUI': { name: 'Sui', symbol: '〜', color: '#4da2ff' },
-            'HYPE': { name: 'Hyperliquid', symbol: '🚀', color: '#00d4ff' }
+        // Asset display info with categories
+        this.assetInfo = {
+            // Cryptocurrencies
+            'BTC': { name: 'Bitcoin', symbol: '₿', color: '#f7931a', category: 'crypto' },
+            'ETH': { name: 'Ethereum', symbol: 'Ξ', color: '#627eea', category: 'crypto' },
+            'SOL': { name: 'Solana', symbol: '◎', color: '#00d4aa', category: 'crypto' },
+            'XRP': { name: 'XRP', symbol: '✕', color: '#23292f', category: 'crypto' },
+            'BNB': { name: 'BNB', symbol: '◆', color: '#f3ba2f', category: 'crypto' },
+            'SUI': { name: 'Sui', symbol: '〜', color: '#4da2ff', category: 'crypto' },
+            'HYPE': { name: 'Hyperliquid', symbol: '⚡', color: '#00d4ff', category: 'crypto' },
+
+            // Precious Metals
+            'GOLD': { name: 'Gold', symbol: 'Au', color: '#ffd700', category: 'metal', unit: 'oz' },
+            'SILVER': { name: 'Silver', symbol: 'Ag', color: '#c0c0c0', category: 'metal', unit: 'oz' },
+            'PLATINUM': { name: 'Platinum', symbol: 'Pt', color: '#e5e4e2', category: 'metal', unit: 'oz' },
+            'PALLADIUM': { name: 'Palladium', symbol: 'Pd', color: '#cec8c8', category: 'metal', unit: 'oz' },
+            'COPPER': { name: 'Copper', symbol: 'Cu', color: '#b87333', category: 'metal', unit: 'lb' },
+
+            // Stocks - Index ETFs
+            'SPY': { name: 'S&P 500', symbol: '📈', color: '#1a73e8', category: 'stock', sector: 'Index' },
+            'QQQ': { name: 'Nasdaq 100', symbol: '📊', color: '#00c853', category: 'stock', sector: 'Index' },
+
+            // Stocks - Tech
+            'AAPL': { name: 'Apple', symbol: '🍎', color: '#555555', category: 'stock', sector: 'Tech' },
+            'MSFT': { name: 'Microsoft', symbol: 'MS', color: '#00a4ef', category: 'stock', sector: 'Tech' },
+            'GOOGL': { name: 'Google', symbol: 'G', color: '#4285f4', category: 'stock', sector: 'Tech' },
+            'AMZN': { name: 'Amazon', symbol: 'AZ', color: '#ff9900', category: 'stock', sector: 'Tech' },
+            'NVDA': { name: 'NVIDIA', symbol: 'NV', color: '#76b900', category: 'stock', sector: 'Tech' },
+            'TSLA': { name: 'Tesla', symbol: 'TS', color: '#cc0000', category: 'stock', sector: 'Tech' },
+            'META': { name: 'Meta', symbol: 'MT', color: '#0668e1', category: 'stock', sector: 'Tech' },
+
+            // Stocks - Crypto-related
+            'COIN': { name: 'Coinbase', symbol: 'CB', color: '#0052ff', category: 'stock', sector: 'Crypto' },
+            'MSTR': { name: 'MicroStrategy', symbol: 'MR', color: '#d9232d', category: 'stock', sector: 'Crypto' }
         };
+
+        // Backwards compatibility alias
+        this.coinInfo = this.assetInfo;
+        this.coins = this.assets;
     }
 
     /**
@@ -45,33 +83,33 @@ class LiveTickerBar {
     }
 
     /**
-     * Fetch prices for all coins in parallel
+     * Fetch prices for all assets in parallel
      */
     async fetchAllPrices() {
         try {
-            const promises = this.coins.map(coin =>
-                fetch(`${this.apiBase}/data/price?symbol=${coin}`)
+            const promises = this.assets.map(asset =>
+                fetch(`${this.apiBase}/data/price?symbol=${asset}`)
                     .then(res => res.json())
                     .then(result => {
                         // Handle API response format
                         const data = result.success && result.data ? result.data : result;
-                        return { coin, data };
+                        return { asset, data };
                     })
                     .catch(err => {
-                        console.warn(`⚠️ Failed to fetch ${coin} price:`, err);
-                        return { coin, data: null };
+                        console.warn(`⚠️ Failed to fetch ${asset} price:`, err);
+                        return { asset, data: null };
                     })
             );
 
             const results = await Promise.all(promises);
 
             // Update prices object
-            results.forEach(({ coin, data }) => {
+            results.forEach(({ asset, data }) => {
                 if (data && data.price) {
                     // Calculate change_percent if not provided
                     let change_percent = data.change_percent || data.change_24h || 0;
 
-                    this.prices[coin] = {
+                    this.prices[asset] = {
                         price: data.price,
                         change_24h: data.change_24h || data.change_24h_abs || 0,
                         change_percent: change_percent,
@@ -89,6 +127,18 @@ class LiveTickerBar {
     }
 
     /**
+     * Get category badge class for styling
+     */
+    getCategoryBadge(category) {
+        const badges = {
+            'crypto': 'badge-crypto',
+            'metal': 'badge-metal',
+            'stock': 'badge-stock'
+        };
+        return badges[category] || 'badge-crypto';
+    }
+
+    /**
      * Render the ticker bar HTML
      */
     render() {
@@ -100,13 +150,21 @@ class LiveTickerBar {
 
         let html = '';
 
-        this.coins.forEach(coin => {
-            const info = this.coinInfo[coin];
+        this.assets.forEach(asset => {
+            const info = this.assetInfo[asset];
+            if (!info) {
+                console.warn(`⚠️ No info found for asset: ${asset}`);
+                return;
+            }
+
+            const categoryClass = this.getCategoryBadge(info.category);
+            const unitSuffix = info.unit ? `/${info.unit}` : '';
+
             html += `
-                <div class="ticker-item" data-coin="${coin}">
-                    <span class="ticker-symbol" style="color: ${info.color}">${info.symbol} ${coin}</span>
-                    <span class="ticker-price" id="ticker-price-${coin}">$---.--</span>
-                    <span class="ticker-change" id="ticker-change-${coin}">
+                <div class="ticker-item ${categoryClass}" data-coin="${asset}" data-category="${info.category}">
+                    <span class="ticker-symbol" style="color: ${info.color}">${info.symbol} ${asset}</span>
+                    <span class="ticker-price" id="ticker-price-${asset}">$---.--${unitSuffix}</span>
+                    <span class="ticker-change" id="ticker-change-${asset}">
                         <span class="ticker-change-icon">-</span>
                         <span class="ticker-change-value">-.--</span>%
                     </span>
@@ -121,15 +179,17 @@ class LiveTickerBar {
      * Update the ticker display with latest prices
      */
     updateDisplay() {
-        this.coins.forEach(coin => {
-            const priceData = this.prices[coin];
-            if (!priceData) return;
+        this.assets.forEach(asset => {
+            const priceData = this.prices[asset];
+            const info = this.assetInfo[asset];
+            if (!priceData || !info) return;
 
             // Update price
-            const priceEl = document.getElementById(`ticker-price-${coin}`);
+            const priceEl = document.getElementById(`ticker-price-${asset}`);
             if (priceEl) {
-                const formattedPrice = this.formatPrice(priceData.price);
-                priceEl.textContent = `$${formattedPrice}`;
+                const formattedPrice = this.formatPrice(priceData.price, info.category);
+                const unitSuffix = info.unit ? `/${info.unit}` : '';
+                priceEl.textContent = `$${formattedPrice}${unitSuffix}`;
 
                 // Add flash animation on price change
                 priceEl.classList.add('ticker-flash');
@@ -137,7 +197,7 @@ class LiveTickerBar {
             }
 
             // Update change
-            const changeEl = document.getElementById(`ticker-change-${coin}`);
+            const changeEl = document.getElementById(`ticker-change-${asset}`);
             if (changeEl) {
                 const changePercent = priceData.change_percent || 0;
                 const isPositive = changePercent >= 0;
@@ -154,9 +214,15 @@ class LiveTickerBar {
     }
 
     /**
-     * Format price based on value
+     * Format price based on value and asset category
      */
-    formatPrice(price) {
+    formatPrice(price, category = 'crypto') {
+        // Stocks and metals typically use 2 decimal places
+        if (category === 'stock' || category === 'metal') {
+            return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // Crypto formatting based on price magnitude
         if (price >= 1000) {
             return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         } else if (price >= 1) {
@@ -229,10 +295,10 @@ class LiveTickerBar {
     }
 
     /**
-     * Get current price for a coin
+     * Get current price for an asset
      */
-    getPrice(coin) {
-        return this.prices[coin] || null;
+    getPrice(asset) {
+        return this.prices[asset] || null;
     }
 
     /**
@@ -240,6 +306,63 @@ class LiveTickerBar {
      */
     getAllPrices() {
         return this.prices;
+    }
+
+    /**
+     * Get assets by category
+     */
+    getAssetsByCategory(category) {
+        return this.assets.filter(asset => {
+            const info = this.assetInfo[asset];
+            return info && info.category === category;
+        });
+    }
+
+    /**
+     * Add an asset to the ticker
+     */
+    addAsset(asset) {
+        if (!this.assetInfo[asset]) {
+            console.warn(`⚠️ Unknown asset: ${asset}`);
+            return false;
+        }
+        if (!this.assets.includes(asset)) {
+            this.assets.push(asset);
+            this.render();
+            this.fetchAllPrices();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Remove an asset from the ticker
+     */
+    removeAsset(asset) {
+        const index = this.assets.indexOf(asset);
+        if (index > -1) {
+            this.assets.splice(index, 1);
+            delete this.prices[asset];
+            this.render();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Set which assets to display
+     */
+    setAssets(assets) {
+        this.assets = assets.filter(a => this.assetInfo[a]);
+        this.render();
+        this.fetchAllPrices();
+    }
+
+    /**
+     * Get all available asset symbols
+     */
+    getAvailableAssets() {
+        return Object.keys(this.assetInfo);
     }
 
     /**

@@ -263,9 +263,10 @@ async def start_cache_cleanup_task(interval: int = 300):
 
 # Cache preset configurations for different use cases
 CACHE_PRESETS = {
-    "realtime": 10,  # 10 seconds - for live price data
-    "short": 60,  # 1 minute - for frequently updated data
+    "realtime": 3,  # 3 seconds - for live price data (reduced from 10s for faster updates)
+    "short": 30,  # 30 seconds - for frequently updated data
     "medium": 300,  # 5 minutes - for moderate data
     "long": 3600,  # 1 hour - for rarely changing data
     "static": 86400,  # 24 hours - for static/reference data
+    "history": 60,  # 1 minute - for historical data (changes less frequently)
 }

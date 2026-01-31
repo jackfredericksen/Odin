@@ -480,13 +480,35 @@
         <div style="display: flex; align-items: center; gap: 1.5rem;">
             <!-- Coin Selector -->
             <select id="coin-selector" style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; font-size: 0.875rem; font-weight: 600;">
-                <option value="BTC">₿ Bitcoin</option>
-                <option value="ETH">Ξ Ethereum</option>
-                <option value="SOL">◎ Solana</option>
-                <option value="XRP">✕ Ripple</option>
-                <option value="BNB">🔶 BNB</option>
-                <option value="SUI">〜 Sui</option>
-                <option value="HYPE">🚀 Hyperliquid</option>
+                <optgroup label="Cryptocurrencies">
+                    <option value="BTC">₿ Bitcoin</option>
+                    <option value="ETH">Ξ Ethereum</option>
+                    <option value="SOL">◎ Solana</option>
+                    <option value="XRP">✕ Ripple</option>
+                    <option value="BNB">◆ BNB</option>
+                    <option value="SUI">〜 Sui</option>
+                    <option value="HYPE">⚡ Hyperliquid</option>
+                </optgroup>
+                <optgroup label="Precious Metals">
+                    <option value="GOLD">Au Gold</option>
+                    <option value="SILVER">Ag Silver</option>
+                    <option value="PLATINUM">Pt Platinum</option>
+                    <option value="PALLADIUM">Pd Palladium</option>
+                    <option value="COPPER">Cu Copper</option>
+                </optgroup>
+                <optgroup label="Stocks">
+                    <option value="SPY">SPY S&P 500</option>
+                    <option value="QQQ">QQQ Nasdaq</option>
+                    <option value="NVDA">NVDA NVIDIA</option>
+                    <option value="TSLA">TSLA Tesla</option>
+                    <option value="AAPL">AAPL Apple</option>
+                    <option value="MSFT">MSFT Microsoft</option>
+                    <option value="GOOGL">GOOGL Google</option>
+                    <option value="AMZN">AMZN Amazon</option>
+                    <option value="META">META Meta</option>
+                    <option value="COIN">COIN Coinbase</option>
+                    <option value="MSTR">MSTR MicroStrategy</option>
+                </optgroup>
             </select>
             <button id="theme-toggle" style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem;">
                 <span id="theme-icon">🌙</span>

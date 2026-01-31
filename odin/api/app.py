@@ -3,6 +3,7 @@ Odin Bitcoin Analysis Dashboard - FastAPI Application (Enhanced Dashboard Compat
 """
 
 import logging
+import os
 import random
 import time
 from pathlib import Path
@@ -46,14 +47,25 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.debug else None,
     )
 
-    # Add CORS middleware with enhanced configuration
+    # Add CORS middleware with secure configuration
+    # SECURITY: Never use wildcard "*" in production
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8000",
+    ]
+    # In production, add your actual domain(s) via ODIN_CORS_ORIGINS env var
+    extra_origins = os.getenv("ODIN_CORS_ORIGINS", "").split(",")
+    allowed_origins.extend([o.strip() for o in extra_origins if o.strip()])
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"] if settings.debug else ["https://yourdomain.com"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$",
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     )
 
     # Custom middleware for dashboard-compatible responses
@@ -634,14 +646,6 @@ def create_app() -> FastAPI:
         logger.info("Successfully imported social routes")
     except ImportError as e:
         logger.warning(f"Could not import social routes: {e}")
-
-    try:
-        from odin.api.routes.journal import router as journal_router
-
-        app.include_router(journal_router, prefix="", tags=["journal"])
-        logger.info("Successfully imported journal routes")
-    except ImportError as e:
-        logger.warning(f"Could not import journal routes: {e}")
 
     # Root endpoint - serve dashboard with enhanced compatibility
     @app.get("/", response_class=HTMLResponse)

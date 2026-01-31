@@ -53,11 +53,14 @@ class AnalyticsDashboard {
         this.loadingStates = new Map();
         this.loadingOverlay = null;
 
-        // Coin metadata mapping
+        // Asset metadata mapping (crypto, metals, stocks)
         this.coinMappings = {
+            // Cryptocurrencies
             BTC: {
                 name: "Bitcoin",
                 symbol: "₿",
+                category: "crypto",
+                tradingview: "BINANCE:BTCUSDT",
                 krakenSymbol: "XBTUSD",
                 binanceSymbol: "BTCUSDT",
                 coingeckoId: "bitcoin",
@@ -68,6 +71,8 @@ class AnalyticsDashboard {
             ETH: {
                 name: "Ethereum",
                 symbol: "Ξ",
+                category: "crypto",
+                tradingview: "BINANCE:ETHUSDT",
                 krakenSymbol: "ETHUSD",
                 binanceSymbol: "ETHUSDT",
                 coingeckoId: "ethereum",
@@ -78,6 +83,8 @@ class AnalyticsDashboard {
             SOL: {
                 name: "Solana",
                 symbol: "◎",
+                category: "crypto",
+                tradingview: "BINANCE:SOLUSDT",
                 krakenSymbol: "SOLUSD",
                 binanceSymbol: "SOLUSDT",
                 coingeckoId: "solana",
@@ -88,6 +95,8 @@ class AnalyticsDashboard {
             XRP: {
                 name: "Ripple",
                 symbol: "✕",
+                category: "crypto",
+                tradingview: "BINANCE:XRPUSDT",
                 krakenSymbol: "XRPUSD",
                 binanceSymbol: "XRPUSDT",
                 coingeckoId: "ripple",
@@ -98,6 +107,8 @@ class AnalyticsDashboard {
             BNB: {
                 name: "BNB",
                 symbol: "🔶",
+                category: "crypto",
+                tradingview: "BINANCE:BNBUSDT",
                 krakenSymbol: "BNBUSD",
                 binanceSymbol: "BNBUSDT",
                 coingeckoId: "binancecoin",
@@ -108,6 +119,8 @@ class AnalyticsDashboard {
             SUI: {
                 name: "Sui",
                 symbol: "〜",
+                category: "crypto",
+                tradingview: "BINANCE:SUIUSDT",
                 krakenSymbol: "SUIUSD",
                 binanceSymbol: "SUIUSDT",
                 coingeckoId: "sui",
@@ -118,6 +131,8 @@ class AnalyticsDashboard {
             HYPE: {
                 name: "Hyperliquid",
                 symbol: "🚀",
+                category: "crypto",
+                tradingview: "BYBIT:HYPEUSDT",
                 krakenSymbol: "HYPEUSD",
                 binanceSymbol: "HYPEUSDT",
                 coingeckoId: "hyperliquid",
@@ -125,7 +140,126 @@ class AnalyticsDashboard {
                 circulatingSupply: 1000000000,
                 redditSub: "hyperliquid",
             },
+            // Precious Metals
+            GOLD: {
+                name: "Gold",
+                symbol: "🥇",
+                category: "metal",
+                tradingview: "COMEX:GC1!",
+                unit: "oz",
+            },
+            SILVER: {
+                name: "Silver",
+                symbol: "🥈",
+                category: "metal",
+                tradingview: "COMEX:SI1!",
+                unit: "oz",
+            },
+            PLATINUM: {
+                name: "Platinum",
+                symbol: "⬜",
+                category: "metal",
+                tradingview: "NYMEX:PL1!",
+                unit: "oz",
+            },
+            PALLADIUM: {
+                name: "Palladium",
+                symbol: "🔘",
+                category: "metal",
+                tradingview: "NYMEX:PA1!",
+                unit: "oz",
+            },
+            COPPER: {
+                name: "Copper",
+                symbol: "🟤",
+                category: "metal",
+                tradingview: "COMEX:HG1!",
+                unit: "lb",
+            },
+            // Stocks
+            SPY: {
+                name: "S&P 500 ETF",
+                symbol: "📊",
+                category: "stock",
+                tradingview: "AMEX:SPY",
+                sector: "Index ETF",
+            },
+            QQQ: {
+                name: "Nasdaq 100 ETF",
+                symbol: "📈",
+                category: "stock",
+                tradingview: "NASDAQ:QQQ",
+                sector: "Index ETF",
+            },
+            AAPL: {
+                name: "Apple",
+                symbol: "🍎",
+                category: "stock",
+                tradingview: "NASDAQ:AAPL",
+                sector: "Technology",
+            },
+            MSFT: {
+                name: "Microsoft",
+                symbol: "🪟",
+                category: "stock",
+                tradingview: "NASDAQ:MSFT",
+                sector: "Technology",
+            },
+            GOOGL: {
+                name: "Alphabet",
+                symbol: "🔍",
+                category: "stock",
+                tradingview: "NASDAQ:GOOGL",
+                sector: "Technology",
+            },
+            AMZN: {
+                name: "Amazon",
+                symbol: "📦",
+                category: "stock",
+                tradingview: "NASDAQ:AMZN",
+                sector: "Consumer",
+            },
+            NVDA: {
+                name: "NVIDIA",
+                symbol: "🎮",
+                category: "stock",
+                tradingview: "NASDAQ:NVDA",
+                sector: "Technology",
+            },
+            TSLA: {
+                name: "Tesla",
+                symbol: "🚗",
+                category: "stock",
+                tradingview: "NASDAQ:TSLA",
+                sector: "Automotive",
+            },
+            META: {
+                name: "Meta",
+                symbol: "👓",
+                category: "stock",
+                tradingview: "NASDAQ:META",
+                sector: "Technology",
+            },
+            COIN: {
+                name: "Coinbase",
+                symbol: "🪙",
+                category: "stock",
+                tradingview: "NASDAQ:COIN",
+                sector: "Crypto",
+            },
+            MSTR: {
+                name: "MicroStrategy",
+                symbol: "📉",
+                category: "stock",
+                tradingview: "NASDAQ:MSTR",
+                sector: "Crypto",
+            },
         };
+
+        // WebSocket connection for real-time updates
+        this.ws = null;
+        this.wsReconnectAttempts = 0;
+        this.maxWsReconnectAttempts = 5;
 
         // Define handleCoinChange in constructor so global listener can use it immediately
         this.handleCoinChange = async (newCoin) => {
@@ -147,32 +281,37 @@ class AnalyticsDashboard {
             this.priceHistory = [];
             this.currentPrice = 0;
 
-            // Update UI
+            // Update UI immediately
             this.updateCoinName();
+
+            // Send WebSocket switch message for instant price update
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                console.log('Sending WebSocket switch_symbol for', newCoin);
+                this.ws.send(JSON.stringify({
+                    type: 'switch_symbol',
+                    symbol: newCoin
+                }));
+            }
 
             // Update TradingView chart if available
             if (window.tradingViewWidget) {
                 console.log('Updating TradingView chart to', newCoin);
                 window.tradingViewWidget.updateChart(newCoin, this.selectedTimeframe || 24);
             }
-            
-            // Reload all data for the new coin
-            console.log('Loading all data for', newCoin);
-            await this.loadAllData();
 
-            // Reinitialize charts
+            // Load current price AND history in parallel for faster display
+            console.log('Loading price data for', newCoin);
+            await Promise.all([
+                this.loadBitcoinPrice(),  // Updates price display immediately
+                this.loadPriceHistory(),   // Needed for charts
+            ]);
+
+            // Reinitialize charts with new data
             console.log('Reinitializing charts...');
             this.initializeCharts();
 
-            // Recalculate derived metrics
-            console.log('Recalculating metrics...');
-            await this.calculateSupportResistance();
-            await this.calculateFibonacci();
-            await this.loadCorrelationMatrix();
-            await this.detectPatterns();
-
-            // Restart auto-update
-            this.startAutoUpdate();
+            // Load other data in background (non-blocking)
+            this.loadRemainingDataInBackground();
 
             console.log('*** COIN SWITCH COMPLETE ***');
             console.log('Switched to:', this.getCoinInfo().name);
@@ -189,6 +328,9 @@ class AnalyticsDashboard {
         this.setupThemeToggle();
         this.setupCoinSelector();
         this.setupTimeframeButtons();
+
+        // Initialize WebSocket for real-time updates
+        this.initWebSocket();
 
         // Check if there was a pending coin switch from before dashboard loaded
         if (window.pendingCoinSwitch) {
@@ -214,6 +356,158 @@ class AnalyticsDashboard {
         console.log("✅ Dashboard initialized with real data feeds");
     }
 
+    initWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+        console.log('🔌 Connecting to WebSocket:', wsUrl);
+
+        try {
+            this.ws = new WebSocket(wsUrl);
+
+            this.ws.onopen = () => {
+                console.log('✅ WebSocket connected');
+                this.wsReconnectAttempts = 0;
+
+                // Subscribe to current coin
+                this.ws.send(JSON.stringify({
+                    type: 'switch_symbol',
+                    symbol: this.selectedCoin
+                }));
+            };
+
+            this.ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    this.handleWebSocketMessage(message);
+                } catch (e) {
+                    console.error('Error parsing WebSocket message:', e);
+                }
+            };
+
+            this.ws.onclose = (event) => {
+                console.log('🔌 WebSocket closed:', event.code);
+                this.scheduleWebSocketReconnect();
+            };
+
+            this.ws.onerror = (error) => {
+                console.error('❌ WebSocket error:', error);
+            };
+        } catch (error) {
+            console.error('Failed to create WebSocket:', error);
+            this.scheduleWebSocketReconnect();
+        }
+    }
+
+    scheduleWebSocketReconnect() {
+        if (this.wsReconnectAttempts >= this.maxWsReconnectAttempts) {
+            console.warn('Max WebSocket reconnect attempts reached');
+            return;
+        }
+
+        this.wsReconnectAttempts++;
+        const delay = Math.min(1000 * Math.pow(2, this.wsReconnectAttempts), 30000);
+        console.log(`Reconnecting WebSocket in ${delay}ms (attempt ${this.wsReconnectAttempts})`);
+
+        setTimeout(() => this.initWebSocket(), delay);
+    }
+
+    handleWebSocketMessage(message) {
+        if (message.type === 'price_update' && message.data) {
+            const data = message.data;
+            const symbol = message.symbol || data.symbol || '';
+            const streamType = message.stream_type || 'ticker';
+
+            // Only update if this is for our selected coin
+            if (symbol.toUpperCase() === this.selectedCoin ||
+                symbol.toUpperCase().startsWith(this.selectedCoin)) {
+
+                // Handle ticker updates (price data)
+                if (streamType === 'ticker' && data.price) {
+                    console.log('📈 Direct stream price:', this.selectedCoin, '$' + data.price);
+
+                    // Update current price immediately
+                    this.currentPrice = data.price;
+
+                    // Update price display with exchange data format
+                    this.updatePriceDisplay({
+                        price: data.price,
+                        change_24h: data.change_24h,
+                        high_24h: data.high_24h,
+                        low_24h: data.low_24h,
+                        volume_24h: data.volume_24h || data.quote_volume,
+                        bid: data.bid,
+                        ask: data.ask,
+                    });
+
+                    // Add to price history for charts
+                    if (this.priceHistory.length > 0) {
+                        const now = Math.floor(Date.now() / 1000);
+                        this.priceHistory.push({
+                            timestamp: now,
+                            price: data.price,
+                            high: data.high_24h || data.price,
+                            low: data.low_24h || data.price,
+                            volume: data.volume_24h || 0
+                        });
+
+                        // Keep history manageable
+                        if (this.priceHistory.length > 500) {
+                            this.priceHistory.shift();
+                        }
+                    }
+                }
+
+                // Handle trade updates (individual trades)
+                if (streamType === 'trade' && data.price) {
+                    // Update last trade indicator
+                    this.lastTrade = {
+                        price: data.price,
+                        quantity: data.quantity,
+                        side: data.side,
+                        time: data.trade_time || Date.now()
+                    };
+                }
+            }
+        } else if (message.type === 'symbol_switched') {
+            console.log('✅ Symbol switched to:', message.symbol,
+                message.cached ? '(from cache - instant!)' : '(waiting for stream)');
+        } else if (message.type === 'connection') {
+            console.log('🔗 Connected:', message.message);
+            if (message.supported_symbols) {
+                console.log('Supported symbols:', message.supported_symbols.join(', '));
+            }
+        } else if (message.type === 'subscribed') {
+            console.log('📊 Subscribed to:', message.symbols);
+        } else if (message.type === 'error') {
+            console.error('❌ WebSocket error:', message.message);
+        }
+    }
+
+    async loadRemainingDataInBackground() {
+        // Load secondary data without blocking UI
+        // Note: loadBitcoinPrice is called directly in handleCoinChange now
+        const backgroundTasks = [
+            this.loadIndicators(),
+            this.loadMarketDepth(),
+            this.loadFundingRate(),
+            this.loadCorrelationMatrix(),
+            this.calculateFibonacci(),
+            this.calculateSupportResistance(),
+            this.detectPatterns(),
+            this.loadVolumeProfile(),
+            this.loadSentimentAnalysis(),
+            this.calculateFearGreedIndex(),
+        ];
+
+        Promise.allSettled(backgroundTasks).then(results => {
+            const failed = results.filter(r => r.status === 'rejected').length;
+            if (failed > 0) {
+                console.warn(`${failed} background tasks failed`);
+            }
+        });
+    }
+
     startClock() {
         const updateClock = () => {
             const now = new Date();
@@ -224,10 +518,14 @@ class AnalyticsDashboard {
                 minute: "2-digit",
                 second: "2-digit",
             });
-            document.getElementById("current-time").textContent = timeString;
+            const timeEl = document.getElementById("current-time");
+            if (timeEl) {
+                timeEl.textContent = timeString;
+            }
         };
         updateClock();
-        setInterval(updateClock, 1000);
+        // Track the clock interval to allow cleanup
+        this.clockInterval = setInterval(updateClock, 1000);
     }
 
     async loadAllData() {
@@ -3095,7 +3393,24 @@ calculateAllIndicators(prices) {
         }));
     }
 
+    /**
+     * Stop all auto-update intervals to prevent memory leaks
+     */
+    stopAutoUpdate() {
+        console.log("⏹️ Stopping auto-update intervals");
+        // Clear all tracked intervals
+        if (this.intervals && this.intervals.length > 0) {
+            this.intervals.forEach((intervalId) => {
+                clearInterval(intervalId);
+            });
+            this.intervals = [];
+        }
+    }
+
     startAutoUpdate() {
+        // IMPORTANT: Clear existing intervals first to prevent memory leaks
+        this.stopAutoUpdate();
+
         console.log("🔄 Starting auto-update (30s interval)");
 
         // Update price and indicators every 30 seconds
@@ -3120,6 +3435,28 @@ calculateAllIndicators(prices) {
                 this.loadNews();
             }, 300000),
         );
+    }
+
+    /**
+     * Cleanup all resources when dashboard is destroyed
+     * Call this when navigating away from the dashboard
+     */
+    destroy() {
+        console.log("🧹 Cleaning up dashboard resources");
+        this.stopAutoUpdate();
+        if (this.clockInterval) {
+            clearInterval(this.clockInterval);
+            this.clockInterval = null;
+        }
+        // Clear any chart instances
+        if (this.charts) {
+            Object.values(this.charts).forEach((chart) => {
+                if (chart && typeof chart.destroy === "function") {
+                    chart.destroy();
+                }
+            });
+            this.charts = {};
+        }
     }
 
     // ========== CME GAP TRACKER ==========
@@ -3251,4 +3588,25 @@ calculateAllIndicators(prices) {
 document.addEventListener("DOMContentLoaded", () => {
     console.log("🌐 DOM loaded, initializing dashboard...");
     window.dashboard = new AnalyticsDashboard();
+
+    // Listen for section changes to cleanup resources when navigating away
+    document.addEventListener("section-changed", (e) => {
+        const section = e.detail?.section;
+        if (section !== "market" && window.dashboard) {
+            // Stop auto-updates when leaving market section
+            console.log("📤 Leaving market section, pausing updates");
+            window.dashboard.stopAutoUpdate();
+        } else if (section === "market" && window.dashboard) {
+            // Resume auto-updates when returning to market section
+            console.log("📥 Entering market section, resuming updates");
+            window.dashboard.startAutoUpdate();
+        }
+    });
+
+    // Cleanup on page unload to prevent memory leaks
+    window.addEventListener("beforeunload", () => {
+        if (window.dashboard) {
+            window.dashboard.destroy();
+        }
+    });
 });

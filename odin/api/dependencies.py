@@ -79,18 +79,28 @@ def get_macd_strategy() -> MACDStrategy:
 
 def get_strategy_by_name(strategy_name: str):
     """
-    Get strategy by name dependency
+    Get strategy by name dependency.
+
+    Args:
+        strategy_name: Name or alias of the strategy to retrieve
+
+    Returns:
+        Strategy instance
+
+    Raises:
+        HTTPException: If strategy name is not found
     """
     strategies = {
+        # Primary names
         "ma": ma_strategy,
         "moving_average": ma_strategy,
         "rsi": rsi_strategy,
         "bb": bb_strategy,
         "bollinger_bands": bb_strategy,
         "macd": macd_strategy,
+        # Aliases for backward compatibility
         "ma_cross": ma_strategy,
         "rsi_momentum": rsi_strategy,
-        "bollinger_bands": bb_strategy,
         "macd_trend": macd_strategy,
     }
 

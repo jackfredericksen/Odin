@@ -10,15 +10,51 @@ class TradingViewWidget {
         this.currentSymbol = 'BTCUSD';
         this.currentInterval = '60'; // 1 hour default
         
-        //  Symbol mappings for TradingView
+        // Symbol mappings for TradingView - Cryptocurrencies, Metals, and Stocks
         this.symbolMappings = {
+            // Cryptocurrencies
             'BTC': 'BINANCE:BTCUSDT',
             'ETH': 'BINANCE:ETHUSDT',
             'SOL': 'BINANCE:SOLUSDT',
             'XRP': 'BINANCE:XRPUSDT',
             'BNB': 'BINANCE:BNBUSDT',
             'SUI': 'BINANCE:SUIUSDT',
-            'HYPE': 'HYPERLIQUID:HYPEUSDT' // Fallback to similar
+            'HYPE': 'HYPERLIQUID:HYPEUSDT',
+
+            // Precious Metals (COMEX Futures)
+            'GOLD': 'COMEX:GC1!',
+            'SILVER': 'COMEX:SI1!',
+            'PLATINUM': 'NYMEX:PL1!',
+            'PALLADIUM': 'NYMEX:PA1!',
+            'COPPER': 'COMEX:HG1!',
+
+            // Stocks - Index ETFs
+            'SPY': 'AMEX:SPY',
+            'QQQ': 'NASDAQ:QQQ',
+
+            // Stocks - Tech
+            'AAPL': 'NASDAQ:AAPL',
+            'MSFT': 'NASDAQ:MSFT',
+            'GOOGL': 'NASDAQ:GOOGL',
+            'AMZN': 'NASDAQ:AMZN',
+            'NVDA': 'NASDAQ:NVDA',
+            'TSLA': 'NASDAQ:TSLA',
+            'META': 'NASDAQ:META',
+
+            // Stocks - Crypto-related
+            'COIN': 'NASDAQ:COIN',
+            'MSTR': 'NASDAQ:MSTR'
+        };
+
+        // Asset category for different display behavior
+        this.assetCategories = {
+            'BTC': 'crypto', 'ETH': 'crypto', 'SOL': 'crypto', 'XRP': 'crypto',
+            'BNB': 'crypto', 'SUI': 'crypto', 'HYPE': 'crypto',
+            'GOLD': 'metal', 'SILVER': 'metal', 'PLATINUM': 'metal',
+            'PALLADIUM': 'metal', 'COPPER': 'metal',
+            'SPY': 'stock', 'QQQ': 'stock', 'AAPL': 'stock', 'MSFT': 'stock',
+            'GOOGL': 'stock', 'AMZN': 'stock', 'NVDA': 'stock', 'TSLA': 'stock',
+            'META': 'stock', 'COIN': 'stock', 'MSTR': 'stock'
         };
         
         // Timeframe mappings (hours to TradingView intervals)
@@ -100,13 +136,28 @@ class TradingViewWidget {
     }
 
     /**
-     * Switch to different coin
+     * Get asset category (crypto, metal, stock)
      */
-    switchCoin(symbol) {
-        console.log(`🔄 Switching TradingView chart to ${symbol}`);
+    getAssetCategory(symbol) {
+        return this.assetCategories[symbol] || 'crypto';
+    }
+
+    /**
+     * Switch to different asset (crypto, metal, or stock)
+     */
+    switchAsset(symbol) {
+        const category = this.getAssetCategory(symbol);
+        console.log(`🔄 Switching TradingView chart to ${symbol} (${category})`);
         // Get current timeframe from dashboard if available
         const timeframe = window.dashboard ? window.dashboard.selectedTimeframe : 24;
         this.updateChart(symbol, timeframe);
+    }
+
+    /**
+     * Switch to different coin (backwards compatibility alias)
+     */
+    switchCoin(symbol) {
+        this.switchAsset(symbol);
     }
 
     /**

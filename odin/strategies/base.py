@@ -31,6 +31,7 @@ class StrategyType(Enum):
     VOLATILITY = "volatility"
     MOMENTUM = "momentum"
     ARBITRAGE = "arbitrage"
+    SWING = "swing"
 
 
 @dataclass

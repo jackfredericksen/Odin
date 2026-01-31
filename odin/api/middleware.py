@@ -1,12 +1,13 @@
 # odin/api/middleware.py
 """
 Custom middleware for Odin API
-Includes security headers, rate limiting, and request logging
+Includes security headers, rate limiting, request logging, and observability
 Compatible with Python 3.8+
 """
 
 import logging
 import time
+import uuid
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 from fastapi import Request, Response
@@ -15,6 +16,42 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
 logger = logging.getLogger(__name__)
+
+# Correlation ID header name
+CORRELATION_ID_HEADER = "X-Correlation-ID"
+
+
+class CorrelationIdMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to handle correlation IDs for request tracing.
+
+    Extracts or generates a correlation ID for each request and propagates
+    it through the request lifecycle and response headers.
+    """
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Extract correlation ID from header or generate a new one
+        correlation_id = request.headers.get(CORRELATION_ID_HEADER)
+        if not correlation_id:
+            correlation_id = str(uuid.uuid4())[:8]
+
+        # Store in request state for access in route handlers
+        request.state.correlation_id = correlation_id
+
+        # Set correlation ID in logging context if available
+        try:
+            from odin.utils.logging import set_correlation_id
+            set_correlation_id(correlation_id)
+        except ImportError:
+            pass
+
+        # Process request
+        response = await call_next(request)
+
+        # Add correlation ID to response headers
+        response.headers[CORRELATION_ID_HEADER] = correlation_id
+
+        return response
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

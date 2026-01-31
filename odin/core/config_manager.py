@@ -143,7 +143,15 @@ class LoggingConfig:
 class SecurityConfig:
     """Security configuration."""
 
-    secret_key: str = "odin-secret-key-change-in-production"
+    # SECURITY: Secret key MUST be set via ODIN_SECRET_KEY environment variable
+    # No default value to prevent accidental use of weak keys in production
+    secret_key: str = field(
+        default_factory=lambda: os.getenv(
+            "ODIN_SECRET_KEY",
+            # Only use fallback in development - will log warning
+            "dev-only-change-in-production-" + os.urandom(16).hex()
+        )
+    )
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440  # 24 hours
     password_min_length: int = 8

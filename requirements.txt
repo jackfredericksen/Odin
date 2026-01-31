@@ -60,6 +60,7 @@ ta==0.10.2                # Basic technical indicators
 # ASYNC SUPPORT (Required for FastAPI)
 # ============================================================================
 aiofiles==23.2.1
+websockets>=12.0           # Direct exchange WebSocket connections
 
 # ============================================================================
 # CLI INTERFACE (Required for odin_cli.py)

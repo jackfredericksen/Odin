@@ -52,7 +52,7 @@ jobs:
     - name: Run tests with coverage
       if: matrix.python-version == '3.11'
       run: |
-        pytest tests/ --cov=odin --cov-report=xml --cov-report=term-missing
+        pytest tests/ --cov=odin --cov-report=xml --cov-report=term-missing --cov-fail-under=50
         
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.11'
@@ -83,7 +83,7 @@ jobs:
     - name: Lint with flake8
       run: |
         flake8 odin/ --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=__pycache__
-      continue-on-error: true
+      continue-on-error: false
         
     - name: Check formatting with black
       run: |

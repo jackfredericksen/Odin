@@ -141,6 +141,13 @@ class DatabaseManager:
                 cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_portfolio_timestamp ON portfolio_snapshots(timestamp DESC)"
                 )
+                # Composite index for efficient strategy+time queries
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_trades_strategy_timestamp ON trades(strategy_id, timestamp DESC)"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_signals_strategy_timestamp ON strategy_signals(strategy_id, timestamp DESC)"
+                )
 
                 conn.commit()
                 logger.info("Database initialized successfully")

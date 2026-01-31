@@ -23,72 +23,229 @@ from odin.utils.logging import (
 logger = get_logger(__name__)
 router = APIRouter()
 
-# Coin symbol mappings for different exchanges
+# =============================================================================
+# ASSET MAPPINGS - Crypto, Precious Metals, and Stocks
+# =============================================================================
+
+# Cryptocurrency mappings
 COIN_MAPPINGS = {
     "BTC": {
         "name": "Bitcoin",
+        "category": "crypto",
         "kraken": "XBTUSD",
         "binance": "BTCUSDT",
         "coingecko": "bitcoin",
         "coinbase": "BTC-USD",
         "hyperliquid": "BTC",
+        "tradingview": "BINANCE:BTCUSDT",
         "circulating_supply": 19700000,
     },
     "ETH": {
         "name": "Ethereum",
+        "category": "crypto",
         "kraken": "ETHUSD",
         "binance": "ETHUSDT",
         "coingecko": "ethereum",
         "coinbase": "ETH-USD",
         "hyperliquid": "ETH",
+        "tradingview": "BINANCE:ETHUSDT",
         "circulating_supply": 120000000,
     },
     "SOL": {
         "name": "Solana",
+        "category": "crypto",
         "kraken": "SOLUSD",
         "binance": "SOLUSDT",
         "coingecko": "solana",
         "coinbase": "SOL-USD",
         "hyperliquid": "SOL",
+        "tradingview": "BINANCE:SOLUSDT",
         "circulating_supply": 580000000,
     },
     "XRP": {
         "name": "Ripple",
+        "category": "crypto",
         "kraken": "XRPUSD",
         "binance": "XRPUSDT",
         "coingecko": "ripple",
         "coinbase": "XRP-USD",
         "hyperliquid": "XRP",
+        "tradingview": "BINANCE:XRPUSDT",
         "circulating_supply": 57000000000,
     },
     "BNB": {
         "name": "BNB",
+        "category": "crypto",
         "kraken": "BNBUSD",
         "binance": "BNBUSDT",
         "coingecko": "binancecoin",
         "coinbase": "BNB-USD",
         "hyperliquid": "BNB",
+        "tradingview": "BINANCE:BNBUSDT",
         "circulating_supply": 144000000,
     },
     "SUI": {
         "name": "Sui",
+        "category": "crypto",
         "kraken": "SUIUSD",
         "binance": "SUIUSDT",
         "coingecko": "sui",
         "coinbase": "SUI-USD",
         "hyperliquid": "SUI",
+        "tradingview": "BINANCE:SUIUSDT",
         "circulating_supply": 2700000000,
     },
     "HYPE": {
         "name": "Hyperliquid",
+        "category": "crypto",
         "kraken": "HYPEUSD",
         "binance": "HYPEUSDT",
         "coingecko": "hyperliquid",
         "coinbase": "HYPE-USD",
         "hyperliquid": "HYPE",
+        "tradingview": "BYBIT:HYPEUSDT",
         "circulating_supply": 1000000000,
     },
 }
+
+# Precious Metals mappings (Yahoo Finance symbols)
+METALS_MAPPINGS = {
+    "GOLD": {
+        "name": "Gold",
+        "category": "metal",
+        "yahoo": "GC=F",
+        "tradingview": "COMEX:GC1!",
+        "unit": "oz",
+        "currency": "USD",
+    },
+    "SILVER": {
+        "name": "Silver",
+        "category": "metal",
+        "yahoo": "SI=F",
+        "tradingview": "COMEX:SI1!",
+        "unit": "oz",
+        "currency": "USD",
+    },
+    "PLATINUM": {
+        "name": "Platinum",
+        "category": "metal",
+        "yahoo": "PL=F",
+        "tradingview": "NYMEX:PL1!",
+        "unit": "oz",
+        "currency": "USD",
+    },
+    "PALLADIUM": {
+        "name": "Palladium",
+        "category": "metal",
+        "yahoo": "PA=F",
+        "tradingview": "NYMEX:PA1!",
+        "unit": "oz",
+        "currency": "USD",
+    },
+    "COPPER": {
+        "name": "Copper",
+        "category": "metal",
+        "yahoo": "HG=F",
+        "tradingview": "COMEX:HG1!",
+        "unit": "lb",
+        "currency": "USD",
+    },
+}
+
+# Stock mappings (Yahoo Finance symbols)
+STOCKS_MAPPINGS = {
+    "SPY": {
+        "name": "S&P 500 ETF",
+        "category": "stock",
+        "yahoo": "SPY",
+        "tradingview": "AMEX:SPY",
+        "sector": "Index ETF",
+    },
+    "QQQ": {
+        "name": "Nasdaq 100 ETF",
+        "category": "stock",
+        "yahoo": "QQQ",
+        "tradingview": "NASDAQ:QQQ",
+        "sector": "Index ETF",
+    },
+    "AAPL": {
+        "name": "Apple",
+        "category": "stock",
+        "yahoo": "AAPL",
+        "tradingview": "NASDAQ:AAPL",
+        "sector": "Technology",
+    },
+    "MSFT": {
+        "name": "Microsoft",
+        "category": "stock",
+        "yahoo": "MSFT",
+        "tradingview": "NASDAQ:MSFT",
+        "sector": "Technology",
+    },
+    "GOOGL": {
+        "name": "Alphabet",
+        "category": "stock",
+        "yahoo": "GOOGL",
+        "tradingview": "NASDAQ:GOOGL",
+        "sector": "Technology",
+    },
+    "AMZN": {
+        "name": "Amazon",
+        "category": "stock",
+        "yahoo": "AMZN",
+        "tradingview": "NASDAQ:AMZN",
+        "sector": "Consumer",
+    },
+    "NVDA": {
+        "name": "NVIDIA",
+        "category": "stock",
+        "yahoo": "NVDA",
+        "tradingview": "NASDAQ:NVDA",
+        "sector": "Technology",
+    },
+    "TSLA": {
+        "name": "Tesla",
+        "category": "stock",
+        "yahoo": "TSLA",
+        "tradingview": "NASDAQ:TSLA",
+        "sector": "Automotive",
+    },
+    "META": {
+        "name": "Meta",
+        "category": "stock",
+        "yahoo": "META",
+        "tradingview": "NASDAQ:META",
+        "sector": "Technology",
+    },
+    "COIN": {
+        "name": "Coinbase",
+        "category": "stock",
+        "yahoo": "COIN",
+        "tradingview": "NASDAQ:COIN",
+        "sector": "Crypto",
+    },
+    "MSTR": {
+        "name": "MicroStrategy",
+        "category": "stock",
+        "yahoo": "MSTR",
+        "tradingview": "NASDAQ:MSTR",
+        "sector": "Crypto",
+    },
+}
+
+# Combined asset mappings for unified access
+ALL_ASSETS = {**COIN_MAPPINGS, **METALS_MAPPINGS, **STOCKS_MAPPINGS}
+
+def get_asset_category(symbol: str) -> str:
+    """Get the category of an asset (crypto, metal, stock)"""
+    symbol = symbol.upper()
+    if symbol in COIN_MAPPINGS:
+        return "crypto"
+    elif symbol in METALS_MAPPINGS:
+        return "metal"
+    elif symbol in STOCKS_MAPPINGS:
+        return "stock"
+    return None
 
 
 @cached(ttl=CACHE_PRESETS["realtime"], key_prefix="kraken_price")
@@ -379,17 +536,151 @@ async def fetch_hyperliquid_price(symbol: str = "BTC") -> Dict[str, Any]:
         return None
 
 
+# =============================================================================
+# Yahoo Finance Fetcher for Metals and Stocks
+# =============================================================================
+
+@cached(ttl=CACHE_PRESETS["short"], key_prefix="yahoo_price")
+async def fetch_yahoo_price(symbol: str) -> Dict[str, Any]:
+    """
+    Fetch price data from Yahoo Finance for metals and stocks.
+    Uses the Yahoo Finance v8 quote endpoint.
+    """
+    try:
+        symbol_upper = symbol.upper()
+
+        # Get Yahoo symbol from our mappings
+        yahoo_symbol = None
+        asset_name = None
+        asset_category = None
+
+        if symbol_upper in METALS_MAPPINGS:
+            yahoo_symbol = METALS_MAPPINGS[symbol_upper]["yahoo"]
+            asset_name = METALS_MAPPINGS[symbol_upper]["name"]
+            asset_category = "metal"
+        elif symbol_upper in STOCKS_MAPPINGS:
+            yahoo_symbol = STOCKS_MAPPINGS[symbol_upper]["yahoo"]
+            asset_name = STOCKS_MAPPINGS[symbol_upper]["name"]
+            asset_category = "stock"
+        else:
+            return None
+
+        async with aiohttp.ClientSession() as session:
+            # Yahoo Finance v8 quote API
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_symbol}"
+            params = {
+                "interval": "1d",
+                "range": "5d",
+                "includePrePost": "false"
+            }
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+
+            async with session.get(
+                url,
+                params=params,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+
+                    chart = data.get("chart", {})
+                    result = chart.get("result", [])
+
+                    if not result:
+                        return None
+
+                    quote_data = result[0]
+                    meta = quote_data.get("meta", {})
+                    indicators = quote_data.get("indicators", {})
+                    quote = indicators.get("quote", [{}])[0]
+
+                    # Get current price
+                    price = meta.get("regularMarketPrice", 0)
+                    prev_close = meta.get("previousClose", price)
+                    day_high = meta.get("regularMarketDayHigh", price)
+                    day_low = meta.get("regularMarketDayLow", price)
+                    volume = meta.get("regularMarketVolume", 0)
+
+                    # Calculate change
+                    change_abs = price - prev_close
+                    change_pct = ((price - prev_close) / prev_close * 100) if prev_close > 0 else 0
+
+                    # Get historical highs/lows from quote data
+                    highs = quote.get("high", [])
+                    lows = quote.get("low", [])
+                    high_24h = max(highs) if highs else day_high
+                    low_24h = min(lows) if lows else day_low
+
+                    return {
+                        "price": round(price, 2),
+                        "change_24h": round(change_pct, 2),
+                        "change_24h_abs": round(change_abs, 2),
+                        "high_24h": round(high_24h, 2) if high_24h else round(price, 2),
+                        "low_24h": round(low_24h, 2) if low_24h else round(price, 2),
+                        "volume": volume,
+                        "volume_24h": volume,
+                        "prev_close": round(prev_close, 2),
+                        "timestamp": datetime.now(timezone.utc).timestamp(),
+                        "last_updated": datetime.now(timezone.utc).timestamp(),
+                        "source": "yahoo",
+                        "symbol": symbol_upper,
+                        "name": asset_name,
+                        "category": asset_category,
+                        "currency": "USD",
+                    }
+
+    except Exception as e:
+        logger.error(f"Yahoo Finance API error for {symbol}: {e}")
+        return None
+
+
 @router.get("/current", response_model=Dict[str, Any])
 async def get_current_price(
     symbol: str = Query(
         default="BTC",
-        description="Cryptocurrency symbol (BTC, ETH, SOL, XRP, BNB, SUI, HYPE)",
+        description="Asset symbol (crypto, metal, or stock)",
     )
 ):
-    """Get current cryptocurrency price from REAL APIs (Kraken, Hyperliquid, CoinGecko, Coinbase)."""
+    """Get current price for crypto, precious metals, or stocks."""
     try:
-        # Validate symbol
         symbol = symbol.upper()
+
+        # Determine asset category
+        category = get_asset_category(symbol)
+
+        if category is None:
+            supported_crypto = ", ".join(COIN_MAPPINGS.keys())
+            supported_metals = ", ".join(METALS_MAPPINGS.keys())
+            supported_stocks = ", ".join(STOCKS_MAPPINGS.keys())
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported asset: {symbol}. Supported - Crypto: {supported_crypto} | Metals: {supported_metals} | Stocks: {supported_stocks}",
+            )
+
+        # Handle metals and stocks via Yahoo Finance
+        if category in ("metal", "stock"):
+            asset_config = METALS_MAPPINGS.get(symbol) or STOCKS_MAPPINGS.get(symbol)
+            asset_name = asset_config["name"]
+
+            yahoo_data = await fetch_yahoo_price(symbol)
+            if yahoo_data and yahoo_data.get("price", 0) > 0:
+                return {
+                    "success": True,
+                    "message": f"{asset_name} data retrieved successfully",
+                    "data": yahoo_data,
+                    "error": None,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Unable to fetch {asset_name} data. Market may be closed.",
+                )
+
+        # Handle crypto (existing logic)
         if symbol not in COIN_MAPPINGS:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -473,109 +764,152 @@ async def get_current_price(
 async def get_coin_price(
     symbol: str = Query(
         default="BTC",
-        description="Cryptocurrency symbol (BTC, ETH, SOL, XRP, BNB, SUI, HYPE)",
+        description="Asset symbol (crypto, metal, or stock)",
     )
 ):
-    """Alias for /current endpoint - Get current cryptocurrency price."""
+    """Alias for /current endpoint - Get current asset price."""
     return await get_current_price(symbol=symbol)
+
+
+@router.get("/assets", response_model=Dict[str, Any])
+async def get_available_assets():
+    """Get list of all available assets organized by category."""
+    return {
+        "success": True,
+        "data": {
+            "crypto": {
+                symbol: {
+                    "name": config["name"],
+                    "tradingview": config.get("tradingview", ""),
+                }
+                for symbol, config in COIN_MAPPINGS.items()
+            },
+            "metals": {
+                symbol: {
+                    "name": config["name"],
+                    "tradingview": config.get("tradingview", ""),
+                    "unit": config.get("unit", "oz"),
+                }
+                for symbol, config in METALS_MAPPINGS.items()
+            },
+            "stocks": {
+                symbol: {
+                    "name": config["name"],
+                    "tradingview": config.get("tradingview", ""),
+                    "sector": config.get("sector", ""),
+                }
+                for symbol, config in STOCKS_MAPPINGS.items()
+            },
+        },
+        "counts": {
+            "crypto": len(COIN_MAPPINGS),
+            "metals": len(METALS_MAPPINGS),
+            "stocks": len(STOCKS_MAPPINGS),
+            "total": len(ALL_ASSETS),
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@cached(ttl=CACHE_PRESETS["history"], key_prefix="kraken_history")
+async def fetch_kraken_history(symbol: str, hours: int) -> Dict[str, Any]:
+    """Fetch historical data from Kraken with caching."""
+    coin_config = COIN_MAPPINGS[symbol]
+    kraken_pair = coin_config["kraken"]
+
+    # Determine interval based on hours requested
+    if hours <= 24:
+        interval = 60  # 1 hour candles
+    elif hours <= 168:  # 7 days
+        interval = 240  # 4 hour candles
+    else:
+        interval = 1440  # 1 day candles
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            "https://api.kraken.com/0/public/OHLC",
+            params={"pair": kraken_pair, "interval": interval},
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as response:
+            if response.status != 200:
+                return None
+
+            data = await response.json()
+
+            if data.get("error") and len(data["error"]) > 0:
+                return None
+
+            result = data.get("result", {})
+            ohlc_data = None
+            for key in result.keys():
+                if key != "last":
+                    ohlc_data = result[key]
+                    break
+
+            if not ohlc_data:
+                ohlc_data = []
+
+            # Convert to format expected by frontend
+            history = []
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+            for candle in ohlc_data:
+                timestamp = int(candle[0])
+                candle_time = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
+                if candle_time >= cutoff_time:
+                    history.append({
+                        "timestamp": timestamp,
+                        "price": float(candle[4]),
+                        "open": float(candle[1]),
+                        "high": float(candle[2]),
+                        "low": float(candle[3]),
+                        "volume": float(candle[6]),
+                    })
+
+            return {
+                "history": history,
+                "hours": hours,
+                "interval_minutes": interval,
+                "source": "kraken",
+            }
 
 
 @router.get("/history/{hours}", response_model=Dict[str, Any])
 async def get_price_history(
-    hours: int, symbol: str = Query(default="BTC", description="Cryptocurrency symbol")
+    hours: int,
+    symbol: str = Query(default="BTC", description="Cryptocurrency symbol")
 ):
     """Get historical cryptocurrency price data from Kraken."""
-    # Validate hours
-    if hours < 1 or hours > 720:  # Max 30 days
+    if hours < 1 or hours > 720:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Hours must be between 1 and 720 (30 days)",
         )
 
-    # Validate symbol
     symbol = symbol.upper()
     if symbol not in COIN_MAPPINGS:
+        supported = ", ".join(COIN_MAPPINGS.keys())
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported cryptocurrency: {symbol}. Supported: {', '.join(COIN_MAPPINGS.keys())}",
+            detail=f"Unsupported cryptocurrency: {symbol}. Supported: {supported}",
         )
 
     try:
-        coin_config = COIN_MAPPINGS[symbol]
-        kraken_pair = coin_config["kraken"]
+        data = await fetch_kraken_history(symbol, hours)
+        if data is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Kraken API unavailable",
+            )
 
-        # Determine interval based on hours requested
-        if hours <= 24:
-            interval = 60  # 1 hour candles
-        elif hours <= 168:  # 7 days
-            interval = 240  # 4 hour candles
-        else:
-            interval = 1440  # 1 day candles
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                "https://api.kraken.com/0/public/OHLC",
-                params={"pair": kraken_pair, "interval": interval},
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-
-                    if data.get("error") and len(data["error"]) > 0:
-                        raise HTTPException(
-                            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                            detail=f"Kraken API error: {data['error']}",
-                        )
-
-                    result = data.get("result", {})
-                    # Find the OHLC data - Kraken may prefix with X
-                    ohlc_data = None
-                    for key in result.keys():
-                        if key != "last":  # 'last' is the timestamp, not OHLC data
-                            ohlc_data = result[key]
-                            break
-
-                    if not ohlc_data:
-                        ohlc_data = []
-
-                    # Convert to format expected by frontend
-                    history = []
-                    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-
-                    for candle in ohlc_data:
-                        # Kraken OHLC: [time, open, high, low, close, vwap, volume, count]
-                        timestamp = int(candle[0])
-                        candle_time = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-
-                        if candle_time >= cutoff_time:
-                            history.append(
-                                {
-                                    "timestamp": timestamp,
-                                    "price": float(candle[4]),  # close price
-                                    "open": float(candle[1]),
-                                    "high": float(candle[2]),
-                                    "low": float(candle[3]),
-                                    "volume": float(candle[6]),
-                                }
-                            )
-
-                    return {
-                        "success": True,
-                        "message": f"Retrieved {len(history)} data points",
-                        "data": {
-                            "history": history,
-                            "hours": hours,
-                            "interval_minutes": interval,
-                            "source": "kraken",
-                        },
-                        "error": None,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    }
-
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Kraken API unavailable",
-        )
+        return {
+            "success": True,
+            "message": f"Retrieved {len(data['history'])} data points",
+            "data": data,
+            "error": None,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
     except HTTPException:
         raise

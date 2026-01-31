@@ -26,6 +26,7 @@ from .bollinger_bands import BollingerBandsStrategy
 from .macd import MACDStrategy
 from .moving_average import MovingAverageStrategy
 from .rsi import RSIStrategy
+from .swing_trading import SwingTradingStrategy
 
 # Create alias for backward compatibility
 StrategySignal = SignalType
@@ -39,6 +40,7 @@ __all__ = [
     "RSIStrategy",
     "BollingerBandsStrategy",
     "MACDStrategy",
+    "SwingTradingStrategy",
 ]
 
 # Strategy registry for dynamic strategy loading
@@ -47,6 +49,7 @@ STRATEGY_REGISTRY = {
     "rsi": RSIStrategy,
     "bollinger_bands": BollingerBandsStrategy,
     "macd": MACDStrategy,
+    "swing_trading": SwingTradingStrategy,
 }
 
 

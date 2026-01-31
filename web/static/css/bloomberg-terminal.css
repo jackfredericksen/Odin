@@ -151,6 +151,40 @@
     animation: ticker-flash 0.5s ease;
 }
 
+/* Asset Category Badges */
+.ticker-item.badge-crypto {
+    border-left: 2px solid #f7931a;
+}
+
+.ticker-item.badge-metal {
+    border-left: 2px solid #ffd700;
+}
+
+.ticker-item.badge-stock {
+    border-left: 2px solid #1a73e8;
+}
+
+/* Category indicator dot (optional subtle indicator) */
+.ticker-item::before {
+    content: '';
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+
+.ticker-item.badge-crypto::before {
+    background-color: #f7931a;
+}
+
+.ticker-item.badge-metal::before {
+    background-color: #ffd700;
+}
+
+.ticker-item.badge-stock::before {
+    background-color: #1a73e8;
+}
+
 /* ========== BLOOMBERG 3-PANEL LAYOUT ========== */
 .bloomberg-container {
     display: flex;
